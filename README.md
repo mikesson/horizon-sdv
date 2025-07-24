@@ -2,11 +2,19 @@
 
 Welcome! 
 
-This page provides an introduction to Horizon, a turnkey implementation designed for OEMs and suppliers interested in adopting Google Cloud’s Software-Defined Vehicle (SDV) industry solution. 
+This page provides an introduction to Horizon, a turnkey implementation designed for OEMs and suppliers interested in adopting Google Cloud’s Software-Defined Vehicle (SDV) industry solution.
 
 The program addresses prevalent challenges within the SDV market, including the inefficiencies stemming from complex and inconsistent toolchains, the high scaling costs that impede software development, and a hardware-centric focus that constrains rapid development and innovation.
 
-For consultation regarding initial setup, please contact horizon-sdv@google.com.
+## Getting started
+
+Horizon is intended to be deployed into a project within your Google Cloud tenant. The deployment is done leveraging Terraform and Argo CD.
+
+To deploy Horizon into your project, follow the steps described in the [deployment guide](https://github.com/GoogleCloudPlatform/horizon-sdv/blob/main/docs/deployment_guide.md). 
+
+We would be happy to accept your contributions, for details refer to the [contribution guide](https://github.com/GoogleCloudPlatform/horizon-sdv/blob/main/docs/contributing.md).
+
+For consultation regarding initial setup, specific use case, technology or other themes, please contact horizon-sdv@google.com.
 
 ## Vision
 Platforms enabling efficient software development shouldn’t be differentiating, the product itself should be differentiating.
