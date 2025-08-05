@@ -34,3 +34,21 @@ variable "router_name" {
   description = "Define the router name"
   type        = string
 }
+
+variable "create_network" {
+  description = "A boolean flag to control the creation of a new VPC and subnetwork."
+  type        = bool
+  default     = true
+}
+
+variable "existing_network_name" {
+  description = "The name of the existing VPC network to use when create_network is false."
+  type        = string
+  default     = ""
+}
+
+variable "existing_subnetwork_name" {
+  description = "The name of the existing subnetwork to use when create_network is false."
+  type        = string
+  default     = ""
+}

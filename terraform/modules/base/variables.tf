@@ -30,6 +30,24 @@ variable "sdv_subnetwork" {
   type        = string
 }
 
+variable "sdv_create_network" {
+  description = "A boolean flag to control the creation of a new VPC and subnetwork."
+  type        = bool
+  default     = true
+}
+
+variable "sdv_existing_network_name" {
+  description = "The name of the existing VPC network to use when sdv_create_network is false."
+  type        = string
+  default     = ""
+}
+
+variable "sdv_existing_subnetwork_name" {
+  description = "The name of the existing subnetwork to use when sdv_create_network is false."
+  type        = string
+  default     = ""
+}
+
 variable "sdv_location" {
   description = "Define the default location for the project, should be the same as the region value"
   type        = string

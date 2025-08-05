@@ -16,17 +16,27 @@
 # Configuration file containing outputs for the "sdv-network" module.
 # Outputs can be used by other modules or resources.
 
+output "network_name" {
+  description = "The name of the VPC network."
+  value       = var.create_network ? module.vpc[0].network_name : data.google_compute_network.existing_network[0].name
+}
+
+output "subnetwork_name" {
+  description = "The name of the subnetwork."
+  value       = var.create_network ? module.vpc[0].subnets_names[0] : data.google_compute_subnetwork.existing_subnetwork[0].name
+}
+
 output "vpc_nat_router_name" {
   description = "The name of the created router for NAT."
-  value       = google_compute_router.vpc_nat_router.name
+  value       = var.create_network ? google_compute_router.vpc_nat_router[0].name : null
 }
 
 output "vpc_nat_name" {
   description = "The name of the created NAT."
-  value       = google_compute_router_nat.vpc_nat.name
+  value       = var.create_network ? google_compute_router_nat.vpc_nat[0].name : null
 }
 
 output "vpc_nat_ip_name" {
   description = "The name of the created NAT ip address"
-  value       = google_compute_address.vpc_nat_ip.name
+  value       = var.create_network ? google_compute_address.vpc_nat_ip[0].name : null
 }

@@ -110,3 +110,21 @@ variable "sdv_gcp_cloud_zone" {
   description = "GCP cloud zone"
   type        = string
 }
+
+variable "sdv_create_network" {
+  description = "Set to true to create a new VPC and subnetwork, or false to use existing ones."
+  type        = bool
+  default     = true
+}
+
+variable "sdv_existing_network_name" {
+  description = "The name of the existing VPC network to use. Required if sdv_create_network is false."
+  type        = string
+  default     = ""
+}
+
+variable "sdv_existing_subnetwork_name" {
+  description = "The name of the existing subnetwork to use. Required if sdv_create_network is false."
+  type        = string
+  default     = ""
+}

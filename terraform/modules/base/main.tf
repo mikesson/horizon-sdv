@@ -57,10 +57,13 @@ module "sdv_gcs" {
 module "sdv_network" {
   source = "../sdv-network"
 
-  network     = var.sdv_network
-  subnetwork  = var.sdv_subnetwork
-  region      = var.sdv_region
-  router_name = var.sdv_network_egress_router_name
+  network                  = var.sdv_network
+  subnetwork               = var.sdv_subnetwork
+  region                   = var.sdv_region
+  router_name              = var.sdv_network_egress_router_name
+  create_network           = var.sdv_create_network
+  existing_network_name    = var.sdv_existing_network_name
+  existing_subnetwork_name = var.sdv_existing_subnetwork_name
 }
 
 module "sdv_bastion_host" {
@@ -256,7 +259,7 @@ module "sdv_iam_service_account_user" {
 
 resource "google_compute_firewall" "allow_tcp_22" {
   name    = "cuttflefish-allow-tcp-22"
-  network = var.sdv_network
+  network = module.sdv_network.network_name
 
   allow {
     protocol = "tcp"

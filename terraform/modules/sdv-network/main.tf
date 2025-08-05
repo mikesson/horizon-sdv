@@ -18,9 +18,23 @@
 
 data "google_project" "project" {}
 
+data "google_compute_network" "existing_network" {
+  count   = var.create_network ? 0 : 1
+  name    = var.existing_network_name
+  project = data.google_project.project.project_id
+}
+
+data "google_compute_subnetwork" "existing_subnetwork" {
+  count   = var.create_network ? 0 : 1
+  name    = var.existing_subnetwork_name
+  region  = var.region
+  project = data.google_project.project.project_id
+}
+
 module "vpc" {
   source  = "terraform-google-modules/network/google"
   version = "~> 9.1"
+  count   = var.create_network ? 1 : 0
 
   project_id   = data.google_project.project.project_id
   network_name = var.network
