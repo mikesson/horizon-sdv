@@ -1,4 +1,4 @@
-// Copyright (c) 2025 Accenture, All Rights Reserved.
+// Copyright (c) 2025-2026 Accenture, All Rights Reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -11,6 +11,9 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
+def model = ('${GEMINI_MODEL}' && '${GEMINI_MODEL}' != 'null' && !'${GEMINI_MODEL}'.contains('${')) ? "--model ${'${GEMINI_MODEL}'} " : ""
+
 pipelineJob('Android/Builds/AAOS Builder ABFS') {
   description("""
     <br/><h3 style="margin-bottom: 10px;">Android Build Filesystem Builder</h3>
@@ -23,7 +26,8 @@ pipelineJob('Android/Builds/AAOS Builder ABFS') {
       <li><a href="https://source.android.com/docs/compatibility/cts/development" target="_blank">CTS development</a>, reference <a href="https://source.android.com/docs/compatibility/cts" target="_blank">Compatibility Test Suite</a> and <a href="https://source.android.com/docs/core/tests/tradefed" target="_blank">CTS Trade Federataion</a></a>.</li>
     </ul>
     <p>Users have the ability to retain the ABFS cache and ABFS source mount point in persistent storage, this may improve build times. Simply enable <code>ABFS_CACHED_BUILD</code> and a persistent volume will be created to store the cache and source mount path.</p>
-    <p>For <i>CTS development builds</i>, select a cuttlefish variety of <code>AAOS_LUNCH_TARGET</code> and enable <code>AAOS_BUILD_CTS</code> to build and create <code>android-cts.zip</code> for use in the <i>CTS Execution</i> test job.</p>
+    <p>For <i>CTS development builds</i>, select a cuttlefish variety of <code>AAOS_LUNCH_TARGET</code> and enable <code>AAOS_BUILD_CTS</code> to build and create <code>android-cts.zip</code> for use in the <i>CTS Execution</i> test job.
+    <br/>Note: only the test suite will be built when this option is selected (no other target images will be built).</p>
     <h4 style="margin-bottom: 10px;">Build Outputs</h4>
     <p>Build outputs are stored in a Google Cloud Storage bucket (refer to build artifact for location).</p>
     <h4 style="margin-bottom: 10px;">Viewing Artifacts on Google Cloud</h4>
@@ -36,6 +40,12 @@ crucial for correlating <code>ABFS_VERSION</code> and <code>ABFS_CASFS_VERSION</
     <h4 style="margin-bottom: 10px;">Prerequisites</h4>
     <p>Refer to abfs.md for setting up ABFS for the GCP project.</p>
     <br/><div style="border-top: 1px solid #ccc; width: 100%;"></div><br/>""")
+
+  environmentVariables {
+    env('GEMINI_PREVIEW_FEATURES', ${GEMINI_PREVIEW_FEATURES})
+    env('GEMINI_LOCATION_GLOBAL', ${GEMINI_LOCATION_GLOBAL})
+    env('GEMINI_MODEL', '${GEMINI_MODEL}')
+  }
 
   parameters {
     stringParam {
@@ -58,7 +68,9 @@ crucial for correlating <code>ABFS_VERSION</code> and <code>ABFS_CASFS_VERSION</
       name('AAOS_BUILD_CTS')
       defaultValue(false)
       description('''<p>Build the Android Automotive Compatibility Test Suite.<br/>
-        Only applicable for CF lunch targets, i.e aosp_cf.</p>''')
+        Only applicable for CF lunch targets, i.e aosp_cf.<br/>
+        Note: only the test suite will be built when this option is selected (no other target images will be built).</b>
+        </p>''')
     }
 
     choiceParam {
@@ -69,7 +81,7 @@ crucial for correlating <code>ABFS_VERSION</code> and <code>ABFS_CASFS_VERSION</
 
     booleanParam {
       name('ABFS_CACHED_BUILD')
-      defaultValue(false)
+      defaultValue(true)
       description('''<p>The ABFS cache and source mount path will be stored in a persistent volume for other builds to use.<br>
         Used in conjunction with <code>ABFS_CACHEMAN_TIMEOUT</code> and may improve future build times.</p>''')
     }
@@ -184,6 +196,36 @@ git fetch https://android.googlesource.com/platform/build/soong refs/changes/92/
     }
 
     separator {
+      name('Agentic AI: Configuration (Experimental)')
+      sectionHeader('Agentic AI: Configuration (Experimental)')
+      sectionHeaderStyle("${HEADER_STYLE}")
+      separatorStyle("${SEPARATOR_STYLE}")
+    }
+
+    booleanParam {
+      name('ENABLE_GEMINI_AI_ASSISTANT')
+      defaultValue(true)
+      description('''<p>Enable Gemini AI assistant to provide potential solutions to any build failures.</p>''')
+    }
+
+    stringParam {
+      name('GEMINI_COMMAND_LINE')
+      defaultValue("gemini ${model} --yolo --output-format json")
+      description('''<p>The headless <a href="https://geminicli.com/docs/cli/headless/" target="_blank">gemini cli</a>.</p>
+        <p>Use this to define such things as <a href="https://ai.google.dev/gemini-api/docs/models" target="_blank">Gemini model</a> to use.</p>
+        <p><b>Note:</b> We use <b>stdin</b> to pipe the prompt to gemini-cli and redirect output to json file.</p>''')
+      trim(true)
+    }
+
+    choiceParam {
+      name('GEMINI_AI_EXECUTION_TIMEOUT')
+      description('''
+        <p>Maximum duration allowed for the Gemini assistant to run before automatic termination.</p>
+        <p><i>Note: This safety limit prevents hung processes and optimizes resource usage.</i></p>''')
+      choices(['1', '2', '4', '8'])
+    }
+
+    separator {
       name('Gerrit Changeset Options')
       sectionHeader('Gerrit Changeset Options')
       sectionHeaderStyle("${HEADER_STYLE}")
@@ -195,6 +237,13 @@ git fetch https://android.googlesource.com/platform/build/soong refs/changes/92/
       defaultValue("https://${HORIZON_DOMAIN}/gerrit/android/platform/manifest")
       description('''<p>Gerrit manifest URL for patchset.<br>
         Manifest is required so project can be matched to path within the source tree in order to fetch the change.</p>''')
+      trim(true)
+    }
+
+    stringParam {
+      name('GERRIT_TOPIC')
+      defaultValue('')
+      description('''<p>Optional, define the Gerrit Topic to build multiple changes.</p>''')
       trim(true)
     }
 
@@ -221,8 +270,8 @@ git fetch https://android.googlesource.com/platform/build/soong refs/changes/92/
   }
 
   logRotator {
-    daysToKeep(60)
-    numToKeep(200)
+    daysToKeep(7)
+    numToKeep(50)
   }
 
   definition {
@@ -231,10 +280,10 @@ git fetch https://android.googlesource.com/platform/build/soong refs/changes/92/
       scm {
         git {
           remote {
-            url("${HORIZON_GIT_URL}")
-            credentials('jenkins-git-creds')
+            url("${HORIZON_SCM_URL}")
+            credentials('jenkins-scm-creds')
           }
-          branch("*/${HORIZON_GIT_BRANCH}")
+          branch("*/${HORIZON_SCM_BRANCH}")
         }
       }
       scriptPath('workloads/android/pipelines/builds/aaos_abfs_builder/Jenkinsfile')

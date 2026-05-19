@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# Copyright (c) 2024-2025 Accenture, All Rights Reserved.
+# Copyright (c) 2024-2026 Accenture, All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -37,6 +37,7 @@
 # shellcheck disable=SC1091
 source "$(dirname "${BASH_SOURCE[0]}")"/aaos_environment.sh "$0"
 
+RESULT=0
 # Format STORAGE_PATH as a zero-padded two-digit string (e.g. 7/aaa -> 07/aaa, 7 -> 07)
 # shellcheck disable=SC2329
 function pad_first_number_if_numeric() {
@@ -58,25 +59,31 @@ export STORAGE_BUCKET_DESTINATION=${STORAGE_BUCKET_DESTINATION:-gs://${AAOS_ARTI
 export BUCKET_RELATIVE_DESTINATION="${STORAGE_BUCKET_DESTINATION#gs://}"
 export STORAGE_CLOUD_URL=${STORAGE_CLOUD_URL:-https://console.cloud.google.com/storage/browser/${BUCKET_RELATIVE_DESTINATION}}
 
-export ARTIFACT_LIST="${AAOS_ARTIFACT_LIST[*]}"
-export ARTIFACT_SUMMARY="${ORIG_WORKSPACE}/${AAOS_LUNCH_TARGET}-artifacts.txt"
+ARTIFACT_LIST=$(printf '%s\n' "${AAOS_ARTIFACT_LIST[@]}")
+export ARTIFACT_LIST
+export ARTIFACT_SUMMARY="${AAOS_BUILD_RECORDS_DIR}/${AAOS_LUNCH_TARGET}-artifacts.txt"
 POST_CLEANUP_STRING=""
 export POST_CLEANUP_STRING
 POST_CLEANUP_STRING="$(printf "%s\n" "${POST_STORAGE_COMMANDS[@]}")"
 export ARTIFACT_STORAGE_SOLUTION="${AAOS_ARTIFACT_STORAGE_SOLUTION}"
-export ARTIFACT_STORAGE_SOLUTION_FUNCTION="${AAOS_ARTIFACT_STORAGE_SOLUTION_FUNCTION}"
 export WORKSPACE="${ORIG_WORKSPACE}"
 "${ORIG_WORKSPACE}"/workloads/common/storage/storage.sh
+RESULT="$?"
 
 export STORAGE_LABELS="${STORAGE_LABELS}"
-case "${ARTIFACT_STORAGE_SOLUTION}" in
-    GCS_BUCKET)
-        export URL_PATH="${STORAGE_BUCKET_DESTINATION}/"
-        export KEYVALUE_PAIRS="${STORAGE_LABELS}"
-        "${ORIG_WORKSPACE}"/workloads/common/storage/gcs_utilities.sh ADD_OBJECT_METADATA || true
-        ;;
-    *)
-        echo "Utility to add metadata using $ARTIFACT_STORAGE_SOLUTION not available"
-        ;;
-esac
-exit "$?"
+if [ -n "${STORAGE_LABELS}" ]; then
+    case "${ARTIFACT_STORAGE_SOLUTION}" in
+        GCS_BUCKET)
+            export URL_PATH="${STORAGE_BUCKET_DESTINATION}/"
+            export KEYVALUE_PAIRS="${STORAGE_LABELS}"
+            "${ORIG_WORKSPACE}"/workloads/common/storage/gcs_utilities.sh ADD_OBJECT_METADATA || true
+            RESULT="$?"
+            ;;
+        *)
+            echo "Utility to add metadata using $ARTIFACT_STORAGE_SOLUTION not available"
+            ;;
+    esac
+else
+    echo "STORAGE_LABELS empty, ignoring"
+fi
+exit "${RESULT}"

@@ -40,8 +40,8 @@ pipelineJob('Cloud-Workstations/Workstation-Admin-Operations/Create New Workstat
   ''')
 
   logRotator {
-    daysToKeep(60)
-    numToKeep(200)
+    daysToKeep(7)
+    numToKeep(50)
   }
 
   parameters {
@@ -57,10 +57,10 @@ pipelineJob('Cloud-Workstations/Workstation-Admin-Operations/Create New Workstat
       scm {
         git {
           remote {
-            url("${HORIZON_GIT_URL}")
-            credentials('jenkins-git-creds')
+            url("${HORIZON_SCM_URL}")
+            credentials('jenkins-scm-creds')
           }
-          branch("*/${HORIZON_GIT_BRANCH}")
+          branch("*/${HORIZON_SCM_BRANCH}")
         }
       }
       scriptPath('workloads/cloud-workstations/pipelines/workstation-admin-operations/create-workstation/Jenkinsfile')

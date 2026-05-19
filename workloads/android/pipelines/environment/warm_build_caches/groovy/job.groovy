@@ -56,6 +56,18 @@ pipelineJob('Android/Environment/Warm Build Caches') {
       trim(true)
     }
 
+    choiceParam {
+      name('AAOS_CLEAN')
+      description('''<p>Clean mode for the <b>first</b> warm-cache build stage (<code>Build: aosp_cf_x86_64_auto</code>). Later stages use the same mode if you choose <code>NO_CLEAN</code> or <code>CLEAN_BUILD</code>. If you choose <code>CLEAN_ALL</code>, only the first stage runs it; later stages use <code>CLEAN_BUILD</code> (never <code>CLEAN_ALL</code> after the first).</p>
+        <ul>
+          <li>NO_CLEAN : no clean on any stage</li>
+          <li>CLEAN_BUILD : clean build outputs on every stage</li>
+          <li>CLEAN_ALL : full cache wipe on the <b>first</b> stage only; later stages use CLEAN_BUILD</li>
+        </ul>
+        <b>Warning:</b> Only use CLEAN_BUILD or CLEAN_ALL when necessary.</p>''')
+      choices(['NO_CLEAN', 'CLEAN_BUILD', 'CLEAN_ALL'])
+    }
+
     booleanParam {
       name('ARCHIVE_ARTIFACTS')
       defaultValue(false)
@@ -89,8 +101,8 @@ pipelineJob('Android/Environment/Warm Build Caches') {
   logRotator {
     artifactDaysToKeep(60)
     artifactNumToKeep(100)
-    daysToKeep(60)
-    numToKeep(200)
+    daysToKeep(7)
+    numToKeep(50)
   }
 
   definition {
@@ -99,10 +111,10 @@ pipelineJob('Android/Environment/Warm Build Caches') {
       scm {
         git {
           remote {
-            url("${HORIZON_GIT_URL}")
-            credentials('jenkins-git-creds')
+            url("${HORIZON_SCM_URL}")
+            credentials('jenkins-scm-creds')
           }
-          branch("*/${HORIZON_GIT_BRANCH}")
+          branch("*/${HORIZON_SCM_BRANCH}")
         }
       }
       scriptPath('workloads/android/pipelines/environment/warm_build_caches/Jenkinsfile')

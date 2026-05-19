@@ -17,8 +17,9 @@
 # project ID, region, zone, network etc. Set up service accounts and
 # the required secrets.
 
-# Convert GitHub App private key to PKCS#8 format
+# Convert GitHub App private key to PKCS#8 format (only when using app auth)
 data "external" "pkcs8_converter" {
+
   program = ["bash", "-c", "jq -r .key | openssl pkcs8 -topk8 -inform PEM -outform PEM -nocrypt | jq -Rs '{result: .}'"]
 
   query = {
@@ -104,31 +105,13 @@ module "gerrit_admin_key_subenv" {
   convert_to_openssh = true
 }
 
-# Validate git auth secrets
-resource "terraform_data" "validate_git_auth" {
+# Validate SCM configuration
+resource "terraform_data" "validate_scm_config" {
   lifecycle {
+    # GitHub App requires scm_type = "github"
     precondition {
-      condition     = var.git_auth_method != "pat" || (var.git_auth_method == "pat" && length(var.sdv_git_pat) > 0 && var.sdv_git_pat != "<OPTIONAL>")
-      error_message = "Selected 'pat' auth but 'sdv_git_pat' is empty or invalid."
-    }
-
-    precondition {
-      condition     = var.git_auth_method != "app" || (var.git_auth_method == "app" && length(var.sdv_github_app_id) > 0 && var.sdv_github_app_id != "<OPTIONAL>")
-      error_message = "Selected 'app' auth but 'sdv_github_app_id' is empty or invalid."
-    }
-
-    precondition {
-      condition     = var.git_auth_method != "app" || (var.git_auth_method == "app" && length(var.sdv_github_app_install_id) > 0 && var.sdv_github_app_install_id != "<OPTIONAL>")
-      error_message = "Selected 'app' auth but 'sdv_github_app_install_id' is empty or invalid."
-    }
-
-    precondition {
-      condition = var.git_auth_method != "app" || (
-        var.git_auth_method == "app" &&
-        length(var.sdv_github_app_private_key) > 50 &&
-        !can(regex("paste content here", var.sdv_github_app_private_key))
-      )
-      error_message = "Selected 'app' auth but 'sdv_github_app_private_key' set to default sample. Replace it with your actual private key."
+      condition     = var.scm_auth_method != "app" || (var.scm_auth_method == "app" && var.scm_type == "github")
+      error_message = "GitHub App authentication (scm_auth_method='app') can only be used with scm_type='github'."
     }
   }
 }
@@ -136,9 +119,14 @@ resource "terraform_data" "validate_git_auth" {
 module "base" {
   source = "../modules/base"
 
-  git_repo_owner  = var.sdv_git_repo_owner
-  git_repo_name   = var.sdv_git_repo_name
-  git_auth_method = var.git_auth_method
+  # SCM configuration
+  scm_type        = var.scm_type
+  scm_auth_method = var.scm_auth_method
+  scm_repo_url    = var.scm_repo_url
+  scm_repo_branch = var.scm_repo_branch
+  scm_repo_owner  = local.scm_repo_owner
+  scm_repo_name   = local.scm_repo_name
+  scm_username    = var.scm_username
 
   # The project is used by provider.tf to define the GCP project
   sdv_project  = var.sdv_gcp_project_id
@@ -171,6 +159,7 @@ module "base" {
     "networkconnectivity.googleapis.com",
     "networkmanagement.googleapis.com",
     "integrations.googleapis.com",
+    "aiplatform.googleapis.com",
     "storage.googleapis.com",
     "workstations.googleapis.com",
     "spanner.googleapis.com",
@@ -193,12 +182,15 @@ module "base" {
   sdv_openbsw_build_node_pool_machine_type   = "c2d-highcpu-8"
   sdv_openbsw_build_node_pool_max_node_count = 20
 
+  # Gemini AI Assistant Jenkins job / Vertex workloads: 32 CPU / 96Gi limits; n2-standard-32 allocatable CPU is often < 32 cores after kube-reserved, so n2-standard-48 fits reliably.
+  sdv_utility_node_pool_machine_type   = "n2-standard-48"
+  sdv_utility_node_pool_max_node_count = 10
+
   sdv_abfs_build_node_pool_version = var.sdv_abfs_build_node_pool_version
   sdv_cluster_version              = var.sdv_cluster_version
 
   env_name                = var.sdv_env_name
   domain_name             = var.sdv_root_domain
-  git_repo_branch         = var.sdv_git_repo_branch
   gcp_backend_bucket_name = var.sdv_gcp_backend_bucket
 
   sdv_network_egress_router_name = "sdv-egress-internet"
@@ -214,11 +206,13 @@ module "base" {
   sdv_sub_environments       = nonsensitive(keys(var.sdv_sub_env_configs))
   sdv_sub_env_branches = {
     for env, config in var.sdv_sub_env_configs :
-    nonsensitive(env) => coalesce(config.branch, var.sdv_git_repo_branch)
+    nonsensitive(env) => coalesce(config.branch, var.scm_repo_branch)
   }
 
   #
   # To create a new SA with access from GKE to GC, add a new saN block.
+  # external-dns-sa (sa12) is only provisioned when dynamic DNS is used
+  # (sdv_dns_use_static_a_records = false); with static A records external-dns is not deployed.
   #
   sdv_wi_service_accounts = merge(
     {
@@ -253,7 +247,8 @@ module "base" {
           "roles/logging.admin",
           "roles/editor",
           "roles/iam.serviceAccountAdmin",
-          "roles/resourcemanager.projectIamAdmin"
+          "roles/resourcemanager.projectIamAdmin",
+          "roles/aiplatform.user"
         ])
       },
       sa2 = {
@@ -374,21 +369,6 @@ module "base" {
         ])
       },
       sa8 = {
-        account_id   = "external-dns-sa"
-        display_name = "external-dns-sa"
-        description  = "external-dns-sa/external-dsn-sa in GKE cluster makes use of this account through WI"
-
-        gke_sas = [
-          {
-            gke_ns = "external-dns"
-            gke_sa = "external-dns-sa"
-          }
-        ]
-        roles = toset([
-          "roles/dns.admin"
-        ])
-      },
-      sa9 = {
         account_id   = "gke-mcp-gateway-sa"
         display_name = "mcp-gateway-registry SA"
         description  = "mcp-gateway-registry/mcp-gateway-registry-sa in GKE cluster makes use of this account through WI"
@@ -403,19 +383,134 @@ module "base" {
           "roles/secretmanager.secretAccessor",
           "roles/iam.serviceAccountTokenCreator",
         ])
+      },
+      sa9 = {
+        account_id   = "gke-argo-workflows-sa"
+        display_name = "Argo Workflows SA"
+        description  = "argo-workflows namespace service accounts use this account through Workload Identity"
+
+        gke_sas = [
+          {
+            gke_ns = "argo-workflows"
+            gke_sa = "argo-workflows-server"
+          },
+          {
+            gke_ns = "workflows"
+            gke_sa = "workflow-executor"
+          },
+          # Horizon API uses this GSA for GCS V4 signed URLs (downloadArtifact); namespace matches gitops (prefix + horizon-api).
+          {
+            gke_ns = "horizon-api"
+            gke_sa = "horizon-api"
+          },
+        ]
+        roles = toset([
+          "roles/storage.objectUser",
+          "roles/secretmanager.secretAccessor",
+          "roles/artifactregistry.reader",
+          "roles/artifactregistry.writer",
+          "roles/iam.serviceAccountTokenCreator",
+        ])
+      },
+      sa10 = {
+        account_id   = "gke-argo-workflows-elevated-sa"
+        display_name = "Argo Workflows Elevated SA"
+        description  = "workflows/workflow-executor-elevated in GKE cluster makes use of this account through WI for migration workloads that need Jenkins-equivalent permissions"
+
+        gke_sas = [
+          {
+            gke_ns = "workflows"
+            gke_sa = "workflow-executor-elevated"
+          }
+        ]
+
+        roles = toset([
+          "roles/storage.objectUser",
+          "roles/artifactregistry.writer",
+          "roles/secretmanager.secretAccessor",
+          "roles/iam.serviceAccountTokenCreator",
+          "roles/container.admin",
+          "roles/iap.tunnelResourceAccessor",
+          "roles/iam.serviceAccountUser",
+          "roles/compute.instanceAdmin.v1",
+          "roles/workstations.admin",
+          "roles/storage.bucketViewer",
+          "roles/spanner.admin",
+          "roles/logging.admin",
+          "roles/editor",
+          "roles/iam.serviceAccountAdmin",
+          "roles/resourcemanager.projectIamAdmin",
+          "roles/aiplatform.user"
+        ])
+      },
+      sa11 = {
+        account_id   = "gke-config-connector-sa"
+        display_name = "Config Connector Service Account"
+        description  = "Service account used by Config Connector to manage GCP resources"
+
+        gke_sas = [
+          {
+            gke_ns = "gcpcc"
+            gke_sa = "default"
+          },
+          {
+            gke_ns = "cnrm-system"
+            gke_sa = "cnrm-controller-manager-gcp"
+          },
+          # Namespaced-mode Config Connector creates one controller ServiceAccount per
+          # ConfigConnectorContext namespace (see gitops configConnectorNamespaces). Each
+          # must impersonate gke-config-connector-sa or PubSubTopic and other CNRM
+          # resources fail with iam.serviceAccounts.getAccessToken / Workload Identity 403.
+          {
+            gke_ns = "cnrm-system"
+            gke_sa = "cnrm-controller-manager-sample-module-hello"
+          },
+          {
+            gke_ns = "cnrm-system"
+            gke_sa = "cnrm-controller-manager-sample-hard-module-hello"
+          },
+          {
+            gke_ns = "cnrm-system"
+            gke_sa = "cnrm-controller-manager-sample-soft-module-hello"
+          }
+        ]
+        roles = toset([
+          "roles/editor",
+          "roles/iam.serviceAccountTokenCreator"
+        ])
       }
     },
-    local.sub_env_service_accounts
+    local.sub_env_service_accounts,
+    var.sdv_dns_use_static_a_records ? {} : {
+      sa12 = {
+        account_id   = "external-dns-sa"
+        display_name = "external-dns-sa"
+        description  = "external-dns-sa/external-dns-sa in GKE cluster makes use of this account through WI"
+
+        gke_sas = [
+          {
+            gke_ns = "external-dns"
+            gke_sa = "external-dns-sa"
+          }
+        ]
+        roles = toset([
+          "roles/dns.admin"
+        ])
+      }
+    }
   )
 
-  #
   # Define the secrets and values and gke access rules
+
   sdv_gcp_secrets_map = merge(
     local.sdv_gcp_common_secrets_map,
-    var.git_auth_method == "app" ? local.sdv_gcp_github_app_secrets_map : local.sdv_gcp_git_pat_secrets_map,
+    var.scm_auth_method == "app" ? local.sdv_gcp_github_app_secrets_map : local.sdv_gcp_userpass_secrets_map,
     local.sub_env_secrets,
     local.sub_env_git_secrets
   )
+
+  #sdv_gcp_secrets_map = local.sdv_gcp_secrets_map
+
 
   sdv_gcp_parameters_map = {
     p1 = {
@@ -454,19 +549,19 @@ module "base" {
       value                = base64encode(var.sdv_gcp_backend_bucket)
     }
     p8 = {
-      parameter_id         = "sdv_git_repo_name"
+      parameter_id         = "scm_repo_name"
       parameter_version_id = "v1"
-      value                = base64encode(var.sdv_git_repo_name)
+      value                = base64encode(local.scm_repo_name)
     }
     p9 = {
-      parameter_id         = "sdv_git_repo_branch"
+      parameter_id         = "scm_repo_branch"
       parameter_version_id = "v1"
-      value                = base64encode(var.sdv_git_repo_branch)
+      value                = base64encode(var.scm_repo_branch)
     }
     p10 = {
       parameter_id         = "sdv_git_auth_method"
       parameter_version_id = "v1"
-      value                = base64encode(var.git_auth_method)
+      value                = base64encode(var.scm_auth_method)
     }
     p11 = {
       parameter_id         = "sdv_sub_environments"
@@ -484,4 +579,6 @@ module "base" {
   sdv_enable_kms_encryption = var.sdv_enable_kms_encryption
   # DNSSEC configuration for Cloud DNS
   sdv_dns_dnssec_enabled = var.sdv_dns_dnssec_enabled
+  # Static A records: no zone delegation, LB cert auth; add A records to parent zone manually
+  sdv_dns_use_static_a_records = var.sdv_dns_use_static_a_records
 }

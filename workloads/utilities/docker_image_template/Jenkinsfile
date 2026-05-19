@@ -1,4 +1,4 @@
-// Copyright (c) 2025 Accenture, All Rights Reserved.
+// Copyright (c) 2025-2026 Accenture, All Rights Reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -35,6 +35,9 @@ pipeline {
     def kubernetesPodTemplate = """
       apiVersion: v1
       kind: Pod
+      metadata:
+        annotations:
+          cluster-autoscaler.kubernetes.io/safe-to-evict: "false"
       spec:
         hostname: utilities-build-pod
         serviceAccountName: ${JENKINS_SERVICE_ACCOUNT}
@@ -54,7 +57,10 @@ pipeline {
 
   stages {
     stage ('Start instance'){
-      agent { kubernetes { yaml kubernetesPodTemplate } }
+      agent { kubernetes {
+        yamlMergeStrategy merge()
+        yaml kubernetesPodTemplate
+      } }
       stages {
         stage ('Docker Credentials'){
           steps {
@@ -89,6 +95,9 @@ pipeline {
                    --opt build-arg:GCLOUD_CLI_VERSION="${GCLOUD_CLI_VERSION}" \
                    --opt build-arg:KUBECTL_VERSION="${KUBECTL_VERSION}" \
                    --opt build-arg:LINUX_DISTRIBUTION=${LINUX_DISTRIBUTION} \
+                   --opt build-arg:ENABLE_GEMINI_AI_ASSISTANT="${ENABLE_GEMINI_AI_ASSISTANT}" \
+                   --opt build-arg:GEMINI_CLI_VERSION="${GEMINI_CLI_VERSION}" \
+                   --opt build-arg:NODEJS_VERSION=${NODEJS_VERSION} \
                    --registry-auth-tlscontext host=${REGISTRY},insecure=true \
                    --output=type=image,name=${DESTINATION}:${IMAGE_TAG},push=${PUSH}
                 '''

@@ -21,7 +21,7 @@ data "google_project" "project" {
 }
 
 module "abfs-uploaders" {
-  source = "git::https://github.com/terraform-google-modules/terraform-google-abfs.git//modules/uploaders?ref=961f5aa3c3be87a242597cbd4bc08821f28a7085"
+  source = "git::https://github.com/terraform-google-modules/terraform-google-abfs.git//modules/uploaders?ref=v0.10.0"
 
   project_id            = var.project_id
   zone                  = var.zone
@@ -34,9 +34,14 @@ module "abfs-uploaders" {
   abfs_gerrit_uploader_datadisk_type             = var.abfs_gerrit_uploader_datadisk_type
   abfs_docker_image_uri                          = var.abfs_docker_image_uri
   abfs_gerrit_uploader_manifest_server           = var.abfs_gerrit_uploader_manifest_server
+  abfs_gerrit_uploader_manifest_scheme           = var.abfs_gerrit_uploader_manifest_scheme
   abfs_gerrit_uploader_git_branch                = var.abfs_gerrit_uploader_git_branch
+  abfs_extra_params                              = var.abfs_extra_params
+  abfs_gerrit_uploader_extra_params              = var.abfs_gerrit_uploader_extra_params
+  abfs_enable_git_lfs                            = var.abfs_enable_git_lfs
   abfs_manifest_project_name                     = var.abfs_manifest_project_name
   abfs_manifest_file                             = var.abfs_manifest_file
+  pre_start_hooks                                = var.pre_start_hooks
   abfs_license                                   = var.abfs_license
   abfs_server_name                               = "abfs-server"
   abfs_gerrit_uploader_allow_stopping_for_update = true

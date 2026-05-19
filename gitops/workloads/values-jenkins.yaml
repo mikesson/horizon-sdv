@@ -16,7 +16,7 @@ config:
   workloads:
     android:
       cuttlefish:
-        tag: "v1350"
+        tag: "v1410"
       mirror:
         workloadEnv:
           image: "horizon-sdv/mirror-workloads/env"
@@ -64,111 +64,113 @@ controller:
     - apache-httpcomponents-client-4-api:4.5.14-269.vfa_2321039a_83
     - asm-api:9.9.1-189.vb_5ef2964da_91
     - authentication-tokens:1.144.v5ff4a_5ec5c33
-    - bootstrap5-api:5.3.8-895.v4d0d8e47fea_d
-    - bouncycastle-api:2.30.1.82-277.v70ca_0b_877184
-    - branch-api:2.1268.v044a_87612da_8
+    - bootstrap5-api:5.3.8-1038.vee76a_fe825ff
+    - bouncycastle-api:2.30.1.84-291.v9f17b_21896e2
+    - branch-api:2.1280.v0d4e5b_b_460ef
     - caffeine-api:3.2.3-194.v31a_b_f7a_b_5a_81
-    - checks-api:373.vfe7645102093
-    - cloudbees-folder:6.1073.va_7888eb_dd514
-    - command-launcher:123.v37cfdc92ef67
+    - checks-api:402.vca_263b_f200e3
+    - cloudbees-folder:6.1100.ve9eed61d16c4
+    - command-launcher:134.v025a_5fcf9dea_
     - commons-lang3-api:3.20.0-109.ve43756e2d2b_4
-    - commons-text-api:1.15.0-210.v7480a_da_70b_9e
-    - configuration-as-code:2006.v001a_2ca_6b_574
-    - credentials-binding:702.vfe613e537e88
-    - credentials:1453.v9b_a_29777a_b_fd
+    - commons-text-api:1.15.0-218.va_61573470393
+    - configuration-as-code:2077.v41f1011a_5110
+    - credentials:1502.v5c95e620ddfe
+    - credentials-binding:720.v3f6decef43ea_
     - display-url-api:2.217.va_6b_de84cc74b_
-    - durable-task:639.vefb_3d8372f6d
-    - echarts-api:6.0.0-1165.vd1283a_3e37d4
-    - eddsa-api:0.3.0.1-19.vc432d923e5ee
-    - font-awesome-api:7.1.0-882.v1dfb_771e3278
-    - git-client:6.4.3
-    - git:5.8.1
+    - durable-task:664.v2b_e7a_dfff66c
+    - echarts-api:6.0.0-1287.vfd24c22a_3d00
+    - eddsa-api:0.3.0.1-29.v67e9a_1c969b_b_
+    - font-awesome-api:7.2.0-990.vf220b_2a_496f9
+    - git-client:6.6.0
+    - git:5.10.1
     - github-api:1.330-492.v3941a_032db_2a_
-    - github:1.45.0
-    - google-oauth-plugin:1.335.ve6de40e2db_18
-    - gson-api:2.13.2-173.va_a_092315913c
+    - github:1.46.0.1
+    - google-oauth-plugin:1.346.v712b_a_e0d1e60
+    - gson-api:2.14.0-201.v8eefe5515533
     - instance-identity:203.v15e81a_1b_7a_38
     - ionicons-api:94.vcc3065403257
-    - jackson2-api:2.20.1-423.v13951f6b_6532
+    - jackson2-api:2.21.2-436.v29efdb_7418ff
     - jakarta-activation-api:2.1.4-1
     - jakarta-mail-api:2.1.5-1
-    - jakarta-xml-bind-api:4.0.6-10.v9b_7e1d1fc40b_
+    - jakarta-xml-bind-api:4.0.6-12.vb_1833c1231d3
     - javax-activation-api:1.2.0-8
     - javax-mail-api:1.6.2-11
-    - jaxb:2.3.9-133.vb_ec76a_73f706
+    - jaxb:2.3.9-143.v5979df3304e6
     - jdk-tool:83.v417146707a_3d
-    - jjwt-api:0.11.5-120.v0268cf544b_89
-    - joda-time-api:2.14.0-149.v1c3ce991d1b_9
-    - jquery3-api:3.7.1-619.vdb_10e002501a_
+    - jjwt-api:0.13.0-141.vd58b_a_9592b_6c
+    - joda-time-api:2.14.2-193.v422b_efce56e0
+    - jquery3-api:3.7.1-687.v68d468e40b_30
     - jsch:0.2.16-95.v3eecb_55fa_b_78
-    - json-api:20250517-173.v596efb_962a_31
-    - json-path-api:2.10.0-202.va_9cc16c1e476
-    - junit:1369.v15da_00283f06
+    - json-api:20251224-185.v0cc18490c62c
+    - json-path-api:3.0.0-218.vcd4dd1355de2
+    - junit:1403.vd9d1413fd205
     - kubernetes-client-api:7.3.1-256.v788a_0b_787114
-    - kubernetes-credentials:206.vde31a_b_0f71a_c
-    - mailer:525.v2458b_d8a_1a_71
+    - kubernetes-credentials:207.v492f58828b_ed
+    - mailer:534.v1b_36f5864073
     - matrix-project:870.v9db_fcfc2f45b_
-    - metrics:4.2.37-489.vb_6db_69b_ce753
+    - metrics:4.2.37-494.v06f9a_939d33a_
     - mina-sshd-api-common:2.16.0-167.va_269f38cc024
     - mina-sshd-api-core:2.16.0-167.va_269f38cc024
-    - oauth-credentials:0.657.v7d8dd90b_0382
-    - okhttp-api:4.12.0-195.vc02552c04ffd
-    - pipeline-build-step:571.v08a_fffd4b_0ce
-    - pipeline-graph-analysis:245.v88f03631a_b_21
-    - pipeline-groovy-lib:787.ve2fef0efdca_6
-    - pipeline-input-step:540.v14b_100d754dd
-    - pipeline-milestone-step:138.v78ca_76831a_43
+    - oauth-credentials:0.660.vce7c108f1f3a_
+    - okhttp-api:5.3.2-200.vedb_720a_cf1f8
+    - pipeline-build-step:584.vdb_a_2cc3a_d07a_
+    - pipeline-graph-analysis:254.v0f63a_a_447dca_
+    - pipeline-groovy-lib:797.v90ea_a_9b_e45a_0
+    - pipeline-input-step:551.vdff487c5998c
+    - pipeline-milestone-step:152.v6e22b_8cfc66c
     - pipeline-model-api:2.2277.v00573e73ddf1
     - pipeline-model-definition:2.2277.v00573e73ddf1
     - pipeline-model-extensions:2.2277.v00573e73ddf1
-    - pipeline-rest-api:2.38
-    - pipeline-stage-step:322.vecffa_99f371c
+    - pipeline-rest-api:2.41
+    - pipeline-stage-step:345.va_96187909426
     - pipeline-stage-tags-metadata:2.2277.v00573e73ddf1
     - plain-credentials:199.v9f8e1f741799
-    - plugin-util-api:6.1192.v30fe6e2837ff
-    - prism-api:1.30.0-630.va_e19d17f83b_0
-    - scm-api:724.v7d839074eb_5c
-    - script-security:1385.v7d2d9ec4d909
-    - snakeyaml-api:2.5-143.v93b_c004f89de
-    - ssh-credentials:361.vb_f6760818e8c
-    - sshd:3.374.v19b_d59ce6610
+    - plugin-util-api:7.1341.v039f146993d9
+    - prism-api:1.30.0-727.vc475481f034d
+    - scm-api:728.vc30dcf7a_0df5
+    - script-security:1402.v94c9ce464861
+    - snakeyaml-api:2.5-149.v72471e9c6371
+    - ssh-credentials:372.va_250881b_08cd
+    - sshd:3.384.vc89b_5e138cf9
     - structs:362.va_b_695ef4fdf9
     - token-macro:477.vd4f0dc3cb_cf1
     - trilead-api:2.284.v1974ea_324382
     - variant:70.va_d9f17f859e0
     - workflow-aggregator:608.v67378e9d3db_1
-    - workflow-api:1384.vdc05a_48f535f
+    - workflow-api:1413.v2ff1a_5e720fa_
     - workflow-basic-steps:1098.v808b_fd7f8cf4
-    - workflow-cps:4238.va_6fb_65c1f699
-    - workflow-durable-task-step:1464.v2d3f5c68f84c
-    - workflow-job:1559.va_a_533730b_ea_d
+    - workflow-cps:4315.va_e456c4e7f4f
+    - workflow-durable-task-step:1475.ved562f6ec8b_3
+    - workflow-job:1571.1580.v18e46842c125
     - workflow-multibranch:821.vc3b_4ea_780798
     - workflow-scm-step:466.va_d69e602552b_
-    - workflow-step-api:710.v3e456cc85233
-    - workflow-support:1010.vb_b_39488a_9841
+    - workflow-step-api:724.v538c2362b_dfb_
+    - workflow-support:1015.v785e5a_b_b_8b_22
   additionalPlugins:
-    - ansicolor:1.0.6
+    - ansicolor:536.v13fa_b_860c267
     - authorize-project:2.0.0
-    - build-blocker-plugin:166.vc82fc20b_a_ed6
-    - build-user-vars-plugin:212.vd6b_e9f6d0cdb_
+    - build-blocker-plugin:175.vc57a_d7dff5b_4
+    - build-user-vars-plugin:214.va_eed2ed849ca_
     - configuration-as-code-groovy:1.1
-    - envinject-api:1.236.v35fd4d7eb_515
-    - envinject:2.926.v69c9b_3896a_96
+    - copyartifact:795.ve8e151429b_27
+    - envinject-api:1.241.vdd714803b_403
+    - envinject:2.941.v351a_20c0a_3ca_
+    - file-parameters:425.v3fa_801681b_5e
     - gerrit-code-review:0.5.0
-    - gerrit-trigger:3.1969.v65d614ec771a_
-    - github-branch-source:1917.v9ee8a_39b_3d0d
-    - google-compute-engine:4.683.v0ce26579a_ee7
-    - google-kubernetes-engine:0.443.vcf71f5903ef3
-    - htmlpublisher:427
-    - job-dsl:1.93
+    - gerrit-trigger:3.1971.v217d381e3a_5a_
+    - github-branch-source:1967.1969.v205fd594c821
+    - google-compute-engine:4.782.v56d37cb_c391c
+    - google-kubernetes-engine:0.456.vb_ea_ee7d94048
+    - htmlpublisher:427.1
+    - job-dsl:3654.vdf58f53e2d15
     - keycloak:2.3.2
-    - kubernetes-credentials-provider:1.299.v610fa_e76761a_
-    - kubernetes:4398.vb_b_33d9e7fe23
-    - mask-passwords:212.v4967a_a_73b_506
-    - parameter-separator:296.v9b_a_90c81160d
-    - pipeline-stage-view:2.38
+    - kubernetes-credentials-provider:1.303.vdfcf47fb_b_fef
+    - kubernetes:4423.vb_59f230b_ce53
+    - mask-passwords:220.v95819055b_265
+    - parameter-separator:334.v1fc0e534c71d
+    - pipeline-stage-view:2.41
     - role-strategy:848.va_a_ea_673cf0b_c
-    - ssh-slaves:3.1085.vc64d040efa_85
+    - ssh-slaves:3.1097.v868116049892
     - startup-trigger-plugin:2.9.4
     - timestamper:1.30
   javaOpts: "-Dcom.cloudbees.workflow.rest.external.JobExt.maxRunsPerJob=50"
@@ -217,10 +219,31 @@ controller:
             - "jenkins.diagnostics.ControllerExecutorsAgents"
             # Disable: Role-Based Naming Strategy not enabled
             - "org.jenkinsci.plugins.rolestrategy.NamingStrategyAdministrativeMonitor"
+            # Disable: CSP Notifications
+            - "jenkins.security.csp.impl.CspRecommendation"
           authorizationStrategy:
             roleBased:
               permissionTemplates:
-                - name: "horizon-jenkins-workload-developers"
+                - name: "administrators"
+                  permissions:
+                    - "Job/Read"
+                    - "Job/Discover"
+                    - "Job/Build"
+                    - "Job/Configure"
+                    - "Job/Delete"
+                    - "Job/Create"
+                    - "Job/Move"
+                    - "Job/Workspace"
+                    - "Job/Cancel"
+                    - "Run/Replay"
+                    - "Run/Delete"
+                    - "Run/Update"
+                    - "Run/Artifacts"
+                    - "View/Read"
+                    - "View/Configure"
+                    - "View/Delete"
+                    - "View/Create"
+                - name: "developers"
                   permissions:
                     - "Job/Read"
                     - "Job/Discover"
@@ -232,58 +255,57 @@ controller:
                     - "Job/Move"
                     - "Job/Workspace"
                     - "Job/Cancel"
-                - name: "horizon-jenkins-workload-users"
+                    - "Run/Replay"
+                - name: "viewers"
                   permissions:
                     - "Job/Read"
                     - "Job/Discover"
-                    - "Job/Build"
                     - "View/Read"
-                    - "Job/Cancel"
               roles:
                 global:
-                  - name: "horizon-jenkins-administrators"
-                    description: "Jenkins administration role for unrestricted access."
+                  - name: "administrators"
+                    description: "Full Jenkins administration (Overall/Administer)."
                     permissions:
                       - "Overall/Administer"
                     entries:
-                      - group: "horizon-jenkins-administrators"
+                      - group: "administrators"
                       # Example user
                       # - user: "john.doe@example.com"
-                  - name: "horizon-jenkins-workloads-developers"
-                    description: "Jenkins workloads developers role for workload usage and configuration."
+                  - name: "developers"
+                    description: "Developer access: run builds on agents, create jobs; workload permissions via item role."
                     permissions:
                       - "Overall/Read"
                       - "Agent/Build"
                       - "Job/Create"
                     entries:
-                      - group: "horizon-jenkins-workloads-developers"
+                      - group: "developers"
                       # Example user
-                      # - user: "john.doe@example.com
-                  - name: "horizon-jenkins-workloads-users"
-                    description: "Jenkins workloads users role with restricted access to workloads."
+                      # - user: "john.doe@example.com"
+                  - name: "viewers"
+                    description: "Read-only UI access; job visibility via item role."
                     permissions:
                       - "Overall/Read"
                     entries:
-                      - group: "horizon-jenkins-workloads-users"
+                      - group: "viewers"
                       # Example user
-                      # - user: "john.doe@example.com
+                      # - user: "john.doe@example.com"
                 items:
-                  - name: "workloads-developers"
-                    description: "Workloads developers item role with unrestricted access."
+                  - name: "developers"
+                    description: "Developer permissions on all jobs (build, configure, workspace, cancel, replay)."
                     pattern: ".*"
-                    templateName: "horizon-jenkins-workload-developers"
+                    templateName: "developers"
                     entries:
-                      - group: "horizon-jenkins-workloads-developers"
+                      - group: "developers"
                       # Example user
-                      # - user: "john.doe@example.com
-                  - name: "workloads-users"
-                    description: "Workloads user item role with restricted access."
+                      # - user: "john.doe@example.com"
+                  - name: "viewers"
+                    description: "View-only access to jobs and views."
                     pattern: ".*"
-                    templateName: "horizon-jenkins-workload-users"
+                    templateName: "viewers"
                     entries:
-                      - group: "horizon-jenkins-workloads-users"
+                      - group: "viewers"
                       # Example user
-                      # - user: "john.doe@example.com
+                      # - user: "john.doe@example.com"
           clouds:
             - computeEngine:
                 cloudName: cuttlefish-vm-main
@@ -434,10 +456,10 @@ controller:
                   value: "jenkins-gerrit-http-password"
                 - key: "HORIZON_DOMAIN"
                   value: {{ .Values.config.domain }}
-                - key: "HORIZON_GIT_URL"
-                  value: {{ .Values.config.workloads.android.url }}
-                - key: "HORIZON_GIT_BRANCH"
-                  value: {{ .Values.config.workloads.android.branch }}
+                - key: "HORIZON_SCM_URL"
+                  value: {{ .Values.scm.repoUrl }}
+                - key: "HORIZON_SCM_BRANCH"
+                  value: {{ .Values.scm.branch }}
                 - key: "ANDROID_BUILD_BUCKET_ROOT_NAME"
                   value: {{ .Values.config.projectID }}-aaos
                 - key: "ANDROID_BUILD_DOCKER_ARTIFACT_PATH_NAME"
@@ -454,6 +476,10 @@ controller:
                   value: {{ .Values.config.projectID }}-openbsw
                 - key: "OPENBSW_BUILD_DOCKER_ARTIFACT_PATH_NAME"
                   value: "horizon-sdv/openbsw-builder"
+                - key: "SAMPLE_BUILD_DOCKER_ARTIFACT_PATH_NAME"
+                  value: "horizon-sdv/sample-horizon-api"
+                - key: "SAMPLE_IMAGE_TAG"
+                  value: "latest"
                 - key: "INFRA_DOCKER_ARTIFACT_PATH_NAME"
                   value: "horizon-sdv/abfs-infra"
                 - key: "ABFS_BUILD_DOCKER_ARTIFACT_PATH_NAME"
@@ -528,10 +554,12 @@ controller:
                     scm {
                       git {
                         remote {
-                          url('{{ .Values.config.workloads.android.url }}')
-                          credentials('jenkins-git-creds')
+                          url('{{ .Values.scm.repoUrl }}')
+                          {{- if ne .Values.scm.authMethod "none" }}
+                          credentials('jenkins-scm-creds')
+                          {{- end }}
                         }
-                        branch('*/{{ .Values.config.workloads.android.branch }}')
+                        branch('*/{{ .Values.scm.branch }}')
                       }
                     }
                     scriptPath('workloads/seed/Jenkinsfile')
@@ -559,9 +587,12 @@ controller:
                       verdictValue: "Code-Review"
                     - verdictDescription: "Verified"
                       verdictValue: "Verified"
+                    - verdictDescription: "Ready for Build"
+                      verdictValue: "Ready-for-Build"
                   gerritAuthKeyFile: "/run/secrets/additional/jenkins-gerrit-ssh-private-key-privateKey"
                   gerritFrontEndUrl: "https://{{ .Values.config.domain }}/gerrit/"
                   gerritHostName: "gerrit-service.{{ .Values.config.namespacePrefix }}gerrit.svc.cluster.local"
+                  gerritSshPort: 29418
                   gerritUserName: "gerrit-admin"
                   useRestApi: false
           timestamper:
@@ -570,18 +601,21 @@ controller:
             elapsedTimeFormat: "'<b>'HH:mm:ss.S'</b> '"
           globalLibraries:
             libraries:
-            - defaultVersion: "{{ .Values.config.workloads.android.branch }}"
+            - defaultVersion: "{{ .Values.scm.branch }}"
               name: "cvd-pipeline-shared-library"
               retriever:
                 modernSCM:
                   libraryPath: "workloads/common/jenkins/shared-libraries/cvd-pipeline-shared-library"
                   scm:
+                    {{- if eq .Values.scm.type "github" }}
                     github:
                       configuredByUrl: true
-                      credentialsId: "jenkins-git-creds"
-                      repoOwner: "{{ .Values.git.repoOwner }}"
-                      repository: "{{ .Values.git.repoName }}"
-                      repositoryUrl: "{{ .Values.config.workloads.android.url }}"
+                      {{- if ne .Values.scm.authMethod "none" }}
+                      credentialsId: "jenkins-scm-creds"
+                      {{- end }}
+                      repositoryUrl: "{{ .Values.scm.repoUrl }}"
+                      repoOwner: "{{ .Values.scm.repoOwner }}"
+                      repository: "{{ .Values.scm.repoName }}"
                       traits:
                       - gitHubBranchDiscovery:
                           strategyId: 3
@@ -590,3 +624,12 @@ controller:
                       - gitHubForkDiscovery:
                           strategyId: 2
                           trust: "gitHubTrustPermissions"
+                    {{- else }}
+                    git:
+                      {{- if ne .Values.scm.authMethod "none" }}
+                      credentialsId: "jenkins-scm-creds"
+                      {{- end }}
+                      remote: "{{ .Values.scm.repoUrl }}"
+                      traits:
+                      - gitBranchDiscovery
+                    {{- end }}

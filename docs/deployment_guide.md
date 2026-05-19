@@ -27,6 +27,7 @@ Horizon SDV is designed to simplify the deployment and management of Android wor
   - [Section #3f - Headlamp Access via Keycloak Groups](#section-3f---headlamp-access-via-keycloak-groups)
   - [Section #3g - Grafana Access via Keycloak Groups](#section-3g---grafana-access-via-keycloak-groups)
   - [Section #3h - MCP Gateway Registry Access via Keycloak Groups](#section-3h---mcp-gateway-registry-access-via-keycloak-groups)
+  - [Section #3i - Enable Workloads Modules in Developer Portal](#section-3i---enable-workloads-modules-in-developer-portal)
 - [Section #4 - Run Cluster Apps](#section-4---run-cluster-apps)
   - [Section #4a - Horizon Landing Page](#section-4a---horizon-landing-page)
   - [Section #4b - Argo CD](#section-4b---argo-cd)
@@ -270,21 +271,27 @@ git clone <REPOSITORY_URL>
   - Environment Metadata
     - `sdv_env_name`: Environment name of Horizon SDV platform of your choice which will also be used as sub-domain name. Preferably set same value as `<SUB_DOMAIN>`.
     - `sdv_root_domain`: Domain name, same value as `<HORIZON_DOMAIN>`.
-  - Git Repository Integration
-    - `sdv_git_repo_name`: Name of your git repository. (example: `horizon-sdv`).
-    - `sdv_git_repo_owner`: Git organization name or user name who owns the repository (example: `GoogleCloudPlatform`).
-    - `sdv_git_repo_branch`: Name of branch from the repository to be used for deployment.
-    - `git_auth_method`: Select the authentication method of your choice. Set `pat` to use a Personal Access Token. Set `app` to use GitHub App credentials (GitHub only).
-      - If PAT
-        - `sdv_git_pat`: [Personal Access Token (Classic)](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens#creating-a-personal-access-token-classic).
-      - If GitHub App (see [Section #5c - Create and Install GitHub Application](#section-5c---create-and-install-github-application))
-        - `sdv_github_app_id`: GitHub App ID from [Section #5c - Create and Install GitHub Application](#section-5c---create-and-install-github-application).
-        - `sdv_github_app_install_id`: 
-           - Navigate to Organization Settings, GitHub Apps and click on "Configure".
-           - Once in the GitHub App configuration page, the `GH_INSTALLATION_ID` is present in the URL of the page as below,
-           - `https://github.com/organizations/<GH-ORG-NAME>/settings/installations/<INSTALLATION_ID>`
-           - Enter the value of `<INSTALLATION_ID>`
-         - `sdv_github_app_private_key`: GitHub App Private key downloaded from [Section #5c - Create and Install GitHub Application](#section-5c---create-and-install-github-application). Paste the content between `-----BEGIN RSA PRIVATE KEY-----` and `-----END RSA PRIVATE KEY-----`.
+  - SCM Configuration (Source Code Management)
+    - `scm_type`: Set to `github` for GitHub or `git` for other Git servers (Gerrit, GitLab, etc.).
+    - `scm_auth_method`: Select authentication method:
+      - `app`: GitHub App authentication (only for GitHub)
+      - `userpass`: Username/Password or token (works with any Git server)
+      - `none`: Public repository (no authentication required)
+    - `scm_repo_url`: Full repository URL (e.g., `https://github.com/owner/repo` or `https://gerrit.example.com/a/project`)
+    - `scm_repo_branch`: Branch name to deploy from
+    - If using `userpass` authentication:
+      - `scm_username`: Username (use `git` for GitHub PAT, actual username for Gerrit/GitLab)
+      - `scm_password`: Password or token (GitHub PAT, Gerrit HTTP password, GitLab token, etc.)
+    - If using `app` authentication (GitHub only):
+      - `sdv_github_app_id`: GitHub App ID from [Section #1c - Create and Install GitHub Application](#section-1c---create-and-install-github-application).
+      - `sdv_github_app_install_id`: 
+         - Navigate to Organization Settings, GitHub Apps and click on "Configure".
+         - Once in the GitHub App configuration page, the `GH_INSTALLATION_ID` is present in the URL of the page as below,
+         - `https://github.com/organizations/<GH-ORG-NAME>/settings/installations/<INSTALLATION_ID>`
+         - Enter the value of `<INSTALLATION_ID>`
+       - `sdv_github_app_private_key`: GitHub App Private key downloaded from [Section #1c - Create and Install GitHub Application](#section-1c---create-and-install-github-application). Paste the content between `-----BEGIN RSA PRIVATE KEY-----` and `-----END RSA PRIVATE KEY-----`.
+    - If using `none` authentication (public repos):
+      - No credentials needed - simply provide the repository URL and branch
   - Required Admin Secrets
     - `sdv_keycloak_admin_password`: Plain text value following the required password rules mentioned above.
     - `sdv_keycloak_horizon_admin_password`: Plain text value following the required password rules mentioned above.
@@ -301,12 +308,16 @@ Steps to start the Terraform workflow.
 
 **Containerized deployment:**
 1. Navigate to `tools/scripts/deployment`
-2. Provisioning can be done by running `./container-deploy.sh` (Requires **Docker** to be installed on the machine).
+2. Provisioning can be done by running `./container-deploy.sh [options]` or (Requires **Docker** to be installed on the machine).
+>**Options :**
+  - `-p, --plan` Preview infrastructure changes without applying them. Example: `./container-deploy.sh -p` or `./container-deploy.sh --plan`
+  - `-a, --apply` Provision or update the infrastructure using Terraform. Example: `./container-deploy.sh -a` or `./container-deploy.sh --apply`
+  - `-d, --destroy` Deprovision all Terraform-managed infrastructure resources. Example: `./container-deploy.sh -d` or `./container-deploy.sh --destroy`
+  - `-h, --help` Display the help message with available commands. Example: `./container-deploy.sh -h` or `./container-deploy.sh --help`
+
 3. The script `./container-deploy.sh` supports [**Google Cloud Shell**](https://docs.cloud.google.com/shell/docs/launching-cloud-shell), Linux or Windows (with [WSL](https://learn.microsoft.com/en-us/windows/wsl/install)).
 
 > [!Note]
-> To deprovision the platform, run the same script with `--destroy` or `-d` flag.
-> 
 > GCE Disks or other GCE resources provisioned by the GKE cluster will not be automatically removed while running
 > deployment script with `--destroy` or `-d` flag as they are not managed by Terraform. A manual cleanup is required.
 
@@ -315,16 +326,21 @@ Steps to start the Terraform workflow.
 > Use this deployment method ONLY on **Linux** (Ubuntu or Debian based distros), not tested on WSL or other platforms.
 
 1. The below listed tools are required to be installed.
-   1. [Kubectl](https://kubernetes.io/docs/tasks/tools/) 
+   1. [Kubectl](https://kubernetes.io/docs/tasks/tools/)
    2. [Terraform](https://developer.hashicorp.com/terraform/tutorials/aws-get-started/install-cli)
    3. Docker - [Linux](https://docs.docker.com/engine/install/)
    4. [Google Cloud CLI](https://docs.cloud.google.com/sdk/docs/install-sdk)
 2. Navigate to `tools/scripts/deployment`
-3. Provisioning can be done by running `./deploy.sh` requires all above-mentioned tools to be installed.
+3. Provisioning can be done by running `./deploy.sh [options]` (Requires all above-mentioned tools to be installed on the machine).
+>**Options :**
+  - `-p, --plan` Preview infrastructure changes without applying them. Example: `./deploy.sh -p` or `./deploy.sh --plan`
+  - `-a, --apply` Provision or update the infrastructure using Terraform. Example: `./deploy.sh -a` or `./deploy.sh --apply`
+  - `-d, --destroy` Deprovision all Terraform-managed infrastructure resources. Example: `./deploy.sh -d` or `./deploy.sh --destroy`
+  - `-h, --help` Display the help message with available commands. Example: `./deploy.sh -h` or `./deploy.sh --help`
+
+4. The script `./deploy.sh` supports Linux distributions (Ubuntu/Debian based distros).
 
 > [!Note]
-> To deprovision the platform, run the same script with `--destroy` or `-d` flag.
-> 
 > GCE Disks or other GCE resources provisioned by the GKE cluster will not be automatically removed while running
 > deployment script with `--destroy` or `-d` flag as they are not managed by Terraform. A manual cleanup is required.
 
@@ -357,7 +373,7 @@ If you set `sdv_dns_dnssec_enabled = true` in `terraform.tfvars`, Terraform crea
 
 - **Disabling DNSSEC:** DNSSEC can be disabled in `terraform.tfvars`; in that case the steps above are not needed.
 
-### Section #3d - Connect to GKE via Connect Gateway
+### Section #3b - Connect to GKE via Connect Gateway
 Follow the steps mentioned in this section to connect to the GKE cluster using the Connect Gateway.   
 
 1. Install the pre-requisite tools `gcloud` (with `gke-gcloud-auth-plugin` component) and `kubectl` CLI tools.
@@ -446,9 +462,9 @@ Below table details the Keycloak to jenkins RBAC mapping with their access level
 
 | Keycloak Group                                 | Jenkins Role                         | Access Level                           |
 |------------------------------------------------|--------------------------------------|----------------------------------------|
-| `horizon-jenkins-administrators`               | Global: Admin                        | Full admin access                      |
-| `horizon-jenkins-workloads-developers`         | Item: workloads-developers           | Full build/config rights for Workloads |
-| `horizon-jenkins-workloads-users`              | Item: workloads-users                | Limited build access for Workloads     |
+| `administrators`                               | Global: Admin                        | Full admin access                      |
+| `developers`                                   | Item: workloads-developers           | Full build/config rights for Workloads |
+| `viewers`                                      | Item: workloads-viewers              | Limited build access for Workloads     |
 
 #### Steps to Assign a User to a Group
 >[!NOTE]
@@ -464,22 +480,22 @@ Follow the below steps to assign a user to required Keycloak group,
    - Use the search bar to locate the user.
    - Click on the username to open their details.
 3. Assign the Group
-   - **horizon-jenkins-admininstrators**
+   - **admininstrators**
       - Click on the **Groups** tab.
       - Click on **Join Group** which opens a new pop-up window.
-      - Select the group `horizon-jenkins-admininstrators`.
+      - Select the group `admininstrators`.
       - Click **Join**.   
          <img src="images/keycloak-jenkins-groups-1.png" width="325" />
-   - **horizon-jenkins-workloads-developers**
+   - **developers**
       - Click on the **Groups** tab.
       - Click on **Join Group** which opens a new pop-up window.
-      - Select the group `horizon-jenkins-workloads-developers`.
+      - Select the group `developers`.
       - Click **Join**.   
          <img src="images/keycloak-jenkins-groups-2.png" width="325" />
-   - **horizon-jenkins-workloads-users**
+   - **viewers**
       - Click on the **Groups** tab.
       - Click on **Join Group** which opens a new pop-up window.
-      - Select the group `horizon-jenkins-workloads-users`.
+      - Select the group `viewers`.
       - Click **Join**.   
          <img src="images/keycloak-jenkins-groups-3.png" width="325" />
 4. Verify Group Assignment
@@ -493,7 +509,7 @@ Below table details the Keycloak to Argo CD mapping with their access level gran
 
 | Keycloak Group                                 | Argo CD Role                         | Access Level                             |
 |------------------------------------------------|--------------------------------------|------------------------------------------|
-| `horizon-argocd-administrators`                | role: admin                          | Full admin access                        |
+| `administrators`                               | role: admin                          | Full admin access                        |
 
 #### Steps to Assign a User to a Group
 >[!NOTE]
@@ -509,10 +525,10 @@ Follow the below steps to assign a user to required Keycloak group,
    - Use the search bar to locate the user.
    - Click on the username to open their details.
 3. Assign the Group
-   - **horizon-argocd-admininstrators**
+   - **admininstrators**
       - Click on the **Groups** tab.
       - Click on **Join Group** which opens a new pop-up window.
-      - Select the group `horizon-argocd-admininstrators`.
+      - Select the group `admininstrators`.
       - Click **Join**.   
          <img src="images/keycloak-argocd-groups-1.png" width="325" />
 4. Verify Group Assignment
@@ -526,7 +542,7 @@ Below table details the Keycloak to Headlamp mapping with their access level gra
 
 | Keycloak Group                                 | Headlamp Role                        | Access Level                             |
 |------------------------------------------------|--------------------------------------|------------------------------------------|
-| `horizon-headlamp-administrators`              | role: cluster-admin                  | Full admin access                        |
+| `administrators`                               | role: cluster-admin                  | Full admin access                        |
 
 #### Steps to Assign a User to a Group
 >[!NOTE]
@@ -542,10 +558,10 @@ Follow the below steps to assign a user to required Keycloak group,
    - Use the search bar to locate the user.
    - Click on the username to open their details.
 3. Assign the Group
-   - **horizon-headlamp-admininstrators**
+   - **admininstrators**
       - Click on the **Groups** tab.
       - Click on **Join Group** which opens a new pop-up window.
-      - Select the group `horizon-headlamp-admininstrators`.
+      - Select the group `admininstrators`.
       - Click **Join**.
          <img src="images/keycloak-headlamp-groups-1.png" width="325" />
 4. Verify Group Assignment
@@ -559,8 +575,8 @@ Below table details the Keycloak to Grafana mapping with their access level gran
 
 | Keycloak Group                                 | Access Level                                                                   |
 |------------------------------------------------|--------------------------------------------------------------------------------|
-| `horizon-grafana-administrators`               | Full admin access. Edit dashboard, and other settings admin permissions        |
-| `horizon-grafana-viewers`                      | Viewers access. Only limited access, possible to view dashboards               |
+| `administrators`                               | Full admin access. Edit dashboard, and other settings admin permissions        |
+| `viewers`                                      | Viewers access. Only limited access, possible to view dashboards               |
 
 #### Steps to Assign a User to a Group
 >[!NOTE]
@@ -576,10 +592,10 @@ Follow the below steps to assign a user to required Keycloak group,
    - Use the search bar to locate the user.
    - Click on the username to open their details.
 3. Assign the Group
-   - **horizon-grafana-admininstrators** or **horizon-grafana-viewers**
+   - **admininstrators** or **viewers**
       - Click on the **Groups** tab.
       - Click on **Join Group** which opens a new pop-up window.
-      - Select the group `horizon-grafana-admininstrators` or `horizon-grafana-viewers`.
+      - Select the group `admininstrators` or `viewers`.
       - Click **Join**.   
          <img src="images/keycloak-grafana-groups-1.png" width="325" />
 4. Verify Group Assignment
@@ -593,8 +609,8 @@ Below table details the Keycloak to MCP Gateway Registry mapping with their acce
 
 | Keycloak Group                                 | Access Level                                                                   |
 |------------------------------------------------|--------------------------------------------------------------------------------|
-| `horizon-mcp-gateway-registry-admins`  | Full admin access for both UI and API. Add new or Edit registered MCP servers and agents, and other admin permissions        |
-| `horizon-mcp-gateway-registry-users`         | View-only access for UI to view existing MCP Servers and agents added by admins. Full usage access for MCP servers and agents. Read-only access for API.               |
+| `administrators`                               | Full admin access for both UI and API. Add new or Edit registered MCP servers and agents, and other admin permissions        |
+| `viewers`                                      | View-only access for UI to view existing MCP Servers and agents added by admins. Full usage access for MCP servers and agents. Read-only access for API.               |
 
 #### Steps to Assign a User to a Group
 >[!NOTE]
@@ -610,15 +626,32 @@ Follow the below steps to assign a user to required Keycloak group,
    - Use the search bar to locate the user.
    - Click on the username to open their details.
 3. Assign the Group
-   - **horizon-mcp-gateway-registry-admins** or **horizon-mcp-gateway-registry-users**
+   - **administrators** or **viewers**
       - Click on the **Groups** tab.
       - Click on **Join Group** which opens a new pop-up window.
-      - Select the group `horizon-mcp-gateway-registry-admins` or `horizon-mcp-gateway-registry-users`.
+      - Select the group `administratord` or `viewers`.
       - Click **Join**.   
          <img src="images/keycloak_mcp_gateway_registry_groups.png" width="325" />
 4. Verify Group Assignment
    - The group should now appear under the user's "Group Membership".
 
+
+### Section #3i - Enable Workloads Modules in Developer Portal
+
+> [!NOTE]
+> Admin access via Keycloak `administrators` group is required. See [Section #3d - Jenkins Access via Keycloak Groups](#section-3d---jenkins-access-via-keycloak-groups) for group assignment steps.
+
+Where Android workloads are required, enable modules in the **Horizon Developer Portal** so that Jenkins seed jobs and workflow templates work properly:
+
+1. Open **Administration → Modules** at
+   `https://<SUB_DOMAIN>.<HORIZON_DOMAIN>/developer-portal/admin/modules`
+2. Under **Administration**, enable **`workloads-common`**, then **`workloads-android`**, in that order.
+
+Skip or adjust modules if your environment intentionally does not use Android workloads.
+
+After modules are enabled, run the Jenkins seed job and regenerate workload templates as described in [`workloads/seed.md`](workloads/seed.md).
+
+---
 
 ## Section #4 - Run Cluster Apps
 This section details how to sign in to and use cluster applications, including their functionalities within the cluster environment. When using sub-environments, each sub-environment has its own landing page and application URLs at `https://<SUB_ENV_NAME>.<SUB_DOMAIN>.<HORIZON_DOMAIN>`. See the [Sub-Environment Deployment Guide – Accessing Sub-Environment Applications](guides/sub_environments/sub_environment_deployment_guide.md#accessing-sub-environment-applications) for the URL pattern and application list.
@@ -639,7 +672,7 @@ It ensures the Kubernetes Cluster (GKE) always matches that desired state. Here,
 
 1. To Access Argo CD UI, go to the Horizon Landing page here: `https://<SUB_DOMAIN>.<HORIZON_DOMAIN>` and click on the Launch button within the Argo CD app card as below.   
    <img src="images/argocd_launch.png" width="325" />
-2. Log-in to Argo CD by clicking on the "Log in via Keycloak" button. (Your user must be assigned to `horizon-argocd-administrators` on Keycloak for SSO access)   
+2. Log-in to Argo CD by clicking on the "Log in via Keycloak" button. (Your user must be assigned to `administrators` on Keycloak for SSO access)   
 
 <details>
   <summary>Click for more details on Argo CD</summary>

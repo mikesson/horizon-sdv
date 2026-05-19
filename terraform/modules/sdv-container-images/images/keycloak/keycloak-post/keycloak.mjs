@@ -134,7 +134,8 @@ async function createAdminUserIfRequired()  {
         username: config.keycloak.adminUser.username,
         enabled: true,
         requiredActions: [],
-        realm: config.keycloak.realm.realm
+        realm: config.keycloak.realm.realm,
+        emailVerified: true
       });
       const role = await keycloakAdmin.roles.findOneByName({name: 'realm_admin'});
       await keycloakAdmin.users.addRealmRoleMappings({
@@ -166,6 +167,63 @@ async function createRealmAdminRoleIfRequired() {
       let childRole = await keycloakAdmin.clients.findRole({id: _.find(clients, {clientId: 'realm-management'}).id, roleName: 'realm-admin'});
       parentRole = await keycloakAdmin.roles.findOneByName({name: parentRoleName});
       await keycloakAdmin.roles.createComposite({roleId: parentRole.id}, [childRole]);
+    }
+  } catch (err) {
+    throw err;
+  }
+}
+
+const ADMINISTRATORS_GROUP_NAME = 'administrators';
+
+async function createAdministratorsGroupIfRequired() {
+  try {
+    const groups = await keycloakAdmin.groups.find({ search: ADMINISTRATORS_GROUP_NAME });
+    const exists = groups.some((g) => g.name === ADMINISTRATORS_GROUP_NAME);
+    if (exists) {
+      console.info(`group ${ADMINISTRATORS_GROUP_NAME} exists`);
+    } else {
+      console.info(`creating group ${ADMINISTRATORS_GROUP_NAME}`);
+      await keycloakAdmin.groups.create({
+        name: ADMINISTRATORS_GROUP_NAME,
+      });
+    }
+  } catch (err) {
+    throw err;
+  }
+}
+
+const VIEWERS_GROUP_NAME = 'viewers';
+
+async function createViewersGroupIfRequired() {
+  try {
+    const groups = await keycloakAdmin.groups.find({ search: VIEWERS_GROUP_NAME });
+    const exists = groups.some((g) => g.name === VIEWERS_GROUP_NAME);
+    if (exists) {
+      console.info(`group ${VIEWERS_GROUP_NAME} exists`);
+    } else {
+      console.info(`creating group ${VIEWERS_GROUP_NAME}`);
+      await keycloakAdmin.groups.create({
+        name: VIEWERS_GROUP_NAME,
+      });
+    }
+  } catch (err) {
+    throw err;
+  }
+}
+
+const DEVELOPERS_GROUP_NAME = 'developers';
+
+async function createDevelopersGroupIfRequired() {
+  try {
+    const groups = await keycloakAdmin.groups.find({ search: DEVELOPERS_GROUP_NAME });
+    const exists = groups.some((g) => g.name === DEVELOPERS_GROUP_NAME);
+    if (exists) {
+      console.info(`group ${DEVELOPERS_GROUP_NAME} exists`);
+    } else {
+      console.info(`creating group ${DEVELOPERS_GROUP_NAME}`);
+      await keycloakAdmin.groups.create({
+        name: DEVELOPERS_GROUP_NAME,
+      });
     }
   } catch (err) {
     throw err;
@@ -221,14 +279,98 @@ async function createGroupsMapperIfRequired() {
   }
 }
 
+const ROLES_CLIENT_SCOPE_NAME = 'roles';
+const INCLUDE_IN_TOKEN_SCOPE_ATTR = 'include.in.token.scope';
+
+async function updateRolesClientScopeIncludeInTokenScope() {
+  try {
+    const clientScope = await keycloakAdmin.clientScopes.findOneByName({ name: ROLES_CLIENT_SCOPE_NAME });
+    if (!clientScope) {
+      console.warn(`client scope "${ROLES_CLIENT_SCOPE_NAME}" not found.`);
+      return;
+    }
+
+    if (clientScope.attributes?.[INCLUDE_IN_TOKEN_SCOPE_ATTR] === 'true') {
+      console.info(`client scope "${ROLES_CLIENT_SCOPE_NAME}" already has "Include in token scope" enabled.`);
+      return;
+    }
+
+    const attributes = { ...(clientScope.attributes || {}), [INCLUDE_IN_TOKEN_SCOPE_ATTR]: 'true' };
+    await keycloakAdmin.clientScopes.update(
+      { id: clientScope.id },
+      { ...clientScope, attributes }
+    );
+    console.info(`client scope "${ROLES_CLIENT_SCOPE_NAME}": enabled "Include in token scope".`);
+  } catch (err) {
+    throw err;
+  }
+}
+
+const CLIENT_ROLES_MAPPER_NAME = 'client roles';
+const ROLES_CLAIM_NAME = 'roles';
+
+async function updateRolesClientScopeClientRolesMapperClaimName() {
+  try {
+    const clientScope = await keycloakAdmin.clientScopes.findOneByName({ name: ROLES_CLIENT_SCOPE_NAME });
+    if (!clientScope) {
+      console.warn(`client scope "${ROLES_CLIENT_SCOPE_NAME}" not found.`);
+      return;
+    }
+
+    const mappers = await keycloakAdmin.clientScopes.listProtocolMappers({ id: clientScope.id });
+    const clientRolesMapper = mappers.find(m => m.name === CLIENT_ROLES_MAPPER_NAME);
+    if (!clientRolesMapper) {
+      console.warn(`"${CLIENT_ROLES_MAPPER_NAME}" mapper not found in client scope "${ROLES_CLIENT_SCOPE_NAME}".`);
+      return;
+    }
+
+    const config = clientRolesMapper.config ?? {};
+    const currentClaimName = config['claim.name'];
+    const desiredConfig = {
+      ...config,
+      'claim.name': ROLES_CLAIM_NAME,
+      'id.token.claim': 'true',
+      'access.token.claim': 'true',
+      'userinfo.token.claim': 'true',
+      'introspection.token.claim': 'true'
+    };
+    const claimNameOk = currentClaimName === ROLES_CLAIM_NAME;
+    const tokenClaimsOk =
+      config['id.token.claim'] === 'true' &&
+      config['access.token.claim'] === 'true' &&
+      config['userinfo.token.claim'] === 'true' &&
+      config['introspection.token.claim'] === 'true';
+    if (claimNameOk && tokenClaimsOk) {
+      console.info(`"${CLIENT_ROLES_MAPPER_NAME}" mapper in "${ROLES_CLIENT_SCOPE_NAME}" already has Token Claim Name "${ROLES_CLAIM_NAME}" and all token claims (ID, access, userinfo, introspection) enabled.`);
+      return;
+    }
+
+    await keycloakAdmin.clientScopes.updateProtocolMapper(
+      { id: clientScope.id, mapperId: clientRolesMapper.id },
+      { ...clientRolesMapper, config: desiredConfig }
+    );
+    const updates = [];
+    if (!claimNameOk) updates.push(`Token Claim Name "${currentClaimName ?? 'resource_access.${client_id}.roles'}" → "${ROLES_CLAIM_NAME}"`);
+    if (!tokenClaimsOk) updates.push('Add to ID token, access token, userinfo, and introspection enabled');
+    console.info(`"${CLIENT_ROLES_MAPPER_NAME}" mapper in "${ROLES_CLIENT_SCOPE_NAME}": ${updates.join('; ')}.`);
+  } catch (err) {
+    throw err;
+  }
+}
+
 async function configureKeycloak()  {
   try {
     await waitForKeycloak();
     await createRealmIfRequired();
     await createRealmAdminRoleIfRequired();
     await createAdminUserIfRequired();
+    await createAdministratorsGroupIfRequired();
+    await createViewersGroupIfRequired();
+    await createDevelopersGroupIfRequired();
     await createGroupsClientScopeIfRequired();
     await createGroupsMapperIfRequired();
+    await updateRolesClientScopeIncludeInTokenScope();
+    await updateRolesClientScopeClientRolesMapperClaimName();
   } catch (err) {
     throw err
   }

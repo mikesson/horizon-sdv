@@ -20,9 +20,18 @@ configs:
   params:
     server.insecure: true
     server.rootpath: /argocd
+    # GitHub HTTPS from the cluster can be slow or stall; defaults (15s git, 60s
+    # server/controller → repo-server) surface as UI "Connection Failed" and
+    # `context deadline exceeded` in repo-server while apps may still use cache.
+    reposerver.git.request.timeout: "120s"
+    server.repo.server.timeout.seconds: "180"
+    controller.repo.server.timeout.seconds: "180"
   secret:
     createSecret: false
   cm:
+    # Must match server.rootpath (/argocd) and the public Gateway prefix or Keycloak rejects
+    # redirect_uri (OAuth callback must be under this URL).
+    url: https://${subdomain_name}.${domain_name}/argocd
     resource.customizations: |
       Secret:
         ignoreDifferences: |

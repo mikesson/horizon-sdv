@@ -1,0 +1,262 @@
+// Copyright (c) 2026 Accenture, All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+//
+//         http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// Submit a workflow via Horizon API: horizon CLI, REST bash, or REST Python.
+// Params: WORKFLOW_MODULE, WORKFLOW_TEMPLATE, WORKFLOW_PARAMETERS_JSON, HORIZON_WORKFLOW_MODE.
+// WORKFLOW_MODULE defaults to sample; use workloads-android for aaos-builder. Empty param falls back to env WORKFLOW_MODULE.
+// See job.groovy WORKFLOW_PARAMETERS_JSON help for one-liner examples.
+
+import org.jenkinsci.plugins.workflow.steps.FlowInterruptedException
+
+def withHorizonCredentials(Closure body) {
+  def credsId = env.KEYCLOAK_CREDENTIALS_ID?.trim()
+  if (!credsId) {
+    credsId = 'jenkins-horizon-api-ci-secret'
+  }
+  if (credsId == '-') {
+    body.call()
+    return
+  }
+  withCredentials([string(credentialsId: credsId, variable: 'KEYCLOAK_CLIENT_SECRET')]) {
+    body.call()
+  }
+}
+
+def horizonRestBashScript() {
+  "${env.WORKSPACE}/workloads/sample/pipelines/tests/horizon_api_workflow/horizon-workflow-via-rest.sh"
+}
+
+def horizonRestPythonScript() {
+  "${env.WORKSPACE}/workloads/sample/pipelines/tests/horizon_api_workflow/horizon-workflow-via-rest.py"
+}
+
+/** Mode: horizon-cli | rest-bash | rest-python (default horizon-cli if param missing). */
+def horizonWorkflowMode() {
+  def m = params.get('HORIZON_WORKFLOW_MODE')
+  if (m == null || m.toString().trim().isEmpty()) {
+    return 'horizon-cli'
+  }
+  return m.toString().trim()
+}
+
+pipeline {
+
+  agent {
+    kubernetes {
+      defaultContainer 'horizon'
+      yaml """
+        apiVersion: v1
+        kind: Pod
+        metadata:
+          annotations:
+            cluster-autoscaler.kubernetes.io/safe-to-evict: "true"
+        spec:
+          serviceAccountName: ${env.JENKINS_SERVICE_ACCOUNT}
+          containers:
+            - name: horizon
+              image: ${env.CLOUD_REGION}-docker.pkg.dev/${env.CLOUD_PROJECT}/${env.SAMPLE_BUILD_DOCKER_ARTIFACT_PATH_NAME}:${env.SAMPLE_IMAGE_TAG}
+              imagePullPolicy: Always
+              command:
+                - sleep
+              args:
+                - infinity
+              resources:
+                requests:
+                  cpu: 200m
+                  memory: 512Mi
+                limits:
+                  memory: 2Gi
+      """.stripIndent()
+    }
+  }
+
+  options {
+    timestamps()
+    timeout(time: 4, unit: 'HOURS')
+  }
+
+  stages {
+    stage('Submit') {
+      steps {
+        script {
+          def workflowModule = params.WORKFLOW_MODULE?.toString()?.trim()
+          if (!workflowModule) {
+            workflowModule = env.WORKFLOW_MODULE?.toString()?.trim()
+          }
+          if (!workflowModule) {
+            workflowModule = 'sample'
+          }
+          currentBuild.description = "${workflowModule}/${params.WORKFLOW_TEMPLATE}<br/>${env.BUILD_USER_ID ?: 'n/a'}"
+          // Avoid withEnv(inline JSON): multiline/special chars break env parsing. Write UTF-8 file and export from shell.
+          def wfParamsFile = "${env.WORKSPACE}/workloads/sample/pipelines/tests/horizon_api_workflow/.jenkins-workflow-params.json"
+          writeFile file: wfParamsFile, text: (params.WORKFLOW_PARAMETERS_JSON ?: '{}'), encoding: 'UTF-8'
+          withHorizonCredentials {
+            withEnv(['WORKFLOW_TEMPLATE=' + params.WORKFLOW_TEMPLATE.trim(), 'WORKFLOW_MODULE=' + workflowModule, "WORKFLOW_PARAMETERS_JSON_FILE=${wfParamsFile}"]) {
+              script {
+                def wfTemplate = params.WORKFLOW_TEMPLATE.trim().replace("'", "'\"'\"'")
+                def wfModule = workflowModule.replace("'", "'\"'\"'")
+                def mode = horizonWorkflowMode()
+                def bash = horizonRestBashScript()
+                def py = horizonRestPythonScript()
+                env.HORIZON_WORKFLOW_NAME = sh(returnStdout: true, script: (mode == 'rest-python') ? """
+#!/usr/bin/env bash
+set -euo pipefail
+export HORIZON_DOMAIN="\${HORIZON_DOMAIN}"
+export WORKFLOW_TEMPLATE='${wfTemplate}'
+export WORKFLOW_MODULE='${wfModule}'
+export WORKFLOW_PARAMETERS_JSON="\$(cat '${wfParamsFile}')"
+python3 '${py}' submit
+""" : (mode == 'rest-bash') ? """
+#!/usr/bin/env bash
+set -euo pipefail
+export HORIZON_DOMAIN="\${HORIZON_DOMAIN}"
+export WORKFLOW_TEMPLATE='${wfTemplate}'
+export WORKFLOW_MODULE='${wfModule}'
+export WORKFLOW_PARAMETERS_JSON="\$(cat '${wfParamsFile}')"
+bash '${bash}' submit
+""" : """
+#!/usr/bin/env bash
+set -euo pipefail
+export HORIZON_DOMAIN="\${HORIZON_DOMAIN}"
+export WORKFLOW_PARAMETERS_JSON="\$(cat '${wfParamsFile}')"
+horizon workflow submit \\
+  --module '${wfModule}' \\
+  --template '${wfTemplate}' \\
+  --output text -q | sed -n 's/^workflowName=//p'
+""").trim()
+                echo "Horizon workflow: ${env.HORIZON_WORKFLOW_NAME}"
+              }
+            }
+          }
+        }
+      }
+    }
+
+    stage('Poll status and stream logs') {
+      steps {
+        script {
+          def wf = env.HORIZON_WORKFLOW_NAME?.trim()
+          def mode = horizonWorkflowMode()
+          def bash = horizonRestBashScript()
+          def py = horizonRestPythonScript()
+          def wfShell = (wf ?: '').replace("'", "'\"'\"'")
+          // Best-effort Horizon abort: used on FlowInterruptedException and when wait-logs returns
+          // 128+N (SIGINT/SIGTERM/SIGKILL, etc.) — with returnStatus:true Jenkins often completes the sh
+          // step with 143 without throwing, so the catch block alone is not enough.
+          def doHorizonAbort = {
+            if (!wf) {
+              echo 'Horizon abort skipped: empty HORIZON_WORKFLOW_NAME'
+              return
+            }
+            echo "Horizon abort (workflow=${wf})"
+            withHorizonCredentials {
+              def abortRc = sh(returnStatus: true, script: (mode == 'rest-python') ? """
+#!/usr/bin/env bash
+set -euo pipefail
+export HORIZON_DOMAIN="\${HORIZON_DOMAIN}"
+python3 '${py}' abort '${wfShell}' || true
+""" : (mode == 'rest-bash') ? """
+#!/usr/bin/env bash
+set -euo pipefail
+export HORIZON_DOMAIN="\${HORIZON_DOMAIN}"
+bash '${bash}' abort '${wfShell}' || true
+""" : """
+#!/usr/bin/env bash
+set -euo pipefail
+export HORIZON_DOMAIN="\${HORIZON_DOMAIN}"
+horizon workflow abort '${wfShell}' || true
+""")
+              if (abortRc != 0) {
+                echo "Horizon abort helper exited ${abortRc} (workflow may already be terminal)"
+              }
+            }
+          }
+          try {
+            def waitRc
+            withHorizonCredentials {
+              waitRc = sh(returnStatus: true, script: (mode == 'rest-python') ? """
+#!/usr/bin/env bash
+set -euo pipefail
+export HORIZON_DOMAIN="\${HORIZON_DOMAIN}"
+python3 '${py}' wait-logs '${wfShell}'
+""" : (mode == 'rest-bash') ? """
+#!/usr/bin/env bash
+set -euo pipefail
+export HORIZON_DOMAIN="\${HORIZON_DOMAIN}"
+bash '${bash}' wait-logs '${wfShell}'
+""" : """
+#!/usr/bin/env bash
+set -euo pipefail
+export HORIZON_DOMAIN="\${HORIZON_DOMAIN}"
+horizon workflow wait --logs '${wfShell}'
+""")
+            }
+            env.HORIZON_WAIT_RC = waitRc.toString()
+            // Bash convention: exit 128+signal when killed; Jenkins stop typically yields 143 (SIGTERM).
+            if (waitRc >= 128 && waitRc < 192) {
+              echo "Wait-logs exited ${waitRc} (likely Jenkins stop / signal) — requesting Horizon abort"
+              doHorizonAbort.call()
+              env.HORIZON_WAIT_RC = '2'
+            }
+          } catch (FlowInterruptedException e) {
+            echo 'Build interrupted — requesting Horizon abort for workflow if still running'
+            doHorizonAbort.call()
+            throw e
+          }
+        }
+      }
+    }
+
+    stage('Finalize') {
+      steps {
+        script {
+          def wf = env.HORIZON_WORKFLOW_NAME?.trim()
+          def wfShell = (wf ?: '').replace("'", "'\"'\"'")
+          def mode = horizonWorkflowMode()
+          def bash = horizonRestBashScript()
+          def py = horizonRestPythonScript()
+          def showRc
+          withHorizonCredentials {
+            showRc = sh(returnStatus: true, script: (mode == 'rest-python') ? """
+#!/usr/bin/env bash
+set -euo pipefail
+export HORIZON_DOMAIN="\${HORIZON_DOMAIN}"
+python3 '${py}' show '${wfShell}'
+""" : (mode == 'rest-bash') ? """
+#!/usr/bin/env bash
+set -euo pipefail
+export HORIZON_DOMAIN="\${HORIZON_DOMAIN}"
+bash '${bash}' show '${wfShell}'
+""" : """
+#!/usr/bin/env bash
+set -euo pipefail
+export HORIZON_DOMAIN="\${HORIZON_DOMAIN}"
+horizon workflow show '${wfShell}'
+""")
+          }
+          if (showRc != 0) {
+            currentBuild.result = 'FAILURE'
+            error("workflow show exited ${showRc}")
+          }
+          def waitRc = env.HORIZON_WAIT_RC?.trim() ? env.HORIZON_WAIT_RC.trim().toInteger() : 0
+          if (waitRc == 2) {
+            currentBuild.result = 'UNSTABLE'
+          } else if (waitRc != 0) {
+            currentBuild.result = 'FAILURE'
+            error("workflow wait exited ${waitRc}")
+          }
+        }
+      }
+    }
+  }
+}

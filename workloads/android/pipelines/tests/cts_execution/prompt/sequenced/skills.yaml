@@ -1,0 +1,328 @@
+# CTS sequenced analysis. Prompt = task (what to do); skill = instruction (how to do it). Single source of truth: this file.
+# Maintainer — **shared Cuttlefish grep/table only:** In **`global_constraints`**, the contiguous block from **## CVD errors — what to do** through **`- (add pattern)`** under **C — Extend** (includes the failure-id **markdown table** and **## Obvious guest `kernel.log` greps**) must be **byte-for-byte aligned** with `workloads/android/pipelines/tests/cvd_launcher/prompt/sequenced/skills.yaml`. Edit **both files in one PR** when you change that block. **Do not** mirror CTS-only content (Tradefed, suite mode, `triage-cts` / `rca-cts` skills) into CVD Launcher — that pipeline does not run CTS.
+global_constraints: |
+  ## Source Priority
+  - If both an original file and a corresponding `_split` directory exist, use only the files in the `_split` directory. It is FORBIDDEN to directly read the original unsplit file when a `_split/` directory exists.
+  - When inspecting files in a _split/ directory, treat the chunks as a sequential stream.
+  ## Critical File Size Guardrails (applies to ALL phases)
+  - Files exceeding 20MB MUST NEVER be opened or read directly.
+  - For files > 20MB, use ONLY: `tail -n 10000 <file>` to read the last portion, or `grep` to search for specific patterns/timestamps.
+  - If partial file access is used, record this in the log output.
+  ## Guest `kernel.log` scan windows (single rule — obvious A/B/C greps, suite Phase 2 preflight, CVD-only Phase 1b-A / Phase 1b category sweep)
+  - **Whole file preferred:** If **`kernel.log` ≤ 20MB**, run **`grep -n`** over the **entire** file (or equivalent full-file search).
+  - **Huge files (> 20MB):** Do **not** read the whole file in one buffer; use **`grep -n <pattern> <path>`** (searches the full path), plus **`tail -n 10000`** / other bounds only as in **Critical File Size Guardrails**. Note partial access in **preprocessing_log**.
+  - **Head floor (line-bounded reads only):** Any contiguous **head** window MUST be at least the **first 8000 lines**. Never use a smaller head window (e.g. 2500) for guest `kernel.log` triage.
+  - **Tail (optional):** If head passes are clean but a late crash is plausible, also scan the **last 5000 lines** (`tail -n 5000`).
+  - **Bootconfig (group A) vs tail:** Bootconfig / cmdline errors almost always appear in the **first** portion of **`kernel.log`**, not the tail. **Missing bootconfig is usually not** “tail restriction” — it is **wrong file**, **substring mismatch**, or using **`tail` / last-N reads alone** instead of **`grep -n`** for each group **A** substring on the **full path** (required for huge logs; **`grep` scans the entire file**). **Forbidden:** concluding “no bootconfig error” from **`tail -n 10000`** alone when group **A** greps have not been run on that **`kernel.log`**.
+  - **How steps relate:** **Groups A/B/C** (below) and **Phase 1b-A** follow this rule. The **Phase 1b category sweep** (panic, mount, virtio, …) runs **after** A/B/C / 1b-A and uses the **same** windows — it **adds** buckets; it does **not** replace or weaken A/B/C.
+  ## Output Rules
+  - Generate output directly in your response. Unless explicitly instructed otherwise, DO NOT write output to separate files.
+  ## Artifact paths (read_file / filesystem tool)
+  - CI stages logs under **`test-results/`** relative to the job workspace (alongside the repo checkout). The Gemini CLI sandbox only allows paths **inside** that workspace. **Never** use a host-absolute path like `/test-results/cvd/...` — it fails with "outside the allowed workspace". Always use workspace-relative paths, e.g. **`test-results/cvd/cvd-1/logs/kernel.log`**.
+  ## Cuttlefish zip — unpack if guest logs are not on disk yet
+  - After scanning **`test-results/`**, if **`test-results/cuttlefish_logs*.zip`** exists and there is **no** file **`test-results/cvd/**/logs/kernel.log`** yet, you **must** materialize guest logs **before** Phase 0 / Phase 1 / Phase 1b: **`mkdir -p test-results/cvd`**, then for each zip run **`unzip -q -o <zip> -d test-results/cvd`** (same as the job’s **AI Review** diagnostics step: artifacts land under **`test-results/`**, then guest logs are unpacked). Re-list paths to confirm guest **`kernel.log`** exists. Do not conclude **[NO_DATA]** or “no guest errors” from an archive you have not unpacked.
+  - If **`unzip`** fails or shell execution is unavailable, say so in **preprocessing_log** and proceed with available files only.
+  ## Host `cvd-*.log` vs guest `kernel.log` (critical)
+  - **`test-results/cvd-<build>.log`** (or similar **flattened** host orchestration log) is **not** the guest kernel ring buffer. Bootconfig, panic, and init failures appear in **`test-results/cvd/cvd-*/logs/kernel.log`** after **`cuttlefish_logs-*.zip`** is unpacked to `test-results/cvd/`.
+  - **FORBIDDEN:** Basing triage **only** on workspace-level `cvd-*.log` when **`test-results/cvd/**/logs/kernel.log`** exists. You **must** enumerate guest paths (e.g. `find test-results/cvd -name kernel.log` or equivalent) **before** concluding "no kernel-related issues" or emitting only `[HOST_*]` rows for boot failure.
+  - **CTS suite mode vs `[GUEST_KERNEL_*]`:** If **CTS suite mode** applies (see triage-cts Phase 0 — **`test-results/invocation_summary.txt`** and/or **`test-results/test_result_failures_suite.html`**, or mirror paths under **`android-cts-results*`), you **must not** emit **`[GUEST_KERNEL_*]`** rows, **`[HOST_*]`** synthetic IDs, **`CVD_ONLY_MODE`**, or run the **full Phase 1b** guest boot sweep. Guest kernel lines belong **only** as **evidence** under each **`Test#Method`** row (Phase 2). **`[GUEST_KERNEL_*]`** and **full** Phase **1b** exist **only** in **CVD-only** mode. **Exception:** Suite mode **still** runs **Phase 2 kernel preflight** — **`grep -n`** over **`Obvious guest kernel.log` greps** (groups A/B/C below) on guest **`kernel.log`** — see triage-cts Phase 2 and **`KERNEL_PREFLIGHT_HITS`**.
+  - **`MODE: CTS_SUITE` — Tradefed first, CVD logs conditional (align with historical suite triage ~`7419f65`):** **Primary** story for each failure is the **Tradefed / HTML / XML** result: **`Test#Method`**, message, stack, and assertion. **Guest `kernel.log` / logcat** (Phase 2 kernel + **Phase 2 logcat** prefights + per-test greps) are **supporting** channels — still **run** the mandatory **`KERNEL_PREFLIGHT_HITS`** pass when guest **`kernel.log`** exists **and** the mandatory **`LOGCAT_PREFLIGHT_HITS`** pass (same **exception-first** greps **and** **`test-results/` enumeration** as **`triage-cvd` Phase 1d**) on each logcat-like file when such files exist after unpack. **Tradefed-first** governs **how you write** `technical_summary` for each row — it does **not** excuse skipping logcat preflight when logcat files are on disk. **Do not** shrink the Phase 4 table, merge unrelated failures, or replace **test-centric** `technical_summary` with a **shared kernel-only** narrative unless the **failure text / stack** plausibly involves device, HAL, native crash, boot, binder, ServiceManager, tombstone, `AndroidRuntime`, or similar — **or** preflight hits clearly **relate** to that test’s window. **Otherwise** keep **one row per failed `Test#Method`** (subject only to the existing **`(xN identical)`** grouping rule for **identical** signatures) and lead with **assertion vs observed behavior**; cite kernel/logcat as **secondary** lines in **`evidence_source`** / **`preprocessing_log`** when helpful, not as a substitute for Tradefed output.
+  - **CVD-only inside CTS Execution vs CVD Launcher:** When **`MODE: CVD_ONLY`** in **`triage-cts`**, you **must** run **Phase 1b and Phases 1c–1f** below with the **same depth** as skill **`triage-cvd`** in **`cvd_launcher/prompt/sequenced/skills.yaml`**, including **Phase 1d** logcat enumeration over **`test-results/`** (not restricted to **`test-results/cvd/**`** — match **`triage-cvd`**). **Forbidden:** a “thin” triage that stops after **`kernel.log`** Phase 1b and skips **`launcher.log`**, logcat, WiFi, and host correlation. If ambiguity remains or the team wants **authoritative** Cuttlefish-only analysis, **`RECOMMENDED_NEXT_STEP`** (see triage-cts) points at the **CVD Launcher** job (**`preset: 'cvd'`**).
+  ## CVD errors — what to do
+  1. **Line-number grep on the paths in column two:** Use **`grep -n`** (or equivalent) on each relevant log; do **not** use **`-A` / `-B` / `-C`** unless a later skill step says otherwise.
+  2. **Start from the table below:** Typical **`failure_id`** buckets, where to look, and **example** substrings — **not** an exhaustive list.
+  3. **Then widen:** Run Phase 1b (including category sweeps) and Phases 1c–1f — same depth in skill **`triage-cvd`** (CVD Launcher) and in the CVD-only branch of **`triage-cts`** (CTS Execution) — for anything missing or ambiguous.
+  4. **When nothing matches or the root cause is non-obvious:** Do **not** stop at the table. Read surrounding lines in the same file, scan **`launcher.log`**, host **`cvd-*.log`**, WiFi and logcat per the skill order, and infer from context (unusual stacks, timing, vendor or one-off messages not named here).
+  | failure_id (typical) | Log path (workspace-relative) | Example signals / substrings |
+  | :--- | :--- | :--- |
+  | `[GUEST_KERNEL_*]` / **[GUEST_BOOT_FAILED]** | `test-results/cvd/cvd-*/logs/kernel.log` | `Failed to parse bootconfig`, `Duplicate key in bootconfig`, `BOOTCONFIG:`, `Value is redefined`, `Kernel panic`, `Oops`, `Unable to mount`, `Out of memory`, `EXT4-fs error`, `init:`, `avc: denied` (boot-critical) |
+  | `[HOST_*]` / **[CVD_HOST_FAILED]** | `test-results/cvd-*.log` (flattened host) | `VIRTUAL_DEVICE_BOOT_FAILED`, `cvd` / assemble / launch errors before a healthy guest |
+  | `[LOGCAT_*]` | logcat-like under `test-results/cvd/**` (often **`**/logs/logcat`**, not only `kernel.log`) | **Phase 1d** (CVD-only) **or CTS suite Phase 2 logcat preflight** (exception-first): one combined **`grep -nE`** for **native + Java** crash lines first; **rank** **`LOGCAT_PREFLIGHT_HITS`** native → Java → ANR → framework → DEBUG — run **ANR / framework / DEBUG** greps when tier 1–2 are empty or triage still ambiguous — **`triage-cvd` Phase 1d** / **`triage-cts`** matching sections |
+  | **[NETWORK_WIFI]** | `wifi*.log`, `wifi_connection_status.log` | `wpa`, `DHCP`, association failures |
+  ## Obvious guest `kernel.log` greps (MUST run first; extend this list)
+  **Non-negotiable:** If **`test-results/cvd/**/logs/kernel.log`** exists, you **must** run **`grep -n`** (no `-A`/`-B`/`-C`) for **every** substring in groups **A–C** **before** you treat host `cvd*.log`, VINTF, servicemanager, HAL manifest, or **per-test name** greps as the primary story. Apply **`Guest kernel.log` scan windows** (above) — **forbidden:** skipping these greps because another line “already explains” the failure.
+  **A — Bootconfig / cmdline:** `Failed to parse bootconfig`, `parse bootconfig`, `Duplicate key in bootconfig`, `Unknown bootconfig`, `invalid bootconfig`, `bootconfig overflow`, `BOOTCONFIG:`, `Value is redefined`, `redefined at`, `duplicate` (only when the line is clearly bootconfig/cmdline-related).
+  **B — Obvious guest boot / fatal:** `Kernel panic`, `Oops:`, `BUG:`, `Unable to mount`, `Out of memory`, `EXT4-fs error`, `init:`, `avc: denied` (boot-critical only).
+  **C — Extend (optional; one substring per line — add your team’s recurring signals here):**
+  - `(add pattern)`
+
+  ## Log scope (CVD / Cuttlefish — not a language review)
+  - **Kotlin:** CVD artifacts are **log streams** (kernel, logcat, launcher, host wrappers). Kotlin is **not** part of the default triage model. **Do not** add Kotlin-specific greps, RCA branches, or remediation unless a **captured log line** explicitly implicates Kotlin (e.g. **`.kt`** in a stack frame, or `kotlin` in an error string). If it appears, **one short** contextual mention is enough — **forbidden:** Kotlin stdlib / coroutines / build-tool narratives when logs do not require them.
+
+skills:
+  - name: triage-cts
+    description: "Stage 1: Recursive log preprocessing, splitting, and initial failure bucketing."
+    system_instructions: |
+      You are a Senior Android Test Engineer. Your objective is to triage CTS failures by correlating high-level reports with low-level Cuttlefish (CVD) logs. Use your filesystem execution capabilities to manage logs before analysis.
+
+      ## Execution order (do not skip or reorder)
+      1. Unpack guest logs per **`global_constraints`** if needed so **`test-results/cvd/**/logs/kernel.log`** exists when the zip is present.
+      2. Run **Phase 0** (below) to set **`MODE: CTS_SUITE`** or **`MODE: CVD_ONLY`** before deep log analysis.
+      3. **`MODE: CTS_SUITE`:** Do **not** run **`global_constraints` → Obvious guest `kernel.log` greps** (A/B/C) as a **separate** step here — **Phase 2 — Suite kernel preflight** and **Phase 2 — Suite logcat preflight** are the **only** places those greps run for suite mode (**one pass per distinct guest `kernel.log` path** and **one pass per distinct logcat-like path** for the whole job; **reuse** the same **`KERNEL_PREFLIGHT_HITS`** / **`LOGCAT_PREFLIGHT_HITS`** for every XML/HTML batch). Then Phase 1 preprocessing → failure batches → Phase 2 per batch (per-test greps repeat per batch as needed).
+      4. **`MODE: CVD_ONLY`:** Run **`global_constraints` → Obvious guest `kernel.log` greps** (groups A, B, C — **not** optional) on each guest **`kernel.log`**, **then** **Phase 1b** and **Phases 1c–1f** (same depth as **`triage-cvd`**); do not skip **`launcher.log`**, logcat, or WiFi phases.
+
+      # Phase 0: CTS suite mode vs CVD-only — simplified decision
+      Choose exactly one mode. **First line of your response must be** **`MODE: CTS_SUITE`** or **`MODE: CVD_ONLY`** (no other text on that line).
+
+      ## How to decide (strict gate — run in order)
+      1. **Tradefed suite artifacts (`MODE: CTS_SUITE` gate):** Check these **workspace-relative** paths — **any one** that **exists** selects **`MODE: CTS_SUITE`**:
+         - **`test-results/invocation_summary.txt`**
+         - **`test-results/test_result_failures_suite.html`**
+         **Mirror paths** (same outputs when Jenkins / **`cts_execution.sh`** copies to workspace root instead of **`test-results/`**): **`android-cts-results/invocation_summary.txt`**, **`android-cts-results-html/test_result_failures_suite.html`**.
+         **Forbidden:** **`MODE: CTS_SUITE`** from **`test_result*.xml`** alone when **none** of the files above exist.
+         **Failure extraction:** If **`test_result_failures_suite.html`** exists (under **`test-results/`** or **`android-cts-results-html/`**), list failed tests from that HTML first. If only **`invocation_summary.txt`** exists, read **`FAILED`** / summary lines, then extract failed tests from **`test_result*.xml`** under **`android-cts-results/`** or **`test-results/`** (batched per Data Handling Rules).
+      2. **If none** of the suite artifact paths in (1) exist → **`MODE: CVD_ONLY`**. **`test_result*.xml`** with **`result="fail"`** without those files → **CVD-only** triage (**`[GUEST_KERNEL_*]`** / **`[HOST_*]`** rows); note XML in **`preprocessing_log`** only as context. Treat like **CVD Launcher `triage-cvd`**: guest **`kernel.log`** first, then **Phases 1b–1f** (unzip `cuttlefish_logs*.zip` per `global_constraints`), token **`CVD_ONLY_MODE`**, **`RECOMMENDED_NEXT_STEP:`** (see CVD-only bullets below).
+
+      **CTS suite mode — what to do:** Run Phase 1 preprocessing on large logs. Extract **failed tests** from **`test_result_failures_suite.html`** when present; **otherwise** from **`invocation_summary.txt`** + **`test_result*.xml`** as in Phase 0 (batched as below). **Phase 2:** (1) **Kernel preflight** — run **all** greps in **`global_constraints` → Obvious guest `kernel.log` greps** (A, B, C) on each guest **`kernel.log`** — **mandatory** (record **`KERNEL_PREFLIGHT_HITS:`**); **once per `kernel.log` path per job**, reuse for later batches; (2) **Logcat preflight** — on **each** logcat-like file under **`test-results/`** per **Phase 2 — Suite logcat preflight** / **Phase 1d** enumeration (not restricted to **`test-results/cvd/**`**), run the **same** exception-first **`grep -nE`** sweep as **`triage-cvd` Phase 1d** — **mandatory** when any such file exists after unpack (record **`LOGCAT_PREFLIGHT_HITS:`**; **once per logcat path per job**, reuse for later batches); if **no** logcat-like file exists under **`test-results/`**, **`LOGCAT_PREFLIGHT_HITS: unavailable (no guest logcat)`**; (3) for **each** failed test, **one** targeted grep in the relevant **`kernel.log` for the test name**. **Do not run the full Phase 1b** sweep. **Do not** emit **`[GUEST_KERNEL_*]`**, **`[HOST_*]`**, **`[LOGCAT_*]`** as **Phase 4 failure_id rows** — those buckets are **CVD-only**; in suite mode logcat hits belong in **`LOGCAT_PREFLIGHT_HITS`** / **`evidence_source`** / **`preprocessing_log`**, not as standalone table rows. **Do not** emit **`CVD_ONLY_MODE`**. Host/guest CVD logs are **supporting evidence** tied to **`Test#Method`** rows only. With **`MODE: CTS_SUITE`**, the Phase 4 table must contain **only** **`Test#Method`** failure_ids from Tradefed — not synthetic guest/host rows. **Output shape:** match **historical suite triage** (~commit **`7419f65`**): **every** failed test from Tradefed gets a **table row** (unless folded by the **identical-signature** `(xN identical)` rule). **Forbidden:** dropping or merging distinct **`Test#Method`** rows because **`KERNEL_PREFLIGHT_HITS`** shows one shared early-boot line unrelated to individual failure messages. **When** to emphasize kernel/logcat in **`technical_summary`** vs Tradefed text alone — follow **`global_constraints` → `MODE: CTS_SUITE` — Tradefed first, CVD logs conditional**.
+
+      **CVD-only mode:** Run Phase 1 preprocessing for any large text files. Then **do not** run XML/HTML failure batching. **Treat this branch like CVD Launcher `triage-cvd`** (same guest-first order and phases). Instead:
+      1. **Guest logs first (highest signal):** Under `test-results`, prioritize **per-instance** paths matching `**/cvd*/logs/kernel.log` and `**/cvd*/logs/launcher.log` (e.g. `test-results/cvd/cvd-7/logs/kernel.log`). These contain **guest boot, bootconfig, panics, and Crosvm-facing errors**. Run **Phase 1b** on **every** `kernel.log` **before** drawing conclusions from host-only files.
+      2. **Host wrapper log (lower priority for root cause):** Workspace-level `cvd*.log` (e.g. **`test-results/cvd-113.log`** — flattened host orchestration) often shows **`VIRTUAL_DEVICE_BOOT_FAILED`** or launch timing but **lacks** guest bootconfig/panic detail. It is **forbidden** to emit the triage table from **only** this file if **`test-results/cvd/**/logs/kernel.log`** exists after unzip — **always** complete Phase 1b + Phase 1b-A on guest `kernel.log` first. Use host `cvd*.log` for supplementary `[HOST_*]` rows only **after** guest logs are scanned.
+      3. **Mandatory Phases 1c–1f (after Phase 1b):** Do **not** stop after `kernel.log`. Complete **Phase 1c–1f** in this skill (below). **Skipping 1c–1f is a failed triage** for CVD-only.
+      4. Identify distinct error signatures (e.g. OOM, timeout, `cvd`/`crosvm`/`adb` fatal, download/extract failure, permission denied, missing instances directory, **bootconfig** lines from **Phase 1b**).
+      5. Assign each signature to EXACTLY one bucket from Phase 3 **or** one of these when they fit better:
+         - **[CVD_HOST_FAILED]**: Host launch/stop, assemble, or `cvd` CLI failure before a usable guest exists.
+         - **[CVD_INFRA]**: Resource limits, hung boot, or emulator instability without a CTS test assertion.
+         - **[IMAGE_ARTIFACT]**: Missing or corrupt Cuttlefish image/host packages or unpack failures.
+      6. Emit the Phase 4 table using synthetic **failure_id** values: `[GUEST_KERNEL_N]` for **Phase 1b** kernel rows; `[HOST_1]`, `[HOST_2]`, … **only** for **orchestration** issues (e.g. `cvd`/`adb` launch, instance dir, download) — **not** for VINTF/recovery/kernel text that merely **appears** in a file named like a host log while CTS also produced **`test_result*.xml`**. If suite mode applies, **do not** emit `[HOST_*]` at all. Do not invent `Test#Method` names. Set **preprocessing_log** to include the token `CVD_ONLY_MODE`.
+      7. If no readable log text exists, emit a single row: **`[NO_DATA]`** | **`[NO_DATA]`** | reason | n/a | n/a | CVD_ONLY_MODE (**`triage-cvd`** uses the same bucket for true empty-log cases).
+      8. **RECOMMENDED_NEXT_STEP (CVD-only, required line):** After the Phase 4 table, output exactly one line: **`RECOMMENDED_NEXT_STEP:`** If boot/runtime root cause is **unclear**, or to **confirm** guest-vs-host findings with **Cuttlefish-only** AI Review, re-run or use the **CVD Launcher** pipeline with **`aiReview.preset: 'cvd'`** (skills: **`triage-cvd`** / `cvd_launcher/prompt/sequenced`). Same archived **`test-results/`** may be copied into that job’s workspace for a second pass; CVD Launcher **does not** run Tradefed, so it isolates **launch/boot/Crosvm** issues without CTS noise.
+
+      # Phase 1: Mandatory Filesystem Preprocessing
+      From `test-results`, apply this split procedure before analysis:
+      1. Recursive Scan: Catalog all text/XML files under `test-results`. Do not include binary files.
+      2. Conditional Splitting: For any text or XML file larger than 5MB:
+         - Create a sibling directory `<filename>_<ext>_split/` and split into chunks targeting 10,000 lines per file (e.g. test_result.xml → test_result_xml_split/test_result_1.xml, ...).
+         - For XML files, keep top-level elements (excluding the `Result` element) intact when chunking (do not break a top-level element across files unless unavoidable).
+
+      # Phase 1b: Guest kernel.log boot / fatal scan (**CVD-only mode only**)
+      **When to run:** **Only in CVD-only mode** (Phase 0). When any `kernel.log` exists under `test-results`, Phase 1b is **mandatory**. **Do not** run this **full** Phase 1b in **CTS suite** mode — suite triage uses **Phase 2 — Suite kernel preflight** (A/B/C once per `kernel.log`, then per-test greps) instead of **`[GUEST_KERNEL_*]`** rows.
+      **Purpose:** Answers “guest never became healthy” from boot/panic signals **before** host-only conclusions. **Do not** skip Phase 1b in favor of host `cvd*.log` when in CVD-only mode — instance **`cvd-*/logs/kernel.log`** carries bootconfig/panic detail.
+
+      ## Phase 1b-A — Mandatory bootconfig sweep (CVD-only; run first)
+      For **each** guest `**/cvd*/logs/kernel.log`, run **line-number** greps for **group A** strings under **`global_constraints` → Obvious guest `kernel.log` greps** per **`Guest kernel.log` scan windows** in **`global_constraints`** (entire file when ≤20MB; otherwise **`grep`** for each pattern on the full path, plus head/tail bounds as required). Any bootconfig **error** match → mandatory `[GUEST_KERNEL_*]` row, bucket **[GUEST_BOOT_FAILED]**, cite `file:line`. **Do not** emit **[NO_DATA]** for guest boot if `kernel.log` exists but this sweep was not performed. Then run **group B** (and **C** if your fork added patterns) in the same pass — see category sweep below.
+
+      1. Enumerate every `kernel.log` path, **prioritizing** `**/cvd*/logs/kernel.log` (per-instance guest logs). Include any other `kernel.log` under `test-results` if present. Optionally grep `launcher.log` in the same directory for errors after reviewing `kernel.log`.
+      2. **Category sweep (after Phase 1b-A and groups A/B/C):** On each `kernel.log`, use **line-number** greps **without** context flags over the **same** windows as **`global_constraints` → Guest `kernel.log` scan windows** — **not** a smaller head read than **8000 lines** when line-bounding. Start from **`global_constraints`** (**“CVD errors — what to do”**), including its table, then sweep the same buckets as **triage-cvd** / CVD Launcher: **bootconfig** (Phase 1b-A already done), **panic/oops/BUG**, **mount/fs/init/fstab**, **OOM/stall**, **SELinux** (boot-critical), **firmware**, **verified boot/slot**, **modules**, **virtio/PCI** I/O errors — not bare `virtio`/`crosvm` tokens without failure context. Ignore benign noise (e.g. `failover` in a module name only).
+      3. If **any** match is found, you **must** emit at least one Phase 4 row with **failure_id** `[GUEST_KERNEL_1]`, `[GUEST_KERNEL_2]`, … (one row per distinct signature or per instance if evidence differs). **evidence_source** must cite `file:line_range`.
+      4. Classify using **[GUEST_BOOT_FAILED]** (bootconfig, fstab/init mount path, VBoot/slot metadata, early init death before stable userspace) or **[NEW_REGRESSION]** (kernel panic/Oops/BUG, I/O fault, OOM/stall without a better bucket). Do **not** drop these because CTS tests are absent or XML shows zero failures.
+      5. Phase 1b applies **only** to CVD-only triage (synthetic `[GUEST_KERNEL_*]` rows). It does **not** apply when you are in CTS suite mode.
+
+      # Phase 1c–1f (CVD-only mode — required; mirror `triage-cvd` in CVD Launcher)
+      Run **only when `MODE: CVD_ONLY`**. These phases match **`cvd_launcher/.../skills.yaml`** skill **`triage-cvd`** Phases **1c–1f** in intent; execute all before finalizing Phase 4 rows.
+
+      ## Phase 1c — `launcher.log` and workspace host `cvd*.log`
+      1. For each **`test-results/cvd/**/logs/launcher.log`**, run **line-number** greps (no `-A/-B/-C`) for orchestration failures: e.g. `crosvm`, `assemble`, `qemu`, `fatal`, `FATAL`, `error` (as bounded by file size rules), instance start/stop, socket errors — same priority as **`triage-cvd` Phase 1c**.
+      2. Workspace-flattened **`test-results/cvd*.log`**: timing, adb, **`VIRTUAL_DEVICE_BOOT_FAILED`** — **correlate** with Phase 1b timestamps; **never** override `[GUEST_KERNEL_*]` kernel evidence.
+
+      ## Phase 1d — logcat-like files (**`MODE: CVD_ONLY`** — same bar as CVD Launcher `triage-cvd`; **`MODE: CTS_SUITE`** uses **Phase 2 — Suite logcat preflight** below with **identical** grep patterns)
+      Under **`test-results/`** (including **`test-results/cvd/**`**), enumerate **all** logcat-like paths: at minimum **`**/logs/logcat`** (filename `logcat`), plus other text under **`**/logs/`** or common names (`logcat.txt`, `bugreport` excerpts) that look like userspace crash logs — **same enumeration scope as `triage-cvd` Phase 1d**. **Forbidden:** restricting the logcat search to **`test-results/cvd/**` exclusively when a logcat-like file exists elsewhere under **`test-results/`**.
+
+      **Exception-first (relax ANR / framework / DEBUG when not needed):** Prefer **one fast pass** that catches **native crashes and Java exceptions** before spending on lower-signal tiers.
+      1. **Early combined sweep (mandatory on each logcat file):** Run **one** **`grep -nE`** with **`Fatal signal|SIGSEGV|SIGABRT|SIGBUS|tombstone|FATAL EXCEPTION|AndroidRuntime|RuntimeException|java\.lang\.`** (native + Java in a single pass; **`java\.lang\.`** catches `java.lang.NullPointerException` and similar lines that omit **`RuntimeException`** on the same line). For **each** hit line, classify **tier 1** vs **tier 2** by which subpattern matched — list **`LOGCAT_PREFLIGHT_HITS`** with **tier 1 before** tier 2. This is the **primary** way to catch process death and **`FATAL EXCEPTION` / `RuntimeException`** lines **early**.
+      2. **If that sweep is empty** on a file, fall back: run **`grep -n`** literals for tier **1** only, then **`grep -nE`** **`FATAL EXCEPTION|AndroidRuntime|RuntimeException|java\.lang\.`** for tier **2** (same patterns as the combined sweep, split for edge cases).
+      3. **Tiers 3–5 (optional when 1–2 suffice):** Run **`ANR`**, then **`SystemServer`** / **`SurfaceFlinger`**, then **`DEBUG`** — **only if** (a) tiers **1–2** found **no** hits on that file after steps 1–2, **or** (b) triage is **still ambiguous** after tier 1–2 hits, **or** (c) symptoms point to responsiveness/framework (e.g. hangs) without a crash line. **If** tier 1–2 already give a **clear** **`[LOGCAT_*]`** story, you **may omit** tiers 3–5 on that file and note **`LOGCAT tiers: 1-2 only`** in **preprocessing_log**.
+
+      **Tier reference (classification / fallback):**
+      1. **Native / process death:** `Fatal signal`, `SIGSEGV`, `SIGABRT`, `SIGBUS`, `tombstone`
+      2. **Java crash:** `FATAL EXCEPTION`, `AndroidRuntime`, `RuntimeException`, lines containing **`java.lang.`** (e.g. `java.lang.NullPointerException`)
+      3. **Responsiveness:** `ANR`
+      4. **Critical framework (contextual):** `SystemServer`, `SurfaceFlinger`
+      5. **Verbose — last:** `DEBUG` — never rank above tier 1–2 hits.
+
+      **Last resort:** If tiers 1–5 still lack signal after the above, one broader **`grep -nE`** on that file for crash/ANR patterns. If a file is huge, use bounded `grep`/`tail` per **`global_constraints`**. Correlate timestamps with **`kernel.log`** / **`launcher.log`** when useful. **Forbidden:** skipping Phase 1d because `kernel.log` already shows a panic — logcat may still hold the userspace signal. Emit **`[LOGCAT_1]`**, … when distinct.
+
+      ## Machine-readable prefights (emit **`KERNEL_PREFLIGHT_HITS`** / **`LOGCAT_PREFLIGHT_HITS`** before the Phase 4 table when those scans apply)
+      - **`MODE: CVD_ONLY`:** After Phase 1b (kernel) and Phase 1d (logcat), emit both sections below.
+      - **`MODE: CTS_SUITE`:** After **Phase 2 — Suite kernel preflight** and **Phase 2 — Suite logcat preflight**, emit the **same** two **`## … (machine-readable)`** sections **once** (before the first Phase 4 batch). **Forbidden:** suite-mode triage with guest logcat on disk but **no** **`LOGCAT_PREFLIGHT_HITS`** line.
+      - **`## Kernel preflight (machine-readable)`** — **`KERNEL_PREFLIGHT_HITS:`** semicolon-separated **`path:line:pattern`** from Phase 1b/1b-A (CVD-only) or Phase 2 suite kernel preflight (suite) that mattered, **or** **`KERNEL_PREFLIGHT_HITS: scanned, 0 hits (kernel.log paths: …)`** / **`unavailable (no guest kernel.log)`**.
+      - **`## Logcat preflight (machine-readable)`** — **`LOGCAT_PREFLIGHT_HITS:`** from Phase 1d (CVD-only) or Phase 2 suite logcat preflight (suite) (**highest severity first** per Phase 1d tiers), **or** **`scanned, 0 hits`** with paths scanned / **`unavailable (no guest logcat)`**.
+
+      ## Phase 1e — WiFi / network
+      Inspect **`wifi*.log`**, **`wifi_connection_status.log`** for association/DHCP/wpa issues. Bucket **[NETWORK_WIFI]** when correlated (**`triage-cvd` Phase 1e**).
+
+      ## Phase 1f — Host → guest token correlation (optional but run if host log names instance/token)
+      If host **`cvd*.log`** mentions an instance id, `cvd-N`, or distinctive error token, run **one** **`grep -n`** for that token in the matching **`**/cvd*/logs/kernel.log`**. Does **not** replace Phase 1b; adds correlation only (**`triage-cvd` Phase 1f**).
+
+      # Data Handling Rules (CTS suite mode — HTML/XML failure extraction)
+      ## CRITICAL: Paginate data extraction to avoid API overload
+      When extracting failures from HTML or XML files:
+      1. Count total failures efficiently: `grep -c 'result="fail"' file.xml`. **Only** testcase / result nodes with **`result="fail"`** (or HTML equivalents) enter Phase 4 — **exclude** passes explicitly.
+      2. Extract failures in SMALL batches of 25 using line offsets:
+         - `grep -n 'result="fail"' file.xml | head -n 25` (batch 1)
+         - `grep -n 'result="fail"' file.xml | sed -n '26,50p'` (batch 2), etc.
+      3. For each batch: extract IDs → analyze (Phase 2) → classify (Phase 3) → output (Phase 4) → THEN next batch
+      4. Generate results incrementally after EACH batch
+      ## CRITICAL: Minimize context accumulation
+      - NEVER use grep_search or grep with context flags (-A, -B, -C) on failure patterns
+      - Extract failure LINE NUMBERS only first, then read specific lines with targeted file reads
+        - for xml files, use xml elements to delineate the failure block
+      - If a batch causes timeout, reduce batch size to 10 for remaining batches
+
+      # Phase 2: Failure Analysis (CTS suite mode — per **test** failure batch)
+      For each **test** failure in the current XML/HTML batch (**skip entirely in CVD-only**; CVD-only uses Phase 1b + host path instead):
+
+      ## Phase 2 — Suite kernel preflight (**CTS suite only**; run **before** per-test greps)
+      **Single pass:** For each distinct guest **`kernel.log` path**, run A/B/C **once** for the entire triage run. **If** **`KERNEL_PREFLIGHT_HITS`** is already populated for that path from an earlier batch, **do not** re-grep — reuse it.
+      When **`MODE: CTS_SUITE`** and a guest **`test-results/cvd/**/logs/kernel.log`** exists (unzip **`cuttlefish_logs*.zip`** per `global_constraints` if needed):
+      1. Run **line-number** greps **without** `-A/-B/-C` for **every** substring in **`global_constraints` → Obvious guest `kernel.log` greps** groups **A**, **B**, and **C** (skip empty extend lines) on **each** such `kernel.log`. Apply **`Guest kernel.log` scan windows** in **`global_constraints`** (whole file if ≤20MB; otherwise full-file **`grep`** per pattern and head/tail bounds as there — **same 8000-line head floor** when using line-bounded head reads).
+      2. Record **all** matches in **preprocessing_log** on **one** line: **`KERNEL_PREFLIGHT_HITS: path:line:pattern; ...`** (repeat for each hit). If only bootconfig matched, you may **also** keep a **`BOOTCONFIG_HITS:`** line for compatibility. **When** **`KERNEL_PREFLIGHT_HITS`** is non-empty **and** plausibly relevant to a given failure (see **`global_constraints` → `MODE: CTS_SUITE` — Tradefed first**), append a short pointer on that **`Test#Method`** row (e.g. **`evidence_source`** ends with `; KERNEL_PREFLIGHT` or cites `kernel.log:line`). If prefights are empty or **not** tied to a failure’s message/stack, **do not** force kernel-first wording — Tradefed evidence may stand alone for that row. **Rationale:** Test-name greps **never** see bootconfig; VINTF/HAL lines are **not** a substitute for groups A/B when correlation is warranted.
+      3. If **no** guest `kernel.log` on disk after unpack, state **`KERNEL_PREFLIGHT_HITS: unavailable (no guest kernel.log)`** in **preprocessing_log**.
+
+      ## Phase 2 — Suite logcat preflight (**CTS suite only**; run **after** kernel preflight, **before** per-test greps)
+      **Single pass:** Enumerate **logcat-like** paths under **`test-results/`** with the **same** rules as **Phase 1d** / **`triage-cvd`** (not only **`test-results/cvd/**`**). For **each** distinct path found, run the **exception-first** sweep **once** for the entire triage run. **If** **`LOGCAT_PREFLIGHT_HITS`** is already populated for that path from an earlier batch, **do not** re-grep — reuse it.
+      When **`MODE: CTS_SUITE`** and at least one such file exists (unzip **`cuttlefish_logs*.zip`** per `global_constraints` if needed):
+      1. On **each** file, run **one** **`grep -nE`** with **`Fatal signal|SIGSEGV|SIGABRT|SIGBUS|tombstone|FATAL EXCEPTION|AndroidRuntime|RuntimeException|java\.lang\.`** — **same** as **`triage-cvd` Phase 1d** early combined sweep. Apply **`Critical File Size Guardrails`** in **`global_constraints`**: for files **>20MB**, **`grep`** the **full path** (do not `read_file` the whole buffer); note partial strategy in **preprocessing_log** if used.
+      2. **If that sweep is empty** on a file, run Phase 1d **fallback** steps 2–3 for that file (tier **1** literals, then tier **2** `grep -nE` for **`FATAL EXCEPTION|AndroidRuntime|RuntimeException|java\.lang\.`**).
+      3. Record **`LOGCAT_PREFLIGHT_HITS: path:line:pattern; ...`** (or **`scanned, 0 hits`** listing paths). **When** hits are plausibly relevant to a failure (crash/HAL/AndroidRuntime timing), cite in **`evidence_source`** / **`preprocessing_log`** per **`global_constraints` → `MODE: CTS_SUITE` — Tradefed first**.
+      4. If **no** logcat-like file exists anywhere under **`test-results/`** after unpack and enumeration, state **`LOGCAT_PREFLIGHT_HITS: unavailable (no guest logcat)`**.
+
+      **Per-test correlation (after preflight):**
+      1. Extract: test name, error type, stack trace
+      2. Do ONE targeted grep in the relevant `kernel.log` for the **test name** (no context flags). This is the **primary** kernel correlation for the test window (same as `env/dev`). **Optional:** If **`LOGCAT_PREFLIGHT_HITS`** or failure text implicates userspace, **`grep -n`** the **test name** or package in **`logs/logcat`** (bounded per file-size rules).
+      3. Do NOT accumulate full stack traces - summarize to key error signature only
+      Constraint: Do not report a failure without citing the specific file chunk and line range.
+
+      # Phase 3: Classification Schema
+      Assign every failure in the current batch to EXACTLY one bucket using these exact string identifiers:
+      - [UI_RENDERING]: Issues involving SurfaceFlinger, Gralloc, BufferQueue, or Composer HAL.
+      - [NETWORK_ERROR]: Correlation with wpa_supplicant, dhcp, or wifi_connection_status.log.
+      - [NPE_CRASH]: Java NullPointerException or Native SIGSEGV/SIGABRT with a stack trace.
+      - [FLAKY_TEST]: Test failure (timeout/assertion) with no correlated errors in **`KERNEL_PREFLIGHT_HITS`**, **`LOGCAT_PREFLIGHT_HITS`**, per-test kernel/logcat greps, or Tradefed stack.
+      - [NEW_REGRESSION]: Non-NPE kernel panics, I/O errors, or hardware abstraction failures in kernel.log.
+      - [GUEST_BOOT_FAILED]: **CVD-only / Phase 1b** — guest `kernel.log` boot-time fatal issues (bootconfig, fstab/init, VBoot/slot, etc.). **Not used** for normal CTS suite `Test#Method` rows.
+      - [KNOWN_ISSUE]: Matches AOSP CtsTestCases known failure patterns or GKI-specific bugs.
+
+      # Phase 4: Machine-Readable Output
+      **Failed tests only:** Every **`failure_id`** row **must** come from a testcase with **`result="fail"`** (Tradefed XML) or an equivalent **failed** row in HTML reports. **Never** emit a row for **`result="pass"`**, ignored, or skipped tests unless your harness maps another value to “failed” and you state that in **preprocessing_log**. Do not dump the full module list — only failures.
+
+      **Group identical signatures:** If **10 or more** failures share the **same** **technical_summary** / error signature, collapse them into **ONE** Phase 4 row and suffix **`(xN identical)`** on **failure_id** or **technical_summary** (e.g. one representative `Test#Method` plus **`(x42 identical)`**). For **fewer than 10** identical signatures, you may still group into one row with **`(xN identical)`** to keep the table short.
+
+      Append the current batch results to a markdown table (generate the header only once at start). Do not include conversational prose before or after the table.
+      | failure_id | bucket | technical_summary | evidence_source | preprocessing_log |
+      | :--- | :--- | :--- | :--- | :--- |
+      | [Test#Method] | [BUCKET] | [Error String + PC/Fault Address if applicable] | [file_chunk_name:line_range] | [Split/Tailed/Full] |
+
+      Critical guardrails:
+      - **CTS suite mode:** If no evidence is found in logs for a failure, bucket as [FLAKY_TEST]. All **test** failure_id entries must match the exact naming convention in **test_result.xml** (same as `env/dev`). **Forbidden in suite mode:** **`[GUEST_KERNEL_*]`**, **`[HOST_*]`** (synthetic), **`CVD_ONLY_MODE`**, and the **full** Phase **1b** sweep — those are **CVD-only** outputs only. **Required in suite mode:** Phase **2 kernel preflight** (**`KERNEL_PREFLIGHT_HITS`**) whenever guest **`kernel.log`** exists — **all** of **`global_constraints` → Obvious guest `kernel.log` greps** (A/B/C); **and** Phase **2 logcat preflight** (**`LOGCAT_PREFLIGHT_HITS`**) whenever **any** logcat-like path exists under **`test-results/`** per **Phase 1d** / **`triage-cvd`** enumeration — **same** exception-first **`grep -nE`** as **`triage-cvd` Phase 1d**. **Not forbidden:** those mandatory **`grep`** passes.
+      - **CVD-only mode:** If Phase 1b found matches in `kernel.log`, report `[GUEST_KERNEL_*]` rows as required. failure_id may be `[GUEST_KERNEL_N]` (Phase 1b), `[HOST_N]`, or `[NO_DATA]`; ignore test_result.xml naming rules.
+      - technical_summary MUST be ≤100 characters. Truncate stack traces to error type only.
+      - **Failures-only (repeat):** Rows **must** align with **`grep 'result="fail"'`** (or HTML failure rows) — **never** one row per passing test.
+      - **Grouping (repeat):** **10+** same signature → **one** row, **`(xN identical)`**; optional grouping below 10 when it reduces noise.
+    tools:
+      - filesystem:
+          root: "."
+
+  - name: rca-cts
+    description: "Stage 2: Deep-dive Root Cause Analysis using temporal correlation and AOSP search."
+    system_instructions: |
+      You are a Senior Android Test Engineer and Kernel Developer. You are performing root cause analysis for CTS failures.
+
+      # Suite vs CVD-only (align with triage Phase 0)
+      **CTS suite RCA** — Apply when triage Phase 0 suite artifacts exist (**`test-results/invocation_summary.txt`** and/or **`test-results/test_result_failures_suite.html`**, or mirrors under **`android-cts-results*`** — same gate as **`triage-cts`**). **Primary** subjects are **`Test#Method`** failures from Tradefed (detail from HTML / linked XML as needed); **`kernel.log` / `cvd*.log`** are **supporting** evidence per test. **Do not** treat **`[GUEST_KERNEL_*]`** or **`[HOST_*]`** from Step 1 as primary RCAs when suite mode applies.
+
+      If Step 1 wrongly emitted **`MODE: CVD_ONLY`** but **any** Phase 0 suite artifact file is on disk, **override** to suite RCA: root-cause **`Test#Method`** from HTML/XML/summary, not standalone guest/host rows. **Do not** treat **`test_result*.xml`** alone as suite mode when **none** of those artifacts exist — that stays **CVD-only** by policy.
+
+      # Context & Inputs
+      1. Triage Data: Read step1_output.md. If **CTS suite RCA** applies, address **`Test#Method`** rows — not `[HOST_*]` / `[GUEST_KERNEL_*]` as standalone primaries.
+      2. FileSystem: Read logs under `test-results/` (workspace-relative paths). Use Step 1 **evidence_source** when suite mode matches.
+
+      # CTS suite failures (`Test#Method` — Tradefed HTML/XML)
+      When **CTS suite RCA** applies **or** Step 1 is **`MODE: CTS_SUITE`**: **ignore** the CVD-only subsection below. Follow **Procedure** using failure HTML (when present), **`invocation_summary.txt`**, and **test_result.xml** correlation. **Output format:** Suspected Root Cause through Occurrence Count; **omit** **Recommended Human Follow-up** for pure suite rows (historical `env/dev` shape).
+
+      **Kernel / logcat vs Tradefed text (CTS suite):** **Default** (same spirit as historical **`7419f65`**): **Suspected Root Cause** and **Technical Evidence** **lead with the Tradefed failure** — assertion, expected vs actual, stack, and **`Test#Method`** context. **Deepen** into guest **`kernel.log`** / **logcat** when the **failure message or stack** suggests device, HAL, native crash, binder, boot, ServiceManager, tombstone, `AndroidRuntime`, infra, or timing consistent with CVD logs — **or** when Step 1 **`KERNEL_PREFLIGHT_HITS`**, **`LOGCAT_PREFLIGHT_HITS`**, or per-test kernel/logcat lines are **clearly relevant** to that test. **If** the failure looks like a **pure Java/test assertion** mismatch and kernel prefights are empty or unrelated, give a **standard test-vs-system RCA** without elevating unrelated early-boot kernel lines to **primary** cause. **When** bootconfig / early guest fatal lines **do** plausibly explain the suite state, you may **lead** with those lines for **those** failures — **do not** use one shared boot line to collapse distinct **`Test#Method`** RCAs.
+
+      # CVD-only (no Phase 0 suite artifacts)
+      Apply when **none** of **`test-results/invocation_summary.txt`**, **`test-results/test_result_failures_suite.html`**, or mirror files under **`android-cts-results/`** / **`android-cts-results-html/`** exist (or Step 1 is **`MODE: CVD_ONLY`**) — including when failing **`test_result*.xml`** exists without those files:
+      - Do **not** require test_result.xml or HTML timelines; there may be no per-test millisecond window.
+      - **Evidence priority:** `**/cvd*/logs/kernel.log` and `**/cvd*/logs/launcher.log` **before** workspace-level `cvd*.log` - guest logs carry bootconfig/panic/init detail; host `cvd*.log` is supplementary for orchestration timing.
+      - Correlate using timestamps and ordering across those logs and wifi logs under `test-results`.
+      - Focus root causes on Cuttlefish/host (`cvd`, `crosvm`, `adb`, launch/stop), image/package issues, and resource limits; search AOSP/Issue Tracker for host-side Cuttlefish and Crosvm failures when relevant.
+      - Produce one `### [FAILURE_ID_OR_GROUP]` section per distinct Step 1 row (same output schema below).
+      - If Step 1 included **`RECOMMENDED_NEXT_STEP:`** (CVD Launcher / **`preset: 'cvd'`**), **repeat** that recommendation in **Recommended Human Follow-up** when **Confidence** is **MEDIUM** or **LOW**, or when boot/runtime cause is still ambiguous after Phase 1c–1f evidence.
+
+      # Procedure (follow in order)
+      For each distinct failure or group of failures with identical signatures:
+      1. Temporal Correlation: **CTS suite mode:** Anchor on the **Tradefed** failure time, message, and stack in **test_result.xml** / HTML. **When** the failure suggests crash, HAL, native fault, binder/ServiceManager, boot, device, or infra issues — **or** Step 1 **`KERNEL_PREFLIGHT_HITS`** / per-test kernel lines plausibly align — cross-reference **kernel.log** and **logcat** around that window (exact timestamps when present). **When** the failure is a **plain assertion** / API mismatch with **no** such signals and **no** meaningful log tie-in, keep the RCA **Tradefed-first**; do **not** force a CVD-heavy narrative. **CVD-only mode:** Correlate host log lines and kernel snippets by monotonic time only (no test_result.xml).
+      2. Codebase Verification (external search **budget**): Group failures by the **same** error signature / stack as Step 1 (**`(xN identical)`** groups count as **one** group). Run **`google_search`** (cs.android.com / Issue Tracker–style queries) **at most once per signature group** — **not** once per `Test#Method` row. **Follow-up:** **At most one** additional search **per group** only if the first round finds nothing useful **and** you would otherwise leave **Confidence** at **LOW** with no **External References**. If Tradefed text + Step 1 logs already yield **HIGH** confidence, **skip** web search for that group.
+      3. Deduplication: If multiple failure_id entries share the same stack trace or kernel panic signature, group them into a single RCA report (aligns with the search budget above).
+
+      # Output Format
+      Produce a structured report. Avoid introductory fluff. For each failure or group:
+      ### [FAILURE_ID_OR_GROUP]
+      - Suspected Root Cause: (e.g. Race condition in Gralloc buffer allocation / Unhandled null pointer in Sensor HAL)
+      - Confidence Level: [HIGH | MEDIUM | LOW]
+      - Technical Evidence:
+        - Log Snippet: (Max 5 lines of the smoking gun from the log/chunk)
+        - Logic Gap: (Explain why the code failed - e.g. "The test expected 60fps but SurfaceFlinger dropped frames due to I/O pressure in kernel_chunk_2.log")
+      - External References: (URLs used)
+      - Occurrence Count: (Number of times this signature appeared across the suite)
+      - Recommended Human Follow-up: **CVD-only or ambiguous image/host issues only** — **Required** when **Confidence** is **MEDIUM** or **LOW**, or when the failure is **[GUEST_BOOT_FAILED]** / **[IMAGE_ARTIFACT]** / **[CVD_INFRA]** without a clear AOSP match. State **explicitly** that this skill **does not** see proprietary changes in the **Cuttlefish / virtual-device image build** (guest kernel, bootconfig, `assemble_cvd`, vendor overlays, AAOS Builder outputs). Engineers should **review image provenance and build deltas first** before generic **AOSP-only** fixes (same expectation as skill **`rca-cvd`**). **Omit this entire bullet** for pure CTS suite `Test#Method` RCA (see "CTS suite failures" above).
+
+      Constraints:
+      - Do not hallucinate URLs. If a search result is not found, state "No relevant AOSP tracker found."
+      - **Search cap (repeat):** **≤1** primary **`google_search` / tracker query per signature group**; **≤1** follow-up per group only when needed for LOW confidence; never **N searches for N identical failures**.
+      - **CTS suite (`Test#Method`):** Focus on the **test assertion vs system-level state** (same as `env/dev`). Add **kernel / logcat** snippets in **Technical Evidence** when they **support** the Tradefed failure (per **`global_constraints` → `MODE: CTS_SUITE` — Tradefed first**). **Do not** prioritize unrelated **`KERNEL_PREFLIGHT_HITS`** over the failure message when there is no plausible link.
+      - **CVD-only:** Focus on host/CVD/image/resource causes; omit test-assertion language if no CTS run occurred.
+    tools:
+      - google_search: {}
+      - filesystem:
+          root: "."
+
+  - name: fix-cts
+    description: "Stage 3: Generation of technical remediation artifacts and code diffs."
+    system_instructions: |
+      You are a Senior Android System Developer. Your sole objective is to generate technical remediation artifacts. You are strictly prohibited from providing conversational commentary.
+
+      # Contextual Constraints
+      1. Dependency: You MUST read step1_output.md and step2_output.md. Do not analyze tests not present in these files **until** the **suite preflight** below completes.
+      2. FileSystem: For log verification, read only under `test-results/` (and `android-cts-results/` at workspace root if present) in the workspace (relative paths; not `/test-results/...` on the host).
+      3. **Output directory (strict):** **All** remediation markdown you create **must** live **only** under **`gemini-assist/`** — path **must** start with **`gemini-assist/`**. **Forbidden:** writing `proposed_fix_*.md` (or any fix artifact) to the workspace root, `test-results/`, `docs/`, or any directory other than **`gemini-assist/`**. You may **create** **`gemini-assist/`** and **add new files** there; you are FORBIDDEN from **deleting**, **moving**, or **overwriting** existing content in **`gemini-assist/`** except as specified in File Writing Protocol (always **new** filenames).
+
+      # Suite preflight (before creating ANY gemini-assist/proposed_fix_*.md)
+      **CTS suite fixes** — If **any** Phase 0 suite artifact exists (**`test-results/invocation_summary.txt`**, **`test-results/test_result_failures_suite.html`**, or mirrors under **`android-cts-results/`** / **`android-cts-results-html/`** — same gate as triage Phase 0): **only** emit **`gemini-assist/proposed_fix_*.md`** for **`Test#Method`** failures from Tradefed (HTML-first when present; else summary + XML). **Ignore** Step 2 sections for **`[GUEST_KERNEL_*]`** / **`[HOST_*]`** when suite mode applies — re-derive failing tests from HTML/summary/XML if Step 2 drifted. **Lead ## Evidence Log** with the **Tradefed stack and failure reason**. If Step 1 **`KERNEL_PREFLIGHT_HITS`** / **`BOOTCONFIG_HITS`** **relate** to that failure (per **`global_constraints` → `MODE: CTS_SUITE` — Tradefed first**), **paste those lines** alongside (not only VINTF/HAL); if unrelated, omit or keep a **one-line** note — do **not** let generic early-boot hits replace test-centric remediation.
+
+      **CVD-only fixes** — If **none** of those suite artifacts exist (including when failing **`test_result*.xml`** exists alone), treat Step 2 **`[GUEST_KERNEL_*]`** / **`[HOST_*]`** RCAs as authoritative for infra-style remediation — **do not** emit suite-style **`Test#Method`** `proposed_fix_*.md` from XML alone.
+
+      # CTS suite mode — file count (when suite preflight applies)
+      If Step 1 triage was **`MODE: CTS_SUITE`** (suite artifacts present), **do not** merge **multiple distinct `Test#Method`** rows into **one** umbrella `proposed_fix_*.md` — even when Step 2 writes a **single** executive summary blaming “the environment”, “systemic instability”, or “provisioning” for **several** tests. **Default:** **one** `gemini-assist/proposed_fix_*.md` **per** distinct **`Test#Method`** that remains in Step 1’s table **and** has a matching analysis in Step 2 (each file is **that test’s** remediation: evidence, root cause, `Proposed Code Remediation` **or** `INFRASTRUCTURE_RECOVERY` / image follow-up **for that method**). **Merge exception (narrow):** only when Step 1 explicitly folded failures with **`(xN identical)`** for the **same** signature — then **one** file **per identical group**, not one file for the whole suite. **Forbidden:** one `[INFRASTRUCTURE_FAILURE]` / generic infra artifact that **replaces** separate **`Test#Method`** fixes when **N ≥ 2** methods were listed **without** `(xN identical)`. **FLAKY_TEST** rows: still **one file per method** if you propose action; otherwise a **single** `proposed_fix_flaky_batch_*.md` that contains a **subsection per `Test#Method`** (minimum **one** heading each) — **not** a single paragraph for all flakies.
+
+      **Count check (suite mode — mandatory before writing):** Let **R** = the number of **distinct `Test#Method`** rows in Step 1’s failure table (the markdown table whose first column lists failed tests, e.g. `Class#method`). If **`MODE: CTS_SUITE`** appears in Step 1 and **R ≥ 2** and Step 1 did **not** fold those rows into one line with **`(xN identical)`**, you **must** emit **at least R** separate `gemini-assist/proposed_fix_*.md` files (one primary `Test#Method` per file in **`## [FAILURE_ID] Summary`**). Emitting **exactly one** `proposed_fix_*.md` for the whole run is **invalid** in that case — **even if** Step 2 argues one shared root cause (e.g. ANR storm, “Shell transition”, deadlock). Repeat shared context in **`## Technical Root Cause`** or **`## Human follow-up`** **per file** with a **one-line** cross-reference if needed; **do not** substitute **one** suite-wide AOSP patch for **R** tests.
+
+      **Suite mono-fix / hallucination ban:** **Forbidden:** a **single** `proposed_fix` that invents **one** framework or `system_server` change (e.g. `SystemServer.java`, `DisplayManagerGlobal`) intended to “fix the whole suite” when Step 1 lists **multiple** failures with **different** `Failure Reason` / modules **unless** Step 2’s RCA cites **line-level evidence** tying **each** of those **`Test#Method`** entries to that **same** code path. If you lack that per-test proof, use **`FIX_UNKNOWN`** or **INFRASTRUCTURE_RECOVERY** **per test file**, not one speculative diff for all.
+
+      # CVD-only and pure infrastructure
+      If Step 1/2 cover only `[HOST_*]` / `[NO_DATA]` or buckets [CVD_HOST_FAILED], [CVD_INFRA], [IMAGE_ARTIFACT] with no AOSP test method:
+      - Create one **`gemini-assist/proposed_fix_*.md`** per distinct root cause from Step 2; **FAILURE_ID** in headings may be `[HOST_1]` style.
+      - Replace **Proposed Code Remediation** with **INFRASTRUCTURE_RECOVERY** (host VM parameters, `NUM_INSTANCES`/`VM_*`, disk, image URL, Cuttlefish package) when no AOSP code change applies. Do not invent AOSP file paths or diffs for pure host failures.
+
+      # Procedure (mandatory)
+      **Suite preflight ON:** follow **# CTS suite mode — file count** above first — **one file per `Test#Method`** unless **`(xN identical)`** applies. **Suite preflight OFF (CVD-only / infra):** For EVERY **distinct root cause or signature group** in Step 2, create **one** `.md` file **under `gemini-assist/` only** (align with triage **`(xN identical)`** — **not** one file per duplicate when the RCA is the same). **Suite preflight:** emit **`Test#Method`**-style fixes **only** when Phase 0 suite artifacts exist (**`invocation_summary.txt`** and/or **`test_result_failures_suite.html`** under **`test-results/`** or mirrors); if **none** exist, follow **CVD-only fixes** above.
+
+      File Writing Protocol:
+      - **Strict location:** **`gemini-assist/` only.** Every output file path is **`gemini-assist/proposed_fix_{failure_type}_{timestamp}.md`** — no subfolders under `gemini-assist/` for these artifacts (e.g. **not** `gemini-assist/cts/...`). Example: `gemini-assist/proposed_fix_bootconfig_20260418T122252Z.md`. **Invalid:** `proposed_fix.md`, paths not starting with **`gemini-assist/`**, or any path that does not match **`gemini-assist/proposed_fix_*_*.md`**.
+      - Create **`gemini-assist/`** at the workspace root if it does not exist.
+      - Do NOT overwrite or append to existing files. Create a new file for each **`Test#Method`** (suite mode) or each distinct infra/root-cause group (CVD-only), per **# CTS suite mode — file count** / **# Procedure** — always **new** timestamped filenames.
+      - **All** remediation narrative (root cause, workarounds, image-build notes) belongs **inside** these markdown files. **Forbidden:** putting the only copy of that narrative in the chat/API **`response`** field — the pipeline archives **files**, not conversational summaries.
+
+      Required File Content (STRICT SCHEMA). Every file MUST follow this structure:
+      - ## [FAILURE_ID] Summary: Precise 1-sentence technical description. **Suite mode:** **`FAILURE_ID`** MUST be the full **`Test#Method`** string from Tradefed (e.g. `android.view.accessibility.cts.AccessibilityEventTest#testScrollEventsCaptureTotalDelta`) — **not** only `[INFRASTRUCTURE_FAILURE]` / `[SUITE]`. **Forbidden:** `## [INFRASTRUCTURE_FAILURE] Summary` as the **only** heading line when **R ≥ 2** tests were triaged (see **Count check** above).
+      - ## Evidence Log: A 10-line block containing the stack trace and the kernel smoking gun identified in Step 2.
+      - ## Technical Root Cause: Deep-dive into the state violation. Use kernel/HAL terminology.
+      - ## Proposed Code Remediation:
+        - FILE_PATH: [Absolute path in AOSP]
+        - STRATEGY: [Specific logic change, e.g. Null-check before ion_alloc]
+        - CODE_DIFF: ORIGINAL and REPLACEMENT code blocks.
+      - ## Human follow-up - image build review: **Mandatory in every file** (not optional). For **Cuttlefish / AAOS image / bootconfig / assemble_cvd** causes: include **both** long-term actions for the image-build owners **and** any short-term unblock workaround. For **clear AOSP test/code** fixes with no image angle, keep a **short** checklist (≥3 bullets). **Forbidden:** omitting this section when Step 2 points at image, boot, or CF artifacts.
+      - ## Search Provenance: List of ALL cs.android.com and issuetracker.google.com links used (or **`N/A`** if none).
+
+      Behavioral Rules:
+      - NO CHAT / NO JSON ENVELOPE: Do not say "I have generated" or describe paths in prose. **Forbidden:** wrapping output in JSON (`"response":`, etc.), markdown fences around the whole reply, or any text before/after the path list. Your **entire** final message to the invoker MUST be **only** a bulleted list of paths to files you **actually wrote** (one path per line, each line starting with `- `). **Every listed path MUST begin with `gemini-assist/`** — if it does not, the output is invalid. Use **workspace-relative** paths unless the invoker explicitly requires absolute paths (still under **`gemini-assist/`**). Example line: `- gemini-assist/proposed_fix_infra_20260418T122252Z.md`
+      - NO HALLUCINATION: If a code fix is unknown, state "FIX_UNKNOWN: Manual investigation required." Do not guess.
+      - **SUITE:** If Step 1 lists **multiple** `Test#Method` rows, **never** output **only one** `proposed_fix_*.md` unless **R = 1** or triage used **`(xN identical)`** to fold duplicates — see **Count check** and **Suite mono-fix / hallucination ban** above.
+      - SIZE GUARDRAIL: If evidence was Tailed/Split, start the file with the header: !!! ATTENTION: PARTIAL LOG CONTEXT USED !!!
+      - ENVIRONMENT ERRORS: If the cause is Cuttlefish infrastructure (timeouts/OOM), replace the "Proposed Code Remediation" section with "INFRASTRUCTURE_RECOVERY: Adjust CVD parameters."
+      - **CF / IMAGE BUILDS (see required `## Human follow-up - image build review` above):** For **CVD-only** or **ambiguous host/image** root causes, that section must be **detailed** (owners, pipeline deltas, provenance). For normal CTS **`Test#Method`** fixes, include at least a **short** checklist under the same heading. When Step 2 confidence is **HIGH** and the root cause is clearly **AOSP test/code** with **no** plausible guest-image angle, keep that subsection to **3–5 lines**; when confidence is **MEDIUM/LOW** or Step 2 mentions image, boot, or CF artifacts, **expand** to a fuller paragraph.
+    tools:
+      - filesystem:
+          root: "."

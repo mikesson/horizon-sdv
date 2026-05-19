@@ -39,14 +39,16 @@ const config = {
       lastName: 'Grafana',
       email: 'grafana@grafana'
     },
-    clientScope:{
-      clientScopeName: 'groups'
-    },
-    rolesAndGroups: [
-      'horizon-grafana-administrators',
-      'horizon-grafana-viewers'
+    ClientRoles: [
+      'administrators',
+      'viewers'
     ]
   }
+};
+
+const clientRoleToGroup = {
+  administrators: ['administrators'],
+  viewers: ['viewers']
 };
 
 const keycloakAdmin = new KcAdminClient({
@@ -116,8 +118,8 @@ async function createUserIfRequired()  {
     let user = _.find(users, {username: config.keycloak.adminUser.username});
 
     if (user) {
-      console.info('deleting old instance of %s user', config.keycloak.adminUser.username);
-      await keycloakAdmin.users.del({id: user.id});
+      console.info('user "%s" already exists, skipping create and password reset', config.keycloak.adminUser.username);
+      return;
     }
 
     console.info('creating %s user', config.keycloak.adminUser.username);
@@ -128,13 +130,19 @@ async function createUserIfRequired()  {
       realm: config.keycloak.realm.realm,
       firstName: config.keycloak.adminUser.firstName,
       lastName: config.keycloak.adminUser.lastName,
-      email: config.keycloak.adminUser.email
+      email: config.keycloak.adminUser.email,
+      emailVerified: true
+    });
+
+    await keycloakAdmin.users.resetPassword({
+      id: new_user.id,
+      realm: config.keycloak.realm.realm,
+      credential: {temporary: false, type: 'password', value: config.keycloak.adminUser.password}
     });
 
   } catch (err) {
     throw err
   }
-
 }
 
 async function generateSecretFiles()  {
@@ -151,9 +159,8 @@ async function generateSecretFiles()  {
   }
 }
 
-async function addGroupsClientScopeToGrafanaClientIfRequired() {
+async function DisableFullScopeIfRequired() {
   const clientId = config.keycloak.client.clientId;
-  const clientScopeName = config.keycloak.clientScope.clientScopeName;
 
   try {
     const clients = await keycloakAdmin.clients.find();
@@ -164,49 +171,23 @@ async function addGroupsClientScopeToGrafanaClientIfRequired() {
       return;
     }
 
-    const clientScopes = await keycloakAdmin.clientScopes.find();
-    const groupsScope = clientScopes.find(scope => scope.name === clientScopeName);
-
-    if (!groupsScope) {
-      console.error(`client scope "${clientScopeName}" does not exist.`);
-      return;
-    }
-
-    const defaultScopes = await keycloakAdmin.clients.listDefaultClientScopes({ id: grafanaClient.id });
-    const isGroupsScopeAssigned = defaultScopes.some(scope => scope.id === groupsScope.id);
-
-    if (isGroupsScopeAssigned) {
-      console.info('"groups" client scope already exists in "grafana" client.');
+    if (grafanaClient.fullScopeAllowed === false) {
+      console.info(`"Full scope allowed" is already disabled for client "${clientId}".`);
     } else {
-      console.log('adding "groups" client scope to "grafana" client.');
-      await keycloakAdmin.clients.addDefaultClientScope({id: grafanaClient.id, clientScopeId: groupsScope.id,});
+      console.log(`disabling "Full scope allowed" for client "${clientId}".`);
+      await keycloakAdmin.clients.update(
+        { id: grafanaClient.id, realm: config.keycloak.realm.realm },
+        { ...grafanaClient, fullScopeAllowed: false }
+      );
     }
   } catch (err) {
     throw err;
   }
 }
 
-async function createGrafanaRealmRolesIfRequired() {
-  const realmRoleNames = config.keycloak.rolesAndGroups;
-
-  for (const realmRoleName of realmRoleNames) {
-    try {
-      let realmRole = await keycloakAdmin.roles.findOneByName({name: realmRoleName});
-      if (realmRole) {
-        console.info(`role ${realmRoleName} exists`);
-      } else {
-        console.log(`creating ${realmRoleName} role`);
-        await keycloakAdmin.roles.create({name: realmRoleName});
-      }
-    } catch (err) {
-      throw err;
-    }
-  }
-}
-
 async function createGrafanaClientRolesIfRequired() {
   const clientId = config.keycloak.client.clientId;
-  const clientRoleNames = config.keycloak.rolesAndGroups;
+  const clientRoleNames = config.keycloak.ClientRoles;
 
   try {
     const clients = await keycloakAdmin.clients.find();
@@ -234,29 +215,9 @@ async function createGrafanaClientRolesIfRequired() {
   }
 }
 
-async function createGrafanaRealmGroupsIfRequired() {
-  const realmGroupNames = config.keycloak.rolesAndGroups;
-
-  for (const realmGroupName of realmGroupNames) {
-    try {
-      const existingGroups = await keycloakAdmin.groups.find({ search: realmGroupName });
-      const matchedGroup = existingGroups.find(group => group.name === realmGroupName);
-
-      if (matchedGroup) {
-        console.info(`group "${realmGroupName}" already exists.`);
-      } else {
-        console.log(`creating group "${realmGroupName}".`);
-        await keycloakAdmin.groups.create({ name: realmGroupName });
-      }
-    } catch (err) {
-      throw err;
-    }
-  }
-}
-
-async function mapGrafanaRealmRolesIntoClientRolesIfRequired() {
+async function mapGrafanaClientRolesToGroupsIfRequired() {
   const clientId = config.keycloak.client.clientId;
-  const roleNames = config.keycloak.rolesAndGroups;
+  const clientRoleNames = config.keycloak.ClientRoles;
 
   try {
     const clients = await keycloakAdmin.clients.find();
@@ -267,76 +228,112 @@ async function mapGrafanaRealmRolesIntoClientRolesIfRequired() {
       return;
     }
 
-    for (const roleName of roleNames) {
-      const clientRole = await keycloakAdmin.clients.findRole({id: grafanaClient.id, roleName});
+    const allGroups = await keycloakAdmin.groups.find();
+
+    for (const clientRoleName of clientRoleNames) {
+      const clientRole = await keycloakAdmin.clients.findRole({id: grafanaClient.id, roleName: clientRoleName});
 
       if (!clientRole) {
-        console.warn(`client role "${roleName}" does not exist under client "${clientId}".`);
+        console.warn(`client role "${clientRoleName}" does not exist in "${clientId}".`);
         continue;
       }
 
-      const realmRole = await keycloakAdmin.roles.findOneByName({ name: roleName });
-      if (!realmRole) {
-        console.warn(`realm role "${roleName}" does not exist.`);
+      const groupNames = clientRoleToGroup[clientRoleName];
+      if (!groupNames) {
+        console.warn(`no group mapping defined for client role "${clientRoleName}".`);
         continue;
       }
 
-      let parentRole = await keycloakAdmin.clients.findRole({id: grafanaClient.id, roleName: roleName});
-      let childRole = await keycloakAdmin.roles.findOneByName({name: roleName});
-      await keycloakAdmin.roles.createComposite({roleId: parentRole.id}, [childRole]);
-      console.log(`realm role "${roleName}" mapped into client role "${roleName}".`);
+      const names = Array.isArray(groupNames) ? groupNames : [groupNames];
+      for (const groupName of names) {
+        const group = allGroups.find(g => g.name === groupName);
+
+        if (!group) {
+          console.warn(`group "${groupName}" does not exist.`);
+          continue;
+        }
+
+        const mappedRoles = await keycloakAdmin.groups.listClientRoleMappings({id: group.id, clientUniqueId: grafanaClient.id});
+        const alreadyMapped = mappedRoles.some(role => role.name === clientRole.name);
+
+        if (alreadyMapped) {
+          console.info(`client role "${clientRoleName}" is already mapped to group "${groupName}".`);
+          continue;
+        }
+
+        await keycloakAdmin.groups.addClientRoleMappings({
+          id: group.id,
+          clientUniqueId: grafanaClient.id,
+          roles: [{
+            id: clientRole.id,
+            name: clientRole.name
+          }]
+        });
+        console.log(`client role "${clientRoleName}" mapped to group "${groupName}".`);
+      }
     }
   } catch (err) {
     throw err;
   }
 }
 
-async function mapGrafanaClientRolesToGroupsIfRequired() {
+async function mapUsersToClientRoleIfRequired() {
+  const searchGroup = 'admin';
   const clientId = config.keycloak.client.clientId;
-  const roleGroupNames = config.keycloak.rolesAndGroups;
+
+  const clientRoleNamesToAssign = [];
+  for (const [roleName, mappedGroupNames] of Object.entries(clientRoleToGroup)) {
+    const names = Array.isArray(mappedGroupNames) ? mappedGroupNames : [mappedGroupNames];
+    if (names.some(gn => gn.includes(searchGroup))) {
+      clientRoleNamesToAssign.push(roleName);
+    }
+  }
 
   try {
+    const users = await keycloakAdmin.users.find();
+    const user = _.find(users, { username: config.keycloak.adminUser.username });
+
+    if (!user) {
+      console.error(`user "${config.keycloak.adminUser.username}" does not exist.`);
+      return;
+    }
+
     const clients = await keycloakAdmin.clients.find();
-    const grafanaClient = clients.find(client => client.clientId === clientId);
+    const grafanaClient = clients.find(c => c.clientId === clientId);
 
     if (!grafanaClient) {
       console.error(`client "${clientId}" does not exist.`);
       return;
     }
 
-    for (const roleGroupName of roleGroupNames) {
-      const clientRole = await keycloakAdmin.clients.findRole({id: grafanaClient.id, roleName: roleGroupName});
+    for (const clientRoleName of clientRoleNamesToAssign) {
+      const clientRole = await keycloakAdmin.clients.findRole({
+        id: grafanaClient.id,
+        roleName: clientRoleName
+      });
 
       if (!clientRole) {
-        console.warn(`client role "${roleGroupName}" does not exist in "${clientId}".`);
+        console.warn(`client role "${clientRoleName}" does not exist for "${clientId}".`);
         continue;
       }
 
-      const allGroups = await keycloakAdmin.groups.find();
-      const group = allGroups.find(g => g.name === roleGroupName);
-
-      if (!group) {
-        console.warn(`group "${roleGroupName}" does not exist.`);
-        continue;
-      }
-
-      const mappedRoles = await keycloakAdmin.groups.listClientRoleMappings({id: group.id, clientUniqueId: grafanaClient.id});
+      const mappedRoles = await keycloakAdmin.users.listClientRoleMappings({
+        id: user.id,
+        clientUniqueId: grafanaClient.id
+      });
       const alreadyMapped = mappedRoles.some(role => role.name === clientRole.name);
 
       if (alreadyMapped) {
-        console.info(`client role "${roleGroupName}" is already mapped to group "${roleGroupName}".`);
+        console.info(`user "${user.username}" already has client role "${clientRoleName}" on "${clientId}".`);
         continue;
       }
 
-      await keycloakAdmin.groups.addClientRoleMappings({
-        id: group.id,
+      await keycloakAdmin.users.addClientRoleMappings({
+        id: user.id,
         clientUniqueId: grafanaClient.id,
-        roles: [{
-          id: clientRole.id,
-          name: clientRole.name
-        }]
+        roles: [{ id: clientRole.id, name: clientRole.name }]
       });
-      console.log(`client role "${roleGroupName}" mapped to group "${roleGroupName}".`);
+      console.log(`user "${user.username}" assigned client role "${clientRoleName}" on "${clientId}".`);
     }
   } catch (err) {
     throw err;
@@ -350,12 +347,10 @@ async function configureKeycloak()  {
     await createClientIfRequired();
     await createUserIfRequired();
     await generateSecretFiles();
-    await addGroupsClientScopeToGrafanaClientIfRequired();
-    await createGrafanaRealmRolesIfRequired();
-    await createGrafanaRealmGroupsIfRequired();
+    await DisableFullScopeIfRequired();
     await createGrafanaClientRolesIfRequired();
-    await mapGrafanaRealmRolesIntoClientRolesIfRequired();
     await mapGrafanaClientRolesToGroupsIfRequired();
+    await mapUsersToClientRoleIfRequired();
   } catch (err) {
     throw err
   }

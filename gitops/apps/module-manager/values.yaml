@@ -1,0 +1,41 @@
+# Copyright (c) 2024-2026 Accenture, All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#         http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Namespace where Module Manager runs (ModuleManagerState and ModuleCatalog CRs).
+namespace: module-manager
+
+# ArgoCD namespace and project for module Applications.
+argocd:
+  namespace: argocd
+  project: horizon-sdv
+
+# Git repo URL and revision for module charts (used when creating ArgoCD Applications).
+repo:
+  url: ""   # set via parent or --set repo.url
+  revision: HEAD
+
+# Controller image (full AR URL with tag, set by parent via Terraform).
+image: ""
+
+# Environment config injected by the parent chart (Terraform -> root GitOps -> here).
+# Module Manager passes this block into every ArgoCD Application it creates.
+config:
+  namespacePrefix: ""
+
+# Root Argo CD app-of-apps Application name(s), comma-separated; must match Terraform (prefix + horizon-sdv).
+gitopsRootAppName: horizon-sdv
+
+# Singleton CR names (state and catalog in module-manager namespace).
+stateCRName: cluster
+catalogCRName: cluster

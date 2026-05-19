@@ -38,7 +38,7 @@ pipeline {
       kind: Pod
       metadata:
         annotations:
-          cluster-autoscaler.kubernetes.io/safe-to-evict: "true"
+          cluster-autoscaler.kubernetes.io/safe-to-evict: "false"
         labels:
           aaos_pod: "true"
       spec:
@@ -100,7 +100,7 @@ pipeline {
       kind: Pod
       metadata:
         annotations:
-          cluster-autoscaler.kubernetes.io/safe-to-evict: "true"
+          cluster-autoscaler.kubernetes.io/safe-to-evict: "false"
         labels:
           aaos_pod: "true"
       spec:
@@ -167,7 +167,7 @@ pipeline {
       kind: Pod
       metadata:
         annotations:
-          cluster-autoscaler.kubernetes.io/safe-to-evict: "true"
+          cluster-autoscaler.kubernetes.io/safe-to-evict: "false"
         labels:
           aaos_abfs_pod: "true"
       spec:
@@ -218,7 +218,10 @@ pipeline {
 
   stages {
     stage ('Start VM Instance') {
-      agent { kubernetes { yaml "${POD_TEMPLATE}" } }
+      agent { kubernetes {
+        yamlMergeStrategy merge()
+        yaml "${POD_TEMPLATE}"
+      } }
       stages {
         stage ('MTK Connect to Host Device') {
           when { expression { env.MTK_CONNECT_ENABLE == 'true' } }

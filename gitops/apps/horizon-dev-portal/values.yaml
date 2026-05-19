@@ -1,0 +1,73 @@
+# Copyright (c) 2024-2026 Accenture, All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#         http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
+spec:
+  destination:
+    server: https://kubernetes.default.svc
+
+global:
+  nameOverride: ""
+  fullnameOverride: ""
+
+replicaCount: 1
+
+podAnnotations: {}
+
+image:
+  repository: horizon-dev-portal
+  tag: "1.0.0"
+  pullPolicy: IfNotPresent
+
+resources:
+  requests:
+    memory: "128Mi"
+    cpu: "100m"
+  limits:
+    memory: "512Mi"
+    cpu: "500m"
+
+secret:
+  horizonApiCiClientSecret: ""
+
+config:
+  namespacePrefix: ""
+  gitops:
+    horizonDevPortal: ""
+
+  domain: ""
+  # Browser URL path prefix for the SPA (leading slash, no trailing slash), e.g. /developer-portal or /portal.
+  publicPath: "/developer-portal"
+  # Full browser origin for window.APP_CONFIG.baseUrl (scheme + host, optional port). Do not set this to the Argo Workflows UI path (/workflows); the portal appends /workflows/... for deep links itself.
+  publicBaseUrl: ""
+
+  # Keycloak / OIDC (browser uses relative keycloakTokenPath; Go proxy uses full issuer + token URLs).
+  keycloakRealm: "horizon"
+  keycloakHttpPathPrefix: "/auth"
+  oidcIssuerUrl: ""
+  keycloakTokenUrl: ""
+  # Relative path for window.APP_CONFIG.keycloakUrl (same host as the portal).
+  keycloakTokenPath: "/auth/realms/horizon/protocol/openid-connect/token"
+  keycloakClientId: "horizon-dev-portal"
+  # Confidential client id for Horizon API access from the Go proxy (must match Keycloak + Secret).
+  horizonApiCiClientId: "horizon-api-ci"
+
+  # In-cluster HTTP base URLs (override if your Service names differ).
+  moduleManagerBaseUrl: "http://module-manager.module-manager.svc.cluster.local:8082"
+  horizonApiBaseUrl: ""
+
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 8080

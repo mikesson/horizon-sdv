@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# Copyright (c) 2024-2025 Accenture, All Rights Reserved.
+# Copyright (c) 2024-2026 Accenture, All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,7 +16,7 @@
 #
 # Description:
 # Create the Cuttlefish boilerplate template instance for use with Jenkins
-# GCE plugin.
+# GCE plugin and standalone gcloud compute CLI.
 #
 # To run, ensure gcloud is set up, authenticated and tunneling is
 # configured, eg. --tunnel-through-iap.
@@ -24,14 +24,12 @@
 # From command line, such as Google Cloud Shell, create templates for all
 # versions of android-cuttlefish host tools/packages:
 #
-#  CUTTLEFISH_REVISION=v1.35.0 ./cf_create_instance_template.sh && \
+#  CUTTLEFISH_REVISION=v1.41.0 ./cf_create_instance_template.sh && \
 #  CUTTLEFISH_REVISION=main ./cf_create_instance_template.sh
 #
 # The following variables are required to run the script, choose to use
 # default values or override from command line.
 #
-#  - ANDROID_CUTTLEFISH_PREBUILT: build or install prebuilt versions of
-#        cuttlefish.
 #  - ADDITIONAL_NETWORKING: ARM64 Bare metal requires IDPF network interface.
 #  - CURL_UPDATE_COMMAND: command to update/upgrade Curl
 #        eg. Debian backports: apt install -t bookworm-backports -y curl libcurl4
@@ -44,9 +42,22 @@
 #  - CUTTLEFISH_POST_COMMAND: command to run in android-cuttlefish repo.
 #  - BOOT_DISK_SIZE: Disk image size in GB. Default: 250GB
 #  - BOOT_DISK_TYPE: Disk image disk type.
-#  - JAVA_VERSION: Update Java version (must be openjdk headless)
-#  - JENKINS_NAMESPACE: k8s namespace. Default: jenkins
-#  - JENKINS_PRIVATE_SSH_KEY_NAME: SSH key name to extract public key from
+#  - DEFAULT_USER: VM instance default account username
+#  - JAVA_VERSION: Apt JDK package (default temurin-21-jdk). Names starting with temurin- add Adoptium apt.
+#  - MACHINE_TYPE: The machine type to create instance templates for.
+#       If undefined, the CUSTOM_ parameters must be.
+#  - MAX_RUN_DURATION: Limits how long this VM instance can run. Default: 10h
+#  - NAMESPACE: k8s namespace. Default: jenkins
+#  - NETWORK: The name of the VPC network. Default: sdv-network
+#  - NODEJS_VERSION: The version of nodejs to install. Default: 20.9.0
+#  - OS_VERSION: Default: debian-12-bookworm-v20260114
+#  - PROJECT: The GCP project. Default: derived from gcloud config.
+#  - REGION: The GCP region. Default: europe-west1
+#  - REPO_USERNAME: username for access to private repo.
+#  - REPO_PASSWORD: password for access to private repo.
+#  - SERVICE_ACCOUNT: The GCP service account. Default: derived from gcloud
+#        projects describe.
+#  - SSH_PRIVATE_KEY_NAME: SSH key name to extract public key from
 #        Private key would be created similar to:
 #        ssh-keygen -t rsa -b 4096 -C "jenkins" -f jenkins_private_key -q -N ""
 #        Ensure new line:
@@ -56,54 +67,24 @@
 #        This should produce an OpenSSH private and public key.
 #        Then added to k8s secrets and defined in Jenkins credentials.
 #        Default: jenkins-cuttlefish-vm-ssh-private-key
-#  - JENKINS_SSH_PUB_KEY_FILE: Public key file name.
+#  - SSH_PUBLIC_KEY_FILENAME: Public key file name.
 #        Default: jenkins_private_key.pub
-#  - MACHINE_TYPE: The machine type to create instance templates for.
-#       If undefined, the CUSTOM_ parameters must be.
-#  - MAX_RUN_DURATION: Limits how long this VM instance can run. Default: 10h
-#  - NETWORK: The name of the VPC network. Default: sdv-network
-#  - NODEJS_VERSION: The version of nodejs to install. Default: 20.9.0
-#  - OS_VERSION: Default: debian-12-bookworm-v20251209
-#  - PROJECT: The GCP project. Default: derived from gcloud config.
-#  - REGION: The GCP region. Default: europe-west1
-#  - REPO_USERNAME: username for access to private repo.
-#  - REPO_PASSWORD: password for access to private repo.
-#  - SERVICE_ACCOUNT: The GCP service account. Default: derived from gcloud
-#        projects describe.
 #  - SUBNET: The name of the subnet. Default: sdv-subnet
 #  - CUTTLEFISH_INSTANCE_NAME: The name used to identify the instance.
 #        Default: cuttlefish-vm-<branch-name>
-#  - VM_INSTANCE_CREATE: If 'true', then create a stopped VM instance from
-#        the final instance template. Useful for devs to experiment with the
-#        VM instances. May be disabled to reduce managed disk costs.
-#        Default: true
+#  - UPDATE_SSH_AUTHORIZED_KEYS: set true to refresh template key metadata
+#        without rebuilding the image.
 #  - ZONE: The GCP zone. Default: europe-west1-d
 #
 # The following arguments are optional and recommended run without args:
 
 #  -h|--help :     - Print usage
-#  1 : Run stage 1 - create the base instance template (debian +
-#                    virtualisation)
-#  2 : Run stage 2 - create the VM instance from base instance template.
-#  3 : Run stage 3 - Populate the VM instance with CF host packages
-#                    and other dependent packages.
-#                    Create 'jenkins' user and groups.
-#                    Add CF groups to jenkins account.
-#  4 : Run stage 4 - Create the SSH key for Jenkins account if key is not
-#                    available, and store public key as authorized_key for
-#                    Jenkins account. If key exists, reuse the existing public
-#                    key.
-#  5 : Run stage 5 - Stop the VM instance that is now configured for CF.
-#                    Create a boot disk image of that VM instance.
-#                    Create Cuttlefish instance template from that boot disk
-#                    image.
-#                    Create the Cuttlefish VM instance and stop that instance.
-#                    The instance template is what GCE Plugin uses, the VM
-#                    instance is purely created for reference.
-#  6 : Run stage 6 - Allow admins to clean up instances, artifacts.
-#                    Simply a helper job, only required if admins wish to
-#                    drop older versions of Cuttlefish.
-#  No args:          run all stages with exception 6 (delete).
+#  1 : Run stage 1 - Build Cuttlefish image with Packer and create
+#                    instance template from the baked image.
+#  2 : Run stage 2 - Refresh SSH authorized_keys metadata on template
+#                    without rebuilding image.
+#  3 : Run stage 3 - Delete instances, templates and images.
+#  No args:          run stage 1.
 # Include common functions and variables.
 # shellcheck disable=SC1091
 source "$(dirname "${BASH_SOURCE[0]}")"/cf_environment.sh "$0"
@@ -117,7 +98,6 @@ SCRIPT_NAME=$(basename "$0")
 
 # Environment variables that can be overridden from command line.
 # android-cuttlefish revisions can be of the form v1.7.0, main etc.
-ANDROID_CUTTLEFISH_PREBUILT=${ANDROID_CUTTLEFISH_PREBUILT:-false}
 ADDITIONAL_NETWORKING=${ADDITIONAL_NETWORKING:-}
 [ -n "${ADDITIONAL_NETWORKING}" ] && ADDITIONAL_NETWORKING=",${ADDITIONAL_NETWORKING}"
 BOOT_DISK_SIZE=${BOOT_DISK_SIZE:-500GB}
@@ -126,24 +106,23 @@ BOOT_DISK_TYPE=${BOOT_DISK_TYPE:-pd-balanced}
 CURL_UPDATE_COMMAND=${CURL_UPDATE_COMMAND:-}
 CUTTLEFISH_INSTANCE_NAME=${CUTTLEFISH_INSTANCE_NAME:-cuttlefish-vm}
 CUTTLEFISH_INSTANCE_NAME=$(echo "${CUTTLEFISH_INSTANCE_NAME}" | awk '{print tolower($0)}' | xargs)
-CUTTLEFISH_REVISION=${CUTTLEFISH_REVISION:-v1.35.0}
+CUTTLEFISH_REVISION=${CUTTLEFISH_REVISION:-v1.41.0}
 CUTTLEFISH_REVISION=$(echo "${CUTTLEFISH_REVISION}" | xargs)
 CUTTLEFISH_URL=${CUTTLEFISH_URL:-https://github.com/google/android-cuttlefish.git}
 CUTTLEFISH_URL=$(echo "${CUTTLEFISH_URL}" | xargs)
 CUTTLEFISH_POST_COMMAND=${CUTTLEFISH_POST_COMMAND:-}
-JAVA_VERSION=${JAVA_VERSION:-openjdk-17-jdk-headless}
-JENKINS_NAMESPACE=${JENKINS_NAMESPACE:-jenkins}
-JENKINS_PRIVATE_SSH_KEY_NAME=${JENKINS_PRIVATE_SSH_KEY_NAME:-jenkins-cuttlefish-vm-ssh-private-key}
-JENKINS_SSH_PUB_KEY_FILE=${JENKINS_SSH_PUB_KEY_FILE:-jenkins_private_key.pub}
+DEFAULT_USER=${DEFAULT_USER:-jenkins}
+JAVA_VERSION=${JAVA_VERSION:-temurin-21-jdk}
 MACHINE_TYPE=${MACHINE_TYPE:-}
 MACHINE_TYPE=$(echo "${MACHINE_TYPE}" | xargs)
 MAX_RUN_DURATION=${MAX_RUN_DURATION:-10h}
+NAMESPACE=${NAMESPACE:-jenkins}
 NETWORK=${NETWORK:-sdv-network}
 NODEJS_VERSION=${NODEJS_VERSION:-20.9.0}
 NODEJS_VERSION=$(echo "${NODEJS_VERSION}" | xargs)
 OS_PROJECT=${OS_PROJECT:-debian-cloud}
 OS_PROJECT=$(echo "${OS_PROJECT}" | xargs)
-OS_VERSION=${OS_VERSION:-debian-12-bookworm-v20251209}
+OS_VERSION=${OS_VERSION:-debian-12-bookworm-v20260114}
 OS_VERSION=$(echo "${OS_VERSION}" | xargs)
 PROJECT=${PROJECT:-$(gcloud config list --format 'value(core.project)'|head -n 1)}
 REGION=${REGION:-europe-west1}
@@ -152,8 +131,10 @@ REPO_USERNAME=$(echo "${REPO_USERNAME}" | xargs)
 REPO_PASSWORD=${REPO_PASSWORD:-}
 REPO_PASSWORD=$(echo "${REPO_PASSWORD}" | xargs)
 SERVICE_ACCOUNT=${SERVICE_ACCOUNT:-$(gcloud projects describe "${PROJECT}" --format='get(projectNumber)')-compute@developer.gserviceaccount.com}
+SSH_PRIVATE_KEY_NAME=${SSH_PRIVATE_KEY_NAME:-jenkins-cuttlefish-vm-ssh-private-key}
+SSH_PUBLIC_KEY_FILENAME=${SSH_PUBLIC_KEY_FILENAME:-jenkins_private_key.pub}
 SUBNET=${SUBNET:-sdv-subnet}
-VM_INSTANCE_CREATE=${VM_INSTANCE_CREATE:-true}
+UPDATE_SSH_AUTHORIZED_KEYS=${UPDATE_SSH_AUTHORIZED_KEYS:-false}
 ZONE=${ZONE:-europe-west1-d}
 
 IMAGE="projects/${OS_PROJECT}/global/images/${OS_VERSION}"
@@ -192,6 +173,9 @@ fi
 declare -r vm_cuttlefish_image=image-"${cuttlefish_name}"
 declare -r vm_cuttlefish_instance_template=instance-template-"${cuttlefish_name}"
 declare -r vm_cuttlefish_instance="${cuttlefish_name}"
+declare -r packer_template_path="${CF_SCRIPT_PATH}/packer/cuttlefish.pkr.hcl"
+declare -r packer_provision_script_path="${CF_SCRIPT_PATH}/packer/provision_cf_host.sh"
+declare -r startup_script_path="${CF_SCRIPT_PATH}/startup/refresh_authorized_keys.sh"
 
 # This timeout was just a coverall for GCE issues that have since been resolved
 # in Jenkins. But if creating a VM instance from the template, it is best not to set
@@ -249,7 +233,6 @@ function echo_formatted() {
 # Echo environment variables.
 function echo_environment() {
     echo_formatted "Environment variables:"
-    echo "ANDROID_CUTTLEFISH_PREBUILT=${ANDROID_CUTTLEFISH_PREBUILT}"
     echo "ARCHITECTURE=${ARCHITECTURE}"
     echo "ADDITIONAL_NETWORKING=${ADDITIONAL_NETWORKING}"
     echo "BOOT_DISK_SIZE=${BOOT_DISK_SIZE}"
@@ -262,13 +245,13 @@ function echo_environment() {
     echo "CUTTLEFISH_REVISION=${CUTTLEFISH_REVISION}"
     echo "CUTTLEFISH_POST_COMMAND=${CUTTLEFISH_POST_COMMAND}"
     echo "CUTTLEFISH_URL=${CUTTLEFISH_URL}"
+    echo "DEFAULT_USER=${DEFAULT_USER}"
     echo "IMAGE=${IMAGE}"
     echo "JAVA_VERSION=${JAVA_VERSION}"
-    echo "JENKINS_NAMESPACE=${JENKINS_NAMESPACE}"
-    echo "JENKINS_PRIVATE_SSH_KEY_NAME=${JENKINS_PRIVATE_SSH_KEY_NAME}"
-    echo "JENKINS_SSH_PUB_KEY_FILE=${JENKINS_SSH_PUB_KEY_FILE}"
+    echo "NAMESPACE=${NAMESPACE}"
     echo "MACHINE_TYPE=${MACHINE_TYPE}"
     echo "MAX_RUN_DURATION=${MAX_RUN_DURATION}"
+    echo "NAMESPACE=${NAMESPACE}"
     echo "NETWORK=${NETWORK}"
     echo "NODEJS_VERSION=${NODEJS_VERSION}"
     echo "OS_PROJECT=${OS_PROJECT}"
@@ -276,8 +259,10 @@ function echo_environment() {
     echo "PROJECT=${PROJECT}"
     echo "REGION=${REGION}"
     echo "SERVICE_ACCOUNT=${SERVICE_ACCOUNT}"
+    echo "SSH_PRIVATE_KEY_NAME=${SSH_PRIVATE_KEY_NAME}"
+    echo "SSH_PUBLIC_KEY_FILENAME=${SSH_PUBLIC_KEY_FILENAME}"
     echo "SUBNET=${SUBNET}"
-    echo "VM_INSTANCE_CREATE=${VM_INSTANCE_CREATE}"
+    echo "UPDATE_SSH_AUTHORIZED_KEYS=${UPDATE_SSH_AUTHORIZED_KEYS}"
     echo "VM_SUFFIX=${VM_SUFFIX}"
     echo "WORKSPACE=${WORKSPACE}"
     echo "ZONE=${ZONE}"
@@ -286,9 +271,10 @@ function echo_environment() {
 
 function print_usage() {
     echo "Usage:
-      ANDROID_CUTTLEFISH_PREBUILT=${ANDROID_CUTTLEFISH_PREBUILT} \\
       ARCHITECTURE=${ARCHITECTURE} \\
       ADDITIONAL_NETWORKING=${ADDITIONAL_NETWORKING} \\
+      BOOT_DISK_SIZE=${BOOT_DISK_SIZE} \\
+      BOOT_DISK_TYPE=${BOOT_DISK_TYPE} \\
       CURL_UPDATE_COMMAND=${CURL_UPDATE_COMMAND} \\
       CUSTOM_VM_TYPE=${CUSTOM_VM_TYPE} \\
       CUSTOM_CPU=${CUSTOM_CPU} \\
@@ -297,15 +283,13 @@ function print_usage() {
       CUTTLEFISH_REVISION=${CUTTLEFISH_REVISION} \\
       CUTTLEFISH_URL=${CUTTLEFISH_URL} \\
       CUTTLEFISH_POST_COMMAND=${CUTTLEFISH_POST_COMMAND} \\
-      BOOT_DISK_SIZE=${BOOT_DISK_SIZE} \\
-      BOOT_DISK_TYPE=${BOOT_DISK_TYPE} \\
+      DEFAULT_USER=${DEFAULT_USER} \\
       IMAGE=${IMAGE} \\
       JAVA_VERSION=${JAVA_VERSION} \\
-      JENKINS_NAMESPACE=${JENKINS_NAMESPACE} \\
-      JENKINS_PRIVATE_SSH_KEY_NAME=${JENKINS_PRIVATE_SSH_KEY_NAME} \\
-      JENKINS_SSH_PUB_KEY_FILE=${JENKINS_SSH_PUB_KEY_FILE} \\
+      SSH_PUBLIC_KEY_FILENAME=${SSH_PUBLIC_KEY_FILENAME} \\
       MACHINE_TYPE=${MACHINE_TYPE} \\
       MAX_RUN_DURATION=${MAX_RUN_DURATION} \\
+      NAMESPACE=${NAMESPACE} \\
       NETWORK=${NETWORK} \\
       NODEJS_VERSION=${NODEJS_VERSION} \\
       OS_PROJECT=${OS_PROJECT} \\
@@ -313,13 +297,20 @@ function print_usage() {
       PROJECT=${PROJECT} \\
       REGION=${REGION} \\
       SERVICE_ACCOUNT=${SERVICE_ACCOUNT} \\
+      SSH_PRIVATE_KEY_NAME=${SSH_PRIVATE_KEY_NAME} \\
+      SSH_PUBLIC_KEY_FILENAME=${SSH_PUBLIC_KEY_FILENAME} \\
       SUBNET=${SUBNET} \\
-      VM_INSTANCE_CREATE=${VM_INSTANCE_CREATE} \\
+      UPDATE_SSH_AUTHORIZED_KEYS=${UPDATE_SSH_AUTHORIZED_KEYS} \\
       VM_SUFFIX=${VM_SUFFIX} \\
       WORKSPACE=${WORKSPACE} \\
       ZONE=${ZONE} \\
       ./${SCRIPT_NAME}"
     echo "Use defaults or override environment variables."
+    echo
+    echo "Primary commands:"
+    echo "  ./${SCRIPT_NAME} 1        Build image with Packer and create template"
+    echo "  ./${SCRIPT_NAME} 2        Refresh SSH authorized_keys metadata only"
+    echo "  ./${SCRIPT_NAME} 3        Delete generated artifacts"
 }
 
 # Check environment.
@@ -338,248 +329,138 @@ function check_environment() {
     fi
 }
 
-# Create the initial template boot disk
-function create_base_template_instance() {
-    echo_formatted "1. Create base template"
-    yes Y | gcloud compute instance-templates delete "${vm_base_instance_template}" >/dev/null 2>&1 || true
-    # shellcheck disable=SC2086
-    gcloud compute instance-templates create "${vm_base_instance_template}" \
-        --description="Instance template: ${vm_base_instance_template}" \
-        --shielded-integrity-monitoring \
-        --key-revocation-action-type=none \
-        --service-account="${SERVICE_ACCOUNT}" \
-        ${machine_type_args} \
-        --maintenance-policy=TERMINATE \
-        --image-project="${OS_PROJECT}" \
-        --create-disk=mode=rw,architecture="${ARCHITECTURE}",boot=yes,size="${BOOT_DISK_SIZE}",auto-delete=true,type="${BOOT_DISK_TYPE}",device-name="${vm_base_instance}",image="${IMAGE}",image-project="${OS_PROJECT}",interface=SCSI \
-        --metadata=enable-oslogin=true \
-        --reservation-affinity=any \
-        --enable-nested-virtualization \
-        --region="${REGION}" \
-        --network-interface=network="${NETWORK}",subnet="${SUBNET}",stack-type=IPV4_ONLY,no-address"${ADDITIONAL_NETWORKING}" \
-        ${max_run_duration_args} >/dev/null &
-    progress_spinner "$!"
-    echo -e "${GREEN}Instance template ${vm_base_instance_template} created${NC}"
-}
-
-# Create a VM instance from the base tenplate instance.
-function create_vm_instance() {
-    echo_formatted "2. Create VM Instance from base template"
-    yes Y | gcloud compute instances delete "${vm_base_instance}" \
-        --zone="${ZONE}" >/dev/null 2>&1 || true &
-    progress_spinner "$!"
-
-    gcloud compute instances create "${vm_base_instance}" \
-        --source-instance-template "${vm_base_instance_template}" \
-        --zone="${ZONE}" &
-    progress_spinner "$!"
-
-    echo -e "${ORANGE}Sleep for 3 minutes while instance stabilises${NC}"; echo
-    sleep 3m
-    echo -e "${GREEN}VM Instance ${vm_base_instance} created${NC}"
-}
-
-# https://cloud.google.com/compute/docs/troubleshooting/troubleshoot-os-login#invalid_argument
-# Clean old SSH keys to avoid OS Login issues.
-function cleanup_os_login() {
-    echo -e "${GREEN}Cleanup old SSH keys${NC}"
-
-    FINGERPRINTS=$(gcloud compute os-login ssh-keys list --format="value(value.fingerprint)")
-    if [ -z "${FINGERPRINTS}" ]; then
-        echo -e "${YELLOW}No SSH keys found to remove.${NC}"
-    else
-        # Use a while loop to safely handle potential whitespace
-        echo "${FINGERPRINTS}" | while read -r k; do
-            [ -z "$k" ] && continue
-            echo -e "${GREEN}Removing key fingerprint:${NC} ${k}..."
-
-            # Retry logic for concurrency issues
-            for i in {1..3}; do
-                ERROR_MSG=$(gcloud compute os-login ssh-keys remove --key "${k}" --quiet 2>&1)
-                RESULT=$?
-                if [ $RESULT -eq 0 ]; then
-                    break
-                elif [[ "${ERROR_MSG}" == *"ABORTED"* ]]; then
-                    echo -e "${YELLOW}Concurrency error, retrying in 3s... (Attempt $i)${NC}"
-                    sleep 3
-                else
-                    echo -e "${RED}Failed to remove key: ${ERROR_MSG}${NC}"
-                    break # It's a real error
-                fi
-            done
-            # Avoid OS Login API rate limits
-            sleep 3
-        done
-        echo -e "${GREEN}Cleanup complete.${NC}"
-    fi
-
-    echo -e "${GREEN}Create CF directory for scripts${NC}"
-}
-
-# Install host tools on the base VM instance.
-# Host must be rebooted when installed (use stop/start to achieve it)
-function install_host_tools() {
-    echo_formatted "3. Populate Cuttlefish Host tools/packages on VM instance"
-
-    cleanup_os_login
-
-    gcloud compute ssh "${vm_base_instance}" \
-        --quiet \
-        --tunnel-through-iap \
-        --project "${PROJECT}" \
-        --zone="${ZONE}" \
-        --ssh-flag="-T" \
-        --command='mkdir -p cf' >/dev/null &
-    progress_spinner "$!"
-
-    echo -e "${GREEN}Copy CF host install scripts${NC}"
-    gcloud compute scp "${CF_SCRIPT_PATH}"/*.sh "${vm_base_instance}":~/cf/ --zone="${ZONE}" \
-        --tunnel-through-iap --project "${PROJECT}" >/dev/null &
-    progress_spinner "$!"
-
-    # Keep debug so we can see what's happening.
-    echo -e "${GREEN}Installing CF host ....${NC}"
-    if ! gcloud compute ssh "${vm_base_instance}" \
-        --quiet \
-        --tunnel-through-iap \
-        --project "${PROJECT}" \
-        --zone="${ZONE}" \
-        --ssh-flag="-T" \
-        --command="CUTTLEFISH_REVISION=${CUTTLEFISH_REVISION} \
-            ANDROID_CUTTLEFISH_PREBUILT=${ANDROID_CUTTLEFISH_PREBUILT} \
-            ARCHITECTURE=${ARCHITECTURE} \
-            CURL_UPDATE_COMMAND=\"${CURL_UPDATE_COMMAND}\" \
-            CTS_ANDROID_16_URL=${CTS_ANDROID_16_URL} \
-            CTS_ANDROID_15_URL=${CTS_ANDROID_15_URL} \
-            CTS_ANDROID_14_URL=${CTS_ANDROID_14_URL} \
-            CUTTLEFISH_POST_COMMAND=\"${CUTTLEFISH_POST_COMMAND}\" \
-            CUTTLEFISH_URL=${CUTTLEFISH_URL} \
-            CUTTLEFISH_REPO_URL=${CUTTLEFISH_REPO_URL} \
-            JAVA_VERSION=${JAVA_VERSION} \
-            NODEJS_VERSION=${NODEJS_VERSION} \
-            OS_VERSION=${OS_VERSION} \
-            REPO_USERNAME=${REPO_USERNAME} \
-            REPO_PASSWORD=${REPO_PASSWORD} \
-            WORKSPACE=\"${WORKSPACE}\" \
-            ./cf/cf_host_initialise.sh; exit \$?"; then
-        echo -e "${RED}Installing CF host failed.${NC}"
-        delete_instances
-        exit 1
-    fi
-    echo -e "${GREEN}Installing CF host completed.${NC}"
-
-    gcloud compute ssh "${vm_base_instance}" \
-        --quiet \
-        --tunnel-through-iap \
-        --project "${PROJECT}" \
-        --zone="${ZONE}" \
-        --ssh-flag="-T" \
-        --command="sudo ufw allow 22 || true"  >/dev/null 2>&1|| true
-    echo -e "${GREEN}Copying ${CUTTLEFISH_LATEST_SHA1_FILENAME}${NC}"
-    gcloud compute scp "${vm_base_instance}":~/"${CUTTLEFISH_LATEST_SHA1_FILENAME}" "${WORKSPACE}"/ --zone="${ZONE}" \
-         --tunnel-through-iap --project "${PROJECT}" >/dev/null 2>&1 || true
-
-    echo -e "${GREEN}Cleanup CF host files.${NC}"
-    gcloud compute ssh "${vm_base_instance}" \
-        --quiet \
-        --tunnel-through-iap \
-        --project "${PROJECT}" \
-        --zone="${ZONE}" \
-        --ssh-flag="-T" \
-        --command="rm -rf ~/cf && sudo ufw allow 22 || true" >/dev/null 2>&1 || true
-
-    # Alternative to reboot instance. Must be rebooted/restarted to ensure
-    # user/groups are applied correctly before image is created from the
-    # instance.
-    echo -e "${GREEN}Rebooting VM instance ${vm_base_instance}${NC}"
-    gcloud compute instances stop "${vm_base_instance}" --discard-local-ssd=false \
-        --zone="${ZONE}" >/dev/null 2>&1 &
-    progress_spinner "$!"
-
-    gcloud compute instances start "${vm_base_instance}" --zone="${ZONE}" >/dev/null 2>&1 &
-    progress_spinner "$!"
-
-    echo -e "${ORANGE}Sleep for 3 minutes while instance reboot completes.${NC}"; echo
-    sleep 3m
-    echo -e "${GREEN}VM instance ${vm_base_instance} rebooted!${NC}"
-}
-
-# Add SSH key for Jenkins.
-function create_ssh_key() {
-    echo_formatted "4. Create jenkins SSH Key on VM instance"
-
-    # If all we do is update the authroized_keys, make sure we flush all fingerprints!
-    [ "${UPDATE_SSH_AUTHORIZED_KEYS}" = true ] && cleanup_os_login
-
-    # Extract from k8s secrets. Otherwise you may already have a public key, so
-    # can bypass.
-    if [ ! -f "${JENKINS_SSH_PUB_KEY_FILE}" ]; then
-        echo -e "${GREEN}Extracting public key ${JENKINS_SSH_PUB_KEY_FILE}${NC}"
-        # Extract the public key from the private key.
-        # - Use template arg to extract the private key and decode the base64.
-        # - Append new line, if missing and correct file permissions so ssh-keygen
-        #   can read and extract the public key.
+# Extract the local public key from Kubernetes secret if needed.
+function ensure_ssh_public_key_local() {
+    if [ ! -f "${SSH_PUBLIC_KEY_FILENAME}" ]; then
+        echo -e "${GREEN}Extracting public key ${SSH_PUBLIC_KEY_FILENAME}${NC}"
         # shellcheck disable=SC1083
-        kubectl get secrets -n "${JENKINS_NAMESPACE}" "${JENKINS_PRIVATE_SSH_KEY_NAME}" \
-            --template={{.data.privateKey}} | base64 -d > jenkins_private_key
-        chmod 600 jenkins_private_key
+        kubectl get secrets -n "${NAMESPACE}" "${SSH_PRIVATE_KEY_NAME}" \
+            --template={{.data.privateKey}} | base64 -d > local_private_key
+        chmod 600 local_private_key
+        ssh-keygen -y -f local_private_key > "${SSH_PUBLIC_KEY_FILENAME}" || true
+        rm -f local_private_key || true
 
-        ssh-keygen -y -f jenkins_private_key > "${JENKINS_SSH_PUB_KEY_FILE}" || true
-        rm -f jenkins_private_key || true
-
-        if [ ! -f "${JENKINS_SSH_PUB_KEY_FILE}" ]; then
+        if [ ! -f "${SSH_PUBLIC_KEY_FILENAME}" ]; then
             echo -e "${RED}ERROR: Failed to extract public key from private key${NC}"
             return 1
         fi
     else
-        echo -e "${GREEN}Using local public key ${JENKINS_SSH_PUB_KEY_FILE}${NC}"
+        echo -e "${GREEN}Using local public key ${SSH_PUBLIC_KEY_FILENAME}${NC}"
     fi
-
-    echo -e "${GREEN}SSH Public key:${NC}"
-    cat "${JENKINS_SSH_PUB_KEY_FILE}"
-    cat "${JENKINS_SSH_PUB_KEY_FILE}" | gcloud compute ssh "${vm_base_instance}" \
-        --quiet \
-        --tunnel-through-iap \
-        --project "${PROJECT}" \
-        --zone="${ZONE}" \
-        --ssh-flag="-T" \
-        --command="sudo mkdir -p /home/jenkins/.ssh && \
-            sudo tee -a /home/jenkins/.ssh/authorized_keys > /dev/null && \
-            sudo chmod 700 /home/jenkins/.ssh && \
-            sudo chmod 600 /home/jenkins/.ssh/authorized_keys && \
-            sudo chown -R jenkins:jenkins /home/jenkins/.ssh && \
-            sync" >/dev/null &
-    progress_spinner "$!"
-
-    # Clean up
-    rm -f "${JENKINS_SSH_PUB_KEY_FILE}"
-    echo -e "${GREEN}SSH key installed.${NC}"
 }
 
-# Create the final Cuttlefish template for use with Jenkins GCE plugin
-# allowing Cuttlefish to run on the Jenkins VM Instance.
-function create_cuttlefish_boilerplate_template() {
-    echo_formatted "5. Create Cuttlefish boilerplate template instance from VM Instance"
-    echo -e "${GREEN}Stopping ${vm_base_instance}${NC}"
-    gcloud compute instances stop "${vm_base_instance}" --zone="${ZONE}" >/dev/null 2>&1 || true &
-    progress_spinner "$!"
+function get_packer_ssh_username() {
+    local username="debian"
+    if [[ "${OS_PROJECT}" == ubuntu* ]]; then
+        username="ubuntu"
+    fi
+    echo "${username}"
+}
 
-    echo -e "${GREEN}Deleting ${vm_cuttlefish_image}${NC}"
-    yes Y | gcloud compute images delete "${vm_cuttlefish_image}" >/dev/null 2>&1 || true &
-    progress_spinner "$!"
+function convert_memory_to_mb() {
+    local value
+    value=$(echo "$1" | awk '{print toupper($0)}' | xargs)
+    if [[ "${value}" =~ ^([0-9]+)GB$ ]]; then
+        echo "$((BASH_REMATCH[1] * 1024))"
+        return 0
+    fi
+    if [[ "${value}" =~ ^([0-9]+)MB$ ]]; then
+        echo "${BASH_REMATCH[1]}"
+        return 0
+    fi
+    if [[ "${value}" =~ ^[0-9]+$ ]]; then
+        echo "$((value * 1024))"
+        return 0
+    fi
+    echo -e "${RED}Unsupported CUSTOM_MEMORY format: ${value}. Use MB or GB.${NC}"
+    return 1
+}
 
-    echo -e "${GREEN}Creating ${vm_cuttlefish_image}${NC}"
-    gcloud compute images create "${vm_cuttlefish_image}" \
-        --source-disk="${vm_base_instance}" \
-        --source-disk-zone="${ZONE}" \
-        --storage-location="${REGION}" \
-        --source-disk-project="${PROJECT}" &
-    progress_spinner "$!"
+function get_packer_machine_type() {
+    if [ -n "${MACHINE_TYPE}" ]; then
+        echo "${MACHINE_TYPE}"
+        return 0
+    fi
 
-    echo -e "${GREEN}Delete ${vm_base_instance}${NC}"
-    yes Y | gcloud compute instances delete "${vm_base_instance}" \
-        --zone="${ZONE}" >/dev/null 2>&1 || true &
-    progress_spinner "$!"
+    local memory_mb
+    memory_mb=$(convert_memory_to_mb "${CUSTOM_MEMORY}") || return 1
+    echo "${CUSTOM_VM_TYPE}-custom-${CUSTOM_CPU}-${memory_mb}"
+}
+
+function boot_disk_size_gb() {
+    local value
+    value=$(echo "${BOOT_DISK_SIZE}" | awk '{print toupper($0)}' | xargs)
+    value=${value%GB}
+    value=${value%G}
+    echo "${value}"
+}
+
+function build_image_with_packer() {
+    echo_formatted "1. Build Cuttlefish image with Packer"
+
+    if ! command -v packer >/dev/null 2>&1; then
+        echo -e "${RED}ERROR: packer binary not found in PATH.${NC}"
+        exit 1
+    fi
+    if [ ! -f "${packer_template_path}" ] || [ ! -f "${packer_provision_script_path}" ]; then
+        echo -e "${RED}ERROR: Packer files missing under ${CF_SCRIPT_PATH}/packer.${NC}"
+        exit 1
+    fi
+
+    ensure_ssh_public_key_local || exit 1
+
+    local ssh_public_key_b64
+    ssh_public_key_b64=$(base64 < "${SSH_PUBLIC_KEY_FILENAME}" | tr -d '\n')
+    local packer_machine_type
+    packer_machine_type=$(get_packer_machine_type) || exit 1
+    local packer_ssh_username
+    packer_ssh_username=$(get_packer_ssh_username)
+    local disk_size_gb
+    disk_size_gb=$(boot_disk_size_gb)
+
+    yes Y | gcloud compute images delete "${vm_cuttlefish_image}" >/dev/null 2>&1 || true
+
+    packer init "${packer_template_path}"
+    packer build \
+        -var "project_id=${PROJECT}" \
+        -var "zone=${ZONE}" \
+        -var "region=${REGION}" \
+        -var "network=${NETWORK}" \
+        -var "subnetwork=${SUBNET}" \
+        -var "source_image_project_id=${OS_PROJECT}" \
+        -var "source_image=${OS_VERSION}" \
+        -var "machine_type=${packer_machine_type}" \
+        -var "disk_size_gb=${disk_size_gb}" \
+        -var "disk_type=${BOOT_DISK_TYPE}" \
+        -var "image_name=${vm_cuttlefish_image}" \
+        -var "image_description=${vm_cuttlefish_image}" \
+        -var "ssh_username=${packer_ssh_username}" \
+        -var "default_user=${DEFAULT_USER}" \
+        -var "cf_script_path=${CF_SCRIPT_PATH}" \
+        -var "android_cuttlefish_revision=${CUTTLEFISH_REVISION}" \
+        -var "cuttlefish_url=${CUTTLEFISH_URL}" \
+        -var "cuttlefish_post_command=${CUTTLEFISH_POST_COMMAND}" \
+        -var "repo_username=${REPO_USERNAME}" \
+        -var "repo_password=${REPO_PASSWORD}" \
+        -var "java_version=${JAVA_VERSION}" \
+        -var "nodejs_version=${NODEJS_VERSION}" \
+        -var "curl_update_command=${CURL_UPDATE_COMMAND}" \
+        -var "os_version=${OS_VERSION}" \
+        -var "cts_android_16_url=${CTS_ANDROID_16_URL}" \
+        -var "cts_android_15_url=${CTS_ANDROID_15_URL}" \
+        -var "cts_android_14_url=${CTS_ANDROID_14_URL}" \
+        -var "ssh_public_key_b64=${ssh_public_key_b64}" \
+        "${packer_template_path}"
+
+    echo -e "${GREEN}Image ${vm_cuttlefish_image} built with Packer${NC}"
+}
+
+function publish_instance_template_from_image() {
+    ensure_ssh_public_key_local || return 1
+    if [ ! -f "${startup_script_path}" ]; then
+        echo -e "${RED}ERROR: Startup script missing: ${startup_script_path}${NC}"
+        return 1
+    fi
 
     echo -e "${GREEN}Deleting ${vm_cuttlefish_instance_template}${NC}"
     yes Y | gcloud compute instance-templates delete \
@@ -597,7 +478,8 @@ function create_cuttlefish_boilerplate_template() {
         --maintenance-policy=TERMINATE \
         --image-project="${OS_PROJECT}" \
         --create-disk=image="${vm_cuttlefish_image}",boot=yes,auto-delete=yes,type="${BOOT_DISK_TYPE}" \
-        --metadata=enable-oslogin=true \
+        --metadata=enable-oslogin=true,jenkins-user="${DEFAULT_USER}" \
+        --metadata-from-file=startup-script="${startup_script_path}",jenkins-authorized-key="${SSH_PUBLIC_KEY_FILENAME}" \
         --reservation-affinity=any \
         --enable-nested-virtualization \
         --region="${REGION}" \
@@ -605,47 +487,38 @@ function create_cuttlefish_boilerplate_template() {
         ${max_run_duration_args} &
     progress_spinner "$!"
 
-    # Check the instance template was created.
     template_exists=$(gcloud compute instance-templates list --filter="name=${vm_cuttlefish_instance_template}" --format='get(name)')
     if [ "${template_exists}" != "${vm_cuttlefish_instance_template}" ]; then
        echo -e "${RED}ERROR: Failed to create template: ${vm_cuttlefish_instance_template}, review logs.${NC}"
        return 1
-    else
-       echo -e "${GREEN}Instance Template ${vm_cuttlefish_instance_template} created${NC}"
     fi
+    echo -e "${GREEN}Instance Template ${vm_cuttlefish_instance_template} created${NC}"
 
     echo -e "${GREEN}Deleting ${vm_cuttlefish_instance}${NC}"
-    # Delete and Recreate a VM instance for local tests.
     yes Y | gcloud compute instances delete "${vm_cuttlefish_instance}" \
         --zone="${ZONE}" >/dev/null 2>&1 || true &
     progress_spinner "$!"
 
-    if [ "${VM_INSTANCE_CREATE}" = true ]; then
-        gcloud compute instances create "${vm_cuttlefish_instance}" \
-            --source-instance-template "${vm_cuttlefish_instance_template}" \
-            --zone="${ZONE}" &
-        progress_spinner "$!"
-        echo -e "${GREEN}VM Instance ${vm_cuttlefish_instance} created${NC}"
+    echo -e "${GREEN}Skipping optional VM creation from instance template.${NC}"
+}
 
-        # Stop the VM instance.
-        gcloud compute instances stop "${vm_cuttlefish_instance}" \
-            --zone="${ZONE}" >/dev/null 2>&1 || true &
-        progress_spinner "$!"
-        echo -e "${GREEN}VM Instance ${vm_cuttlefish_instance} stopped${NC}"
+function create_instance_template_from_image() {
+    echo_formatted "1. Create Cuttlefish instance template from baked image"
+    publish_instance_template_from_image
+}
+
+function refresh_ssh_authorized_keys_on_existing_template() {
+    echo_formatted "2. Refresh SSH key metadata on existing template"
+    if ! publish_instance_template_from_image; then
+        echo -e "${RED}ERROR: Failed to refresh SSH key metadata on template.${NC}"
+        exit 1
     fi
-
-    echo -e "${GREEN}Deleting ${vm_base_instance_template}${NC}"
-    # Delete the base template
-    yes Y | gcloud compute instance-templates delete \
-        "${vm_base_instance_template}" >/dev/null 2>&1 || true &
-    progress_spinner "$!"
-
-    echo -e "${GREEN}Cuttlefish boilerplate template instance completed."
+    echo -e "${GREEN}Template SSH key metadata refreshed (no image rebuild).${NC}"
 }
 
 # Delete all VM instances and artifacts
 function delete_instances() {
-    echo_formatted "6. Delete VM instances and artifacts"
+    echo_formatted "3. Delete VM instances and artifacts"
 
     yes Y | gcloud compute instance-templates delete "${vm_base_instance_template}" >/dev/null 2>&1 || true
     echo_formatted "   Deleted ${vm_base_instance_template}"
@@ -675,33 +548,20 @@ function main() {
     echo_environment
     check_environment
     case "$1" in
-        1)  create_base_template_instance ;;
-        2)  create_vm_instance ;;
-        3)  install_host_tools ;;
-        4)  if ! create_ssh_key; then
-                delete_instances # Clean up on SSH error
+        1)  build_image_with_packer
+            if ! create_instance_template_from_image; then
+                delete_instances
                 exit 1
             fi
             ;;
-        5)  if ! create_cuttlefish_boilerplate_template; then
-                delete_instances # Clean up on error
-                exit 1
-            fi
-            ;;
-        6)  delete_instances ;;
+        2)  refresh_ssh_authorized_keys_on_existing_template ;;
+        3)  delete_instances ;;
         *h*)
             print_usage
             exit 0
             ;;
-        *)  create_base_template_instance
-            create_vm_instance
-            install_host_tools
-            if ! create_ssh_key; then
-                delete_instances # Clean up on SSH error
-                exit 1
-            fi
-
-            if ! create_cuttlefish_boilerplate_template; then
+        *)  build_image_with_packer
+            if ! create_instance_template_from_image; then
                 delete_instances # Clean up on error
                 exit 1
             fi

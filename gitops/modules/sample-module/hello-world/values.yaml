@@ -1,0 +1,31 @@
+# Copyright (c) 2024-2026 Accenture, All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#         http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# Namespace for hello-world and PubSub (should have KCC configured if gcpProjectId is set).
+namespace: sample-module-hello
+
+# GCP project ID for PubSubTopic (KCC). Leave empty to skip PubSub.
+gcpProjectId: ""
+
+# When empty, soft flags come from parent Helm values (pod rollout on toggle). When set by the parent Application, flags come from a Module Manager–managed ConfigMap (see ModuleCatalog softFeaturesPropagation).
+parentModuleName: ""
+
+# Legacy: used only when parentModuleName is empty (Helm-injected env SOFT_FEATURE_ENABLED_*).
+softFeaturesEnabled: {}
+
+# Public URL path prefix (leading slash, no trailing slash). Parent sample-module passes helloWorld.rootPath. Must match Module Catalog application URL for this app.
+rootPath: /hello-world
+
+# Injected by parent sample-module Application (domain, namespacePrefix, enableNetworkPolicies, projectID, …).
+config: {}

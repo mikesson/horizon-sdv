@@ -8,7 +8,7 @@
 
 ## Introduction <a name="introduction"></a>
 
-This job allows the user to list all objects in a bucket path based on the metadata that is set on them.
+This job allows the user to list all objects that match the specified bucket path based on the metadata that is set on them.
 The user can choose to list objects with specific metadata (matching the provided key and/or value),
 objects with any metadata or objects with no metadata.
 
@@ -22,7 +22,7 @@ Run the `Jenkins → Utilities → Docker Image Template` to create a container 
 
 ### `BUCKET_PATH`
 
-Path to desired folder (ending with / or /*) (e.g. `gs://bucketname/path/`)
+Path to desired folder - can contain any number of wildcard characters (e.g. `gs://bucketname/path/` or `gs://bucketname/subpath/*x86*`)
 
 ### `FILTER_TYPE`
 Type of filtering to be done: Specific Metadata, Any Metadata, No Metadata
@@ -53,11 +53,11 @@ These are as follows:
 -   `CLOUD_REGION`
     - The GCP project region. Important for bucket, registry paths used in pipelines.
 
--   `HORIZON_GIT_URL`
+-   `HORIZON_SCM_URL`
     - The URL to the Horizon SDV git repository.
 
--   `HORIZON_GIT_BRANCH`
-    - The branch name the job will be configured for from `HORIZON_GIT_URL`.
+-   `HORIZON_SCM_BRANCH`
+    - The branch name the job will be configured for from `HORIZON_SCM_URL`.
 
 -   `JENKINS_SERVICE_ACCOUNT`
     - Service account to use for pipelines. Required to ensure correct roles and permissions for GCP resources.

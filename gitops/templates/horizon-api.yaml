@@ -1,0 +1,56 @@
+# Copyright (c) 2026 Accenture, All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#         http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: {{ .Values.config.namespacePrefix }}horizon-api
+  namespace: {{ .Values.config.namespacePrefix }}argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "7"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: {{ .Values.config.namespacePrefix }}horizon-sdv
+  source:
+    repoURL: {{ .Values.spec.source.repoURL }}
+    targetRevision: {{ .Values.spec.source.targetRevision }}
+    path: gitops/apps/horizon-api
+    helm:
+      values: |
+        image: {{ .Values.config.containerImages.horizonApi | quote }}
+        namespace: {{ .Values.config.namespacePrefix }}horizon-api
+        moduleManagerNamespace: module-manager
+        moduleManagerStateName: cluster
+        workflowsNamespace: {{ .Values.config.namespacePrefix }}workflows
+        argoWorkflowsNamespace: {{ .Values.config.namespacePrefix }}argo-workflows
+        oidcIssuerUrl: "https://{{ .Values.config.domain }}/auth/realms/horizon"
+        oidcSkipClientIdCheck: true
+        eventsWebhookUrl: "http://webhook-eventsource-svc.{{ .Values.config.namespacePrefix }}argo-events.svc.cluster.local:12000/events/workflow"
+        gcsArtifactBucket: {{ .Values.config.projectID }}-argo-workflows
+        gcsSigningServiceAccount: gke-{{ .Values.config.namespacePrefix }}argo-workflows-sa@{{ .Values.config.projectID }}.iam.gserviceaccount.com
+        # GKE 1.21+ default datapath metadata; Dataplane V2 uses 169.254.169.254:80 — omit or set gceMetadataHost: "" in overrides.
+        gceMetadataHost: "169.254.169.252:988"
+        workflowTtlSecondsAfterSuccess: 86400
+        workflowTtlSecondsAfterFailure: 259200
+        workflowTtlSecondsAfterCompletion: 86400
+        config:
+          enableNetworkPolicies: {{ .Values.config.enableNetworkPolicies }}
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: {{ .Values.config.namespacePrefix }}horizon-api
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+    automated: {}

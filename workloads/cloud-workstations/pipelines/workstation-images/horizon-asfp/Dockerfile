@@ -57,6 +57,8 @@ RUN mkdir -p /etc/apt/keyrings && \
     apt-get install -y ./libtinfo5_6.3-2ubuntu0.1_amd64.deb && \
     rm libtinfo5_6.3-2ubuntu0.1_amd64.deb && \
     git clone https://github.com/google/android-cuttlefish && \
+    find /android-cuttlefish -name '*.MODULE.bazel' -o -name 'MODULE.bazel' \
+      | xargs sed -i 's|https://git.kernel.org/pub/scm/linux/kernel/git/jaegeuk/f2fs-tools|https://github.com/jaegeuk/f2fs-tools|g' && \
     /bin/bash -c /android-cuttlefish/tools/buildutils/build_packages.sh && \
     mkdir out && \
     cp /android-cuttlefish/cuttlefish-base_*_*64.deb /out && \

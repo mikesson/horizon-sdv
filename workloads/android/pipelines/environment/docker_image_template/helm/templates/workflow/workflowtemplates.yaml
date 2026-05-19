@@ -1,0 +1,129 @@
+# Copyright (c) 2026 Accenture, All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#         http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# Description:
+# Argo WorkflowTemplate for building AAOS docker images. Exposed in the Horizon Developer Portal under module workloads-android (horizon-sdv.io/expose=true). Also used internally by aaos-builder via templateRef and by Argo Events sensor webhook-aaos-builder-runtime-image.
+# Argo Events: Sensor webhook-aaos-builder-runtime-image (workflow/sensors.yaml).
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: {{ .Values.workflowTemplateName | quote }}
+  namespace: {{ include "aaos-builder-runtime-image.workflowNamespace" . | quote }}
+  labels:
+    app.kubernetes.io/name: aaos-builder-runtime-image
+    horizon-sdv.io/expose: "true"
+    horizon-sdv.io/module: workloads-android
+  annotations:
+    argocd.argoproj.io/sync-wave: "8"
+spec:
+  entrypoint: build
+  # Align with Argo controller artifactRepository.archiveLogs (GCS); same as aaos-builder WorkflowTemplate.
+  archiveLogs: true
+  serviceAccountName: {{ include "aaos-builder-runtime-image.workflowServiceAccountName" . | quote }}
+{{- if .Values.workflowTtlSecondsAfterCompletion }}
+  # TTL deletes workflow objects after completion (set via values).
+  ttlStrategy:
+    secondsAfterCompletion: {{ .Values.workflowTtlSecondsAfterCompletion }}
+{{- end }}
+{{- if .Values.podGcStrategy }}
+  # podGC strategy per Argo (e.g., OnPodCompletion, OnWorkflowCompletion).
+  podGC:
+    strategy: {{ .Values.podGcStrategy | quote }}
+{{- end }}
+  arguments:
+    parameters:
+      - name: horizonSubmittedFrom
+        value: ""
+        description: "Where the submit call originated (Horizon); mirrored on workflow label horizon-sdv.io/submitted-from."
+      - name: scmAuthMethod
+        value: {{ include "aaos-builder-runtime-image.scmAuthMethod" . | trim | quote }}
+        description: "SCM auth for pipeline git (app | userpass | none); passed to prepare-pipeline-git-creds when remote."
+      - name: pipelineStaticGitSecretName
+        value: {{ .Values.spec.pipelineRepoSecret | default "workflow-pipeline-git-creds" | quote }}
+        description: "Kubernetes Secret name (username/password) to copy from when scmAuthMethod is userpass."
+{{- if .Values.cloudEnvConfigMapName }}
+      - name: cloudProject
+        valueFrom:
+          configMapKeyRef:
+            name: {{ .Values.cloudEnvConfigMapName | quote }}
+            key: CLOUD_PROJECT
+        description: "GCP project — from platform ConfigMap when cloudEnvConfigMapName is set."
+      - name: cloudRegion
+        valueFrom:
+          configMapKeyRef:
+            name: {{ .Values.cloudEnvConfigMapName | quote }}
+            key: CLOUD_REGION
+        description: "GCP region — from platform ConfigMap when cloudEnvConfigMapName is set."
+      - name: cloudZone
+        valueFrom:
+          configMapKeyRef:
+            name: {{ .Values.cloudEnvConfigMapName | quote }}
+            key: CLOUD_ZONE
+        description: "GCP zone — from platform ConfigMap when cloudEnvConfigMapName is set."
+{{- else }}
+      - name: cloudProject
+        value: {{ .Values.spec.cloudProject | quote }}
+        description: "GCP project hosting the artifact registry (spec; set cloudEnvConfigMapName for platform ConfigMap)."
+      - name: cloudRegion
+        value: {{ .Values.spec.cloudRegion | quote }}
+        description: "GCP region hosting the artifact registry (spec; set cloudEnvConfigMapName for platform ConfigMap)."
+      - name: cloudZone
+        value: {{ .Values.spec.cloudZone | quote }}
+        description: "GCP zone (spec; set cloudEnvConfigMapName for platform ConfigMap)."
+{{- end }}
+      - name: dockerArtifactPathName
+        value: {{ .Values.spec.dockerArtifactPathName | quote }}
+        description: "Artifact registry image path (repo/name)."
+      - name: dockerfileDir
+        value: {{ .Values.spec.dockerfileDir | quote }}
+        description: "Dockerfile directory for common-docker-image-build."
+      - name: buildArgs
+        value: |
+          ABFS="false"
+          LINUX_DISTRIBUTION={{ "{{" }}workflow.parameters.linuxDistribution{{ "}}" }}
+          NODEJS_VERSION={{ "{{" }}workflow.parameters.nodejsVersion{{ "}}" }}
+          GCLOUD_CLI_VERSION={{ "{{" }}workflow.parameters.gcloudCliVersion{{ "}}" }}
+          KUBECTL_VERSION={{ "{{" }}workflow.parameters.kubectlVersion{{ "}}" }}
+          ENABLE_GEMINI_AI_ASSISTANT={{ "{{" }}workflow.parameters.enableGeminiAiAssistant{{ "}}" }}
+          GEMINI_CLI_VERSION={{ "{{" }}workflow.parameters.geminiCliVersion{{ "}}" }}
+        description: "Build args for common-docker-image-build."
+      - name: platform
+        value: linux/amd64
+        description: "Target platform for buildctl."
+      - name: dryRun
+        value: {{ .Values.spec.dryRun | quote }}
+        description: "When true, do not push built images."
+      - name: imageTag
+        value: {{ .Values.spec.imageTag | quote }}
+        description: "Image tag to build/push."
+      - name: linuxDistribution
+        value: {{ .Values.spec.linuxDistribution | quote }}
+        description: "Base distro for the Dockerfile build."
+      - name: nodejsVersion
+        value: {{ .Values.spec.nodejsVersion | quote }}
+        description: "Node.js version to install."
+      - name: gcloudCliVersion
+        value: {{ .Values.spec.gcloudCliVersion | quote }}
+        description: "gcloud CLI version to install."
+      - name: kubectlVersion
+        value: {{ .Values.spec.kubectlVersion | quote }}
+        description: "kubectl version to install."
+      - name: enableGeminiAiAssistant
+        value: {{ .Values.spec.enableGeminiAiAssistant | quote }}
+        description: "Enable Gemini AI tooling in the image."
+      - name: geminiCliVersion
+        value: {{ .Values.spec.geminiCliVersion | quote }}
+        description: "Gemini CLI version to install."
+  templates:
+{{- include "aaos-builder-runtime-image.templates" . | nindent 2 }}

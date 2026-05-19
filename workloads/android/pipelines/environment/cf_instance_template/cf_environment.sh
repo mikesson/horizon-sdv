@@ -18,10 +18,20 @@
 # Common environment functions and variables for Cuttlefish Instance
 # Template creation.
 
+# Percent-encode credentials for embedding in https://user:pass@host/path (required when
+# username is an email, or password contains @ : # % etc.). Trailing slashes on CUTTLEFISH_URL
+# are stripped so git/libcurl accept the URL.
+function _cuttlefish_urlencode_userinfo() {
+    python3 -c 'import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1], safe=""), end="")' "$1"
+}
+
 # Android Cuttlefish Repository that holds supporting tools to prepare host
 # to boot Cuttlefish.
 CUTTLEFISH_URL=$(echo "${CUTTLEFISH_URL}" | xargs)
 CUTTLEFISH_URL=${CUTTLEFISH_URL:-https://github.com/google/android-cuttlefish.git}
+while [[ "${CUTTLEFISH_URL}" == */ ]]; do
+    CUTTLEFISH_URL="${CUTTLEFISH_URL%/}"
+done
 CUTTLEFISH_REVISION=${CUTTLEFISH_REVISION:-main}
 REPO_USERNAME=${REPO_USERNAME:-}
 REPO_PASSWORD=${REPO_PASSWORD:-}
@@ -29,9 +39,12 @@ CUTTLEFISH_REPO_NAME=$(basename "${CUTTLEFISH_URL}" .git)
 
 # Create the repo url with credentials, when required but ensure the URL is never echoed.
 if [ -n "${REPO_USERNAME}" ] && [ -n "${REPO_PASSWORD}" ]; then
-    # Include username:password if provided
+    if ! command -v python3 >/dev/null 2>&1; then
+        echo "ERROR: python3 is required to build authenticated Git HTTPS URLs for private repos." >&2
+        exit 1
+    fi
     # shellcheck disable=SC2034
-    CUTTLEFISH_REPO_URL="${CUTTLEFISH_URL%%://*}://${REPO_USERNAME//@/%40}:${REPO_PASSWORD}@${CUTTLEFISH_URL#*://}"
+    CUTTLEFISH_REPO_URL="${CUTTLEFISH_URL%%://*}://$(_cuttlefish_urlencode_userinfo "${REPO_USERNAME}"):$(_cuttlefish_urlencode_userinfo "${REPO_PASSWORD}")@${CUTTLEFISH_URL#*://}"
 else
     # shellcheck disable=SC2034
     CUTTLEFISH_REPO_URL=${CUTTLEFISH_URL}

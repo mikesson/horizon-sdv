@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-
+#
 # Copyright (c) 2025 Accenture, All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -17,7 +17,7 @@
 function abfs_override_tf() {
   cat > main_override.tf <<EOL
 module "abfs-uploaders" {
-  source = "git::${TERRAFORM_GIT_URL}//modules/uploaders?ref=${TERRAFORM_GIT_VERSION}"
+  source = "git::${GOOGLE_ABFS_TERRAFORM_GIT_URL}//modules/uploaders?ref=${GOOGLE_ABFS_TERRAFORM_VERSION}"
 }
 EOL
 }
@@ -44,9 +44,16 @@ function abfs_uploader_run() {
   export TF_VAR_abfs_gerrit_uploader_datadisk_type="pd-balanced"
   export TF_VAR_abfs_docker_image_uri="${DOCKER_REGISTRY_NAME}"
   export TF_VAR_abfs_gerrit_uploader_manifest_server=${UPLOADER_MANIFEST_SERVER}
+  export TF_VAR_abfs_gerrit_uploader_manifest_scheme=${UPLOADER_MANIFEST_SCHEME:-https}
   export TF_VAR_abfs_gerrit_uploader_git_branch=${UPLOADER_GIT_BRANCH}
+  export TF_VAR_abfs_extra_params="${ABFS_EXTRA_PARAMS:-[]}"
+  export TF_VAR_abfs_gerrit_uploader_extra_params="${ABFS_GERRIT_UPLOADER_EXTRA_PARAMS:-[]}"
+  export TF_VAR_abfs_enable_git_lfs="${ABFS_ENABLE_GIT_LFS:-false}"
   export TF_VAR_abfs_manifest_file=${UPLOADER_MANIFEST_FILE}
   export TF_VAR_abfs_uploader_cos_image_ref="${ABFS_COS_IMAGE_REF}"
+  if [[ -n "${PRE_START_HOOKS:-}" ]]; then
+    export TF_VAR_pre_start_hooks="${PRE_START_HOOKS}"
+  fi
   export TF_VAR_abfs_license
   TF_VAR_abfs_license="$(echo "${ABFS_LICENSE_B64}" | base64 -d)"
 
@@ -55,6 +62,12 @@ function abfs_uploader_run() {
   if [ "${ABFS_TERRAFORM_ACTION}" = "APPLY" ]; then
     terraform plan
     terraform apply -auto-approve
+
+    delay_sec="${UPLOADER_POST_APPLY_DELAY_SECONDS:-0}"
+    if [[ "${delay_sec}" =~ ^[0-9]+$ ]] && [[ "${delay_sec}" -gt 0 ]]; then
+      echo "Waiting ${delay_sec} seconds for uploader instances to boot and start ABFS (set UPLOADER_POST_APPLY_DELAY_SECONDS=0 to skip)..."
+      sleep "${delay_sec}"
+    fi
 
     VM_LIST=$(terraform show -json | jq -r '.values.root_module | recurse(.child_modules[]?)  | .resources[]? | select(.type == "google_compute_instance") | "\(.values.name)"' | xargs)
     for vm in $VM_LIST; do

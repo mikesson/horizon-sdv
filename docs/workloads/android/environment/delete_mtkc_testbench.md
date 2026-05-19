@@ -47,11 +47,11 @@ These are as follows:
 -   `CLOUD_ZONE`
     - The GCP project zone. Important for bucket, registry paths used in pipelines.
 
--   `HORIZON_GIT_URL`
-    - The URL to the Horizon SDV Git repository.
+-   `HORIZON_SCM_URL`
+    - The URL to the Horizon SDV git repository.
 
--   `HORIZON_GIT_BRANCH`
-    - The branch name the job will be configured for from `HORIZON_GIT_URL`.
+-   `HORIZON_SCM_BRANCH`
+    - The branch name the job will be configured for from `HORIZON_SCM_URL`.
 
 -   `JENKINS_SERVICE_ACCOUNT`
     - Service account to use for pipelines. Required to ensure correct roles and permissions for GCP resources.

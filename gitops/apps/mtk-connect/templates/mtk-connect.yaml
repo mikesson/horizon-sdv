@@ -243,7 +243,7 @@ spec:
               memory: 400Mi
           env:
             - name: devices__version
-              value: {{ .Values.config.applications.mtkconnect.version }}
+              value: {{ .Values.config.chartVersions.mtkconnect.version }}
           volumeMounts:
             - mountPath: /usr/src/config/config.json
               name: mtk-connect-config
@@ -265,7 +265,7 @@ spec:
               name: mtk-connect-config
               subPath: config.json
         - name: installers
-          image: "{{ .Values.config.gitops.mtkconnect.installerlocation }}:{{ .Values.config.applications.mtkconnect.version }}"
+          image: "{{ .Values.config.gitops.mtkconnect.installerlocation }}:{{ .Values.config.chartVersions.mtkconnect.version }}"
           resources:
             requests:
               cpu: 50m

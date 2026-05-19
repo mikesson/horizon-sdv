@@ -1,0 +1,64 @@
+# Copyright (c) 2024-2026 Accenture, All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#         http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# Singleton ModuleCatalog CR — module list is defined here (not in values.yaml).
+# overviewServiceNamespace is the source of truth for Module Manager and for parent Helm overviewNamespace (injected by MM).
+# Workloads: parent module charts (mod-workloads-*) deploy to the same namespace as Module Manager (.Values.namespace), so overview Services live there—not in {prefix}workflows (that namespace is for child Argo Applications only).
+apiVersion: horizon-sdv.io/v1alpha1
+kind: ModuleCatalog
+metadata:
+  name: {{ .Values.catalogCRName }}
+  namespace: {{ .Values.namespace }}
+  labels:
+    app.kubernetes.io/name: module-manager
+spec:
+  modules:
+    - name: sample-hard
+      path: gitops/modules/sample-hard-module
+      overviewPath: portal/overview.html
+      overviewService: mod-sample-hard-overview
+      overviewServiceNamespace: sample-hard-module-hello
+      # Demo: auto-disable when no enabled module lists sample-hard as a hard dependency.
+      autoDisableWhenUnused: true
+    - name: sample-soft
+      path: gitops/modules/sample-soft-module
+      overviewPath: portal/overview.html
+      overviewService: mod-sample-soft-overview
+      overviewServiceNamespace: sample-soft-module-hello
+      # Demo: auto-disable when no enabled module depends on sample-soft (hard or soft).
+      autoDisableWhenUnused: true
+    - name: sample
+      path: gitops/modules/sample-module
+      overviewPath: portal/overview.html
+      overviewService: mod-sample-overview
+      overviewServiceNamespace: sample-module-hello
+      hardDependencies:
+        - sample-hard
+      softDependencies:
+        - sample-soft
+      softFeaturesPropagation: HelmValuesAndConfigMap
+      softFeaturesConfigMapNamespaces:
+        - sample-module-hello
+    - name: workloads-common
+      path: gitops/modules/workloads-common
+      overviewPath: portal/overview.html
+      overviewService: mod-workloads-common-overview
+      overviewServiceNamespace: {{ .Values.namespace | quote }}
+    - name: workloads-android
+      path: gitops/modules/workloads-android
+      overviewPath: portal/overview.html
+      overviewService: mod-workloads-android-overview
+      overviewServiceNamespace: {{ .Values.namespace | quote }}
+      hardDependencies:
+        - workloads-common

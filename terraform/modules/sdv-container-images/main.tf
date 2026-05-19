@@ -12,6 +12,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+locals {
+  # Effective Docker build context per image (default: folder under images/).
+  docker_context = {
+    for name, img in var.images : name => coalesce(try(img.context_path, null), "${path.module}/images/${img.directory}/${name}")
+  }
+
+  # When context_path is set, skip hashing paths that match local npm/build artifacts (like .dockerignore).
+  docker_context_files = {
+    for name, img in var.images : name => sort([
+      for f in fileset(local.docker_context[name], "**") : f
+      if try(img.context_path, null) == null ? true : !(
+        startswith(f, "node_modules/") || startswith(f, "dist/") || startswith(f, ".git/")
+      )
+    ])
+  }
+}
+
 resource "docker_image" "sdv-container-images" {
   for_each = var.images
 
@@ -19,19 +36,26 @@ resource "docker_image" "sdv-container-images" {
   build {
     no_cache = true
 
-    context = "${path.module}/images/${each.value.directory}/${each.key}"
-    tag     = ["${var.gcp_region}-docker.pkg.dev/${var.gcp_project_id}/${var.gcp_registry_id}/${each.key}:${each.value.version}"]
-
+    context    = local.docker_context[each.key]
+    tag        = ["${var.gcp_region}-docker.pkg.dev/${var.gcp_project_id}/${var.gcp_registry_id}/${each.key}:${each.value.version}"]
     build_args = each.value.build_args
+
+    # Default "Dockerfile" in context; override with absolute path when context is external.
+    dockerfile = coalesce(try(each.value.dockerfile_path, null), "Dockerfile")
+    platform   = try(each.value.platform, null)
   }
 
   triggers = {
     dir_sha1 = sha1(join("", [
-      for f in fileset("${path.module}/images/${each.value.directory}/${each.key}", "**") :
-      filesha1("${path.module}/images/${each.value.directory}/${each.key}/${f}")
+      for f in local.docker_context_files[each.key] :
+      filesha1("${local.docker_context[each.key]}/${f}")
     ]))
 
     build_args_sha = sha1(jsonencode(each.value.build_args))
+
+    dockerfile_sha = try(each.value.dockerfile_path, null) != null ? filesha1(each.value.dockerfile_path) : ""
+
+    platform_sha = try(each.value.platform, null) != null ? each.value.platform : ""
   }
 }
 

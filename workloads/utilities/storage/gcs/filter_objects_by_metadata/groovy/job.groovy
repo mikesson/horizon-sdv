@@ -22,7 +22,7 @@ pipelineJob('Utilities/Storage/GCS/Filter Objects by Metadata') {
     stringParam {
       name('BUCKET_PATH')
       defaultValue('')
-      description('''<p>path to query (ending with / or /*) <br>e.g. gs://bucketname/path/*</p>''')
+      description('''<p>path to query (can contain any number of wildcard characters) <br>e.g. gs://bucketname/path/ or gs://bucketname/subpath/*x86*</p>''')
       trim(true)
     }
     choiceParam {
@@ -44,8 +44,8 @@ pipelineJob('Utilities/Storage/GCS/Filter Objects by Metadata') {
   }
 
   logRotator {
-    daysToKeep(60)
-    numToKeep(200)
+    daysToKeep(7)
+    numToKeep(50)
   }
 
   definition {
@@ -54,10 +54,10 @@ pipelineJob('Utilities/Storage/GCS/Filter Objects by Metadata') {
       scm {
         git {
           remote {
-            url("${HORIZON_GIT_URL}")
-            credentials('jenkins-git-creds')
+            url("${HORIZON_SCM_URL}")
+            credentials('jenkins-scm-creds')
           }
-          branch("*/${HORIZON_GIT_BRANCH}")
+          branch("*/${HORIZON_SCM_BRANCH}")
         }
       }
       scriptPath('workloads/utilities/storage/gcs/filter_objects_by_metadata/Jenkinsfile')

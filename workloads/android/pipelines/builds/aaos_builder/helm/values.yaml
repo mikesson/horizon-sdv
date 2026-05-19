@@ -1,0 +1,149 @@
+# Copyright (c) 2026 Accenture, All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#         http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# Description:
+# Default values for the AAOS builder Helm chart.
+# Usage:
+# 1) Apply: helm template aaos-builder workloads/android/pipelines/builds/aaos_builder/helm | kubectl apply -f -
+# 2) Run:   argo submit --from workflowtemplate/aaos-builder -n <namespace>
+# Notes: requires aaos-builder-runtime-image WorkflowTemplate for image bootstrapping.
+# Namespace: if `namespace` is non-empty, use it; else `namespacePrefix` + "workflows" (e.g. namespacePrefix: "dev-" → dev-workflows; matches GitOps config.namespacePrefix).
+namespacePrefix: ""
+namespace: ""
+# Set by GitOps (userpass | app | none). Remote + userpass|app: prepare-pipeline-git-creds (umbrella) before git artifacts;
+# then again after the build step (refresh-pipeline-git-creds-after-build) so storage / ai-review clones use a fresh ~1h token.
+git:
+  authMethod: ""
+workflowTemplateName: aaos-builder
+# Argo Events Sensor: templates/workflow/sensors.yaml.
+localRepoHostPath: ""
+# Optional PVC with repo contents for GKE/local clusters.
+# When set, the workflow mounts this PVC at localRepoMountPath.
+localRepoPvcName: ""
+localRepoMountPath: /workspace-local
+# WorkflowTemplate used to build the AAOS builder image.
+# This is the dependency on the aaos-builder-runtime-image chart.
+aaosBuilderImageWorkflowTemplateName: aaos-builder-runtime-image
+# Pod GC for workflow task pods (prevents completed pods from lingering).
+# Strategy options follow Argo podGC (e.g., OnPodCompletion, OnWorkflowCompletion).
+# OnWorkflowCompletion keeps step pods until the entire workflow finishes (better live log streaming in
+# Argo/Horizon while the run is active). Horizon can still show per-step logs from GCS after pods are GC'd.
+podGcStrategy: OnWorkflowCompletion
+# WorkflowTemplate (namespaced) used for AI review step (gemini chart on workloads-android).
+aiReviewWorkflowTemplateName: ai-review
+# When set, steps use envFrom this ConfigMap for CLOUD_PROJECT, CLOUD_REGION, CLOUD_ZONE, HORIZON_DOMAIN (from gitops config; see gitops/templates/argo-workflows-init.yaml). Leave empty for local clusters without that ConfigMap.
+cloudEnvConfigMapName: "horizon-workflow-cloud-env"
+# When true (and not using localRepoHostPath/localRepoPvcName): clone the pipeline repo once into a
+# per-workflow PVC (pipeline-workspace) and reuse it for clean|init|build|storage (avoids per-pod git inits and
+# GitHub App token expiry on long runs for those steps). ai-review uses its own git artifact clone to /workspace
+# (separate WT), not this PVC — avoids volume mount merge issues with nested templateRef.
+# See docs/guides/plan_aaos_builder_shared_pipeline_workspace.md
+# Set here or override from GitOps workloads-android (same level as namespacePrefix / git).
+sharedPipelineWorkspace: true
+
+spec:
+  # Cache PVC behavior:
+  # - per-workflow: each workflow creates its own PVC via volumeClaimTemplates.
+  lunchTarget: aosp_cf_x86_64_auto-bp3a-userdebug
+  androidRevision: android-16.0.0_r3
+  # Access mode must match the storage class (RWO or RWX).
+  aaosCacheAccessMode: ReadWriteOnce
+  # Size for pipeline-workspace PVC (Horizon monorepo checkout only; AOSP stays on aaos-cache).
+  pipelineWorkspaceStorageSize: "20Gi"
+  # Optional: override StorageClass for pipeline-workspace only. Default empty → pipeline-workspace-delete (Delete reclaim; disk freed when PVC is GC'd). aaos-cache stays on reclaimable-storage-class-android-* (Retain).
+  pipelineWorkspaceStorageClassName: ""
+  # TTL in seconds after completion; leave empty to retain workflow records.
+  # Set a number (e.g., 60) to auto-delete workflows after completion.
+  workflowTtlSecondsAfterCompletion:
+  # Release per-workflow PVCs while retaining the workflow record.
+  # Strategy options follow Argo volumeClaimGC (e.g., OnWorkflowCompletion).
+  # For Retain PVs this leaves the PV in Available state after completion.
+  volumeClaimGcStrategy: OnWorkflowCompletion
+  cleanBuild: NO_CLEAN
+  buildCtsOnly: "false"
+  storageLabels: "env=dev"
+  horizonDomain: dev.horizon-sdv.com
+  parallelSyncJobs: "3"
+  # Local / chart defaults only. GitOps workloads-android overrides from config.projectID, .region, .zone, .domain (same source as ConfigMap horizon-workflow-cloud-env).
+  cloudProject: sdva-2108202401
+  cloudRegion: europe-west1
+  cloudZone: europe-west1-d
+  manifestUrl: https://android.googlesource.com/platform/manifest
+  # Pipeline repo for Argo git artifacts when not using localRepoHostPath / localRepoPvcName.
+  # Align with gitops config.workloads.android.url and .branch (Argo CD: workloads-android multi-source Helm values).
+  pipelineRepoUrl: ""
+  pipelineRepoRevision: ""
+  # Optional Secret (username/password) for private HTTPS when scm.authMethod is pat; leave empty for public clones. app uses {{workflow.uid}}-pipeline-git-creds (minted at runtime).
+  pipelineRepoSecret: ""
+  # When true, pods use workflow-executor-elevated (Terraform sdv_wi_service_accounts argo_workflows_elevated → gke-argo-workflows-elevated-sa). When false, use serviceAccountName below (argo_workflows → gke-argo-workflows-sa).
+  useElevatedWorkflowIam: true
+  serviceAccountName: workflow-executor
+  enableGeminiAiAssistant: "true"
+  # Sequenced prompts (triage -> RCA -> fixes); paths under this chart's prompt/sequenced/.
+  geminiPromptFile: /workspace/workloads/android/pipelines/builds/aaos_builder/prompt/sequenced/step1_triage.txt
+  geminiPromptFile2: /workspace/workloads/android/pipelines/builds/aaos_builder/prompt/sequenced/step2_rca.txt
+  geminiPromptFile3: /workspace/workloads/android/pipelines/builds/aaos_builder/prompt/sequenced/step3_fixes.txt
+  # Mandatory path to skills.yaml for gemini_initialise (same directory as sequenced prompts).
+  geminiSkillsYaml: /workspace/workloads/android/pipelines/builds/aaos_builder/prompt/sequenced/skills.yaml
+  geminiPreviewFeatures: "true"
+  geminiLocationGlobal: "true"
+  # Optional model pin. When non-empty, overrides geminiCommandLine with:
+  #   gemini --model <geminiModel> --yolo --output-format json
+  geminiModel: ""
+  # Full CLI when geminiModel is empty. To pin a model without geminiModel, embed --model here (see README).
+  geminiCommandLine: gemini --yolo --output-format json
+  geminiAiExecutionTimeoutHours: "1"
+  # Pod CPU/memory for init, clean, and storage templates (not build; not ai-review — see gemini/helm chart).
+  workflowStepResources:
+    fetchPipeline:
+      requests:
+        cpu: "2000m"
+        memory: "4Gi"
+      limits:
+        cpu: "8000m"
+        memory: "16Gi"
+    init:
+      requests:
+        cpu: "8000m"
+        memory: "32Gi"
+      limits:
+        cpu: "24000m"
+        memory: "64Gi"
+    clean:
+      requests:
+        cpu: "8000m"
+        memory: "32Gi"
+      limits:
+        cpu: "24000m"
+        memory: "64Gi"
+    storage:
+      requests:
+        cpu: "4000m"
+        memory: "16Gi"
+      limits:
+        cpu: "16000m"
+        memory: "32Gi"
+  # AAOS builder runtime image build defaults (match aaos-builder-runtime-image / docker_image_template chart).
+  forceImageBuild: "false"
+  imageBuild:
+    artifactPathName: horizon-sdv/aaos-builder
+    # Must match docker_image_template spec.imageTag (e.g. argowf-latest vs a shared :latest).
+    imageTag: "argowf-latest"
+    linuxDistribution: ubuntu:22.04
+    nodejsVersion: "25.2.1"
+    gcloudCliVersion: "545.0.0-0"
+    kubectlVersion: "1:545.0.0-0"
+    enableGeminiAiAssistant: "true"
+    geminiCliVersion: "latest"
+    dryRun: "false"

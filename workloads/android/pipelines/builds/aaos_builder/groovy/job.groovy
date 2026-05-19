@@ -1,4 +1,4 @@
-// Copyright (c) 2025 Accenture, All Rights Reserved.
+// Copyright (c) 2025-2026 Accenture, All Rights Reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -11,6 +11,9 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
+def model = ('${GEMINI_MODEL}' && '${GEMINI_MODEL}' != 'null' && !'${GEMINI_MODEL}'.contains('${')) ? "--model ${'${GEMINI_MODEL}'} " : ""
+
 pipelineJob('Android/Builds/AAOS Builder') {
   description("""
     <br/><h3 style="margin-bottom: 10px;">Android Automotive Virtual Devices and Platform Targets Builder</h3>
@@ -22,12 +25,20 @@ pipelineJob('Android/Builds/AAOS Builder') {
       <li>Reference hardware platforms such as <a href="https://github.com/raspberry-vanilla/android_local_manifest" target="_blank">RPi</a> and <a href="https://source.android.com/docs/automotive/start/pixelxl" target="_blank">Pixel Tablets</a></li>
       <li><a href="https://source.android.com/docs/compatibility/cts/development" target="_blank">CTS development</a>, reference <a href="https://source.android.com/docs/compatibility/cts" target="_blank">Compatibility Test Suite</a> and <a href="https://source.android.com/docs/core/tests/tradefed" target="_blank">CTS Trade Federataion</a></a>.</li>
     </ul>
-    <p>For <i>CTS development builds</i>, select a cuttlefish variety of <code>AAOS_LUNCH_TARGET</code> and enable <code>AAOS_BUILD_CTS</code> to build and create <code>android-cts.zip</code> for use in the <i>CTS Execution</i> test job.</p>
+    <p>For <i>CTS development builds</i>, select a cuttlefish variety of <code>AAOS_LUNCH_TARGET</code> and enable <code>AAOS_BUILD_CTS</code> to build and create <code>android-cts.zip</code> for use in the <i>CTS Execution</i> test job.
+    <br/>Note: only the test suite will be built when this option is selected (no other target images will be built).</p>
+
     <h4 style="margin-bottom: 10px;">Build Outputs</h4>
     <p>Build outputs are stored in a Google Cloud Storage bucket (refer to build artifact for location).</p>
     <h4 style="margin-bottom: 10px;">Viewing Artifacts on Google Cloud</h4>
     <p><a href="https://cloud.google.com/docs/authentication/gcloud" target="_blank">Sign in to Google Cloud</a> and run the following command: <br/><code>gcloud storage ls gs://${ANDROID_BUILD_BUCKET_ROOT_NAME}/Android/Builds/AAOS_Builder/&lt;BUILD_NUMBER&gt;</code></p>
     <br/><div style="border-top: 1px solid #ccc; width: 100%;"></div><br/>""")
+
+  environmentVariables {
+    env('GEMINI_PREVIEW_FEATURES', ${GEMINI_PREVIEW_FEATURES})
+    env('GEMINI_LOCATION_GLOBAL', ${GEMINI_LOCATION_GLOBAL})
+    env('GEMINI_MODEL', '${GEMINI_MODEL}')
+  }
 
   parameters {
     stringParam {
@@ -55,7 +66,9 @@ pipelineJob('Android/Builds/AAOS Builder') {
       name('AAOS_BUILD_CTS')
       defaultValue(false)
       description('''<p>Build the Android Automotive Compatibility Test Suite.<br/>
-        Only applicable for CF lunch targets, i.e aosp_cf.</p>''')
+        Only applicable for CF lunch targets, i.e aosp_cf.<br/>
+        Note: only the test suite will be built when this option is selected (no other target images will be built).</b>
+        </p>''')
     }
 
     choiceParam {
@@ -119,6 +132,36 @@ pipelineJob('Android/Builds/AAOS Builder') {
       description('''<p>Time in minutes to retain the instance after build completion.<br/>
         Useful for debugging build issues, reviewing target outputs etc.</p>''')
       choices(['0', '15', '30', '45', '60', '120', '180'])
+    }
+
+    separator {
+      name('Agentic AI: Configuration (Experimental)')
+      sectionHeader('Agentic AI: Configuration (Experimental)')
+      sectionHeaderStyle("${HEADER_STYLE}")
+      separatorStyle("${SEPARATOR_STYLE}")
+    }
+
+    booleanParam {
+      name('ENABLE_GEMINI_AI_ASSISTANT')
+      defaultValue(true)
+      description('''<p>Enable Gemini AI assistant to provide potential solutions to any build failures.</p>''')
+    }
+
+    stringParam {
+      name('GEMINI_COMMAND_LINE')
+      defaultValue("gemini ${model} --yolo --output-format json")
+      description('''<p>The headless <a href="https://geminicli.com/docs/cli/headless/" target="_blank">gemini cli</a>.</p>
+        <p>Use this to define such things as <a href="https://ai.google.dev/gemini-api/docs/models" target="_blank">Gemini model</a> to use.</p>
+        <p><b>Note:</b> We use <b>stdin</b> to pipe the prompt to gemini-cli and redirect output to json file.</p>''')
+      trim(true)
+    }
+
+    choiceParam {
+      name('GEMINI_AI_EXECUTION_TIMEOUT')
+      description('''
+        <p>Maximum duration allowed for the Gemini assistant to run before automatic termination.</p>
+        <p><i>Note: This safety limit prevents hung processes and optimizes resource usage.</i></p>''')
+      choices(['1', '2', '4', '8'])
     }
 
     separator {
@@ -214,8 +257,8 @@ pipelineJob('Android/Builds/AAOS Builder') {
   }
 
   logRotator {
-    daysToKeep(60)
-    numToKeep(200)
+    daysToKeep(7)
+    numToKeep(50)
   }
 
   definition {
@@ -224,10 +267,10 @@ pipelineJob('Android/Builds/AAOS Builder') {
       scm {
         git {
           remote {
-            url("${HORIZON_GIT_URL}")
-            credentials('jenkins-git-creds')
+            url("${HORIZON_SCM_URL}")
+            credentials('jenkins-scm-creds')
           }
-          branch("*/${HORIZON_GIT_BRANCH}")
+          branch("*/${HORIZON_SCM_BRANCH}")
         }
       }
       scriptPath('workloads/android/pipelines/builds/aaos_builder/Jenkinsfile')

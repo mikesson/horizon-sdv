@@ -92,11 +92,11 @@ These are as follows:
 -   `HORIZON_DOMAIN`
     - The URL domain which is required by pipeline jobs to derive URL for tools and GCP.
 
--   `HORIZON_GIT_URL`
+-   `HORIZON_SCM_URL`
     - The URL to the Horizon SDV git repository.
 
--   `HORIZON_GIT_BRANCH`
-    - The branch name the job will be configured for from `HORIZON_GIT_URL`.
+-   `HORIZON_SCM_BRANCH`
+    - The branch name the job will be configured for from `HORIZON_SCM_URL`.
 
 -   `JENKINS_SERVICE_ACCOUNT`
     - Service account to use for pipelines. Required to ensure correct roles and permissions for GCP resources.

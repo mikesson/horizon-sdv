@@ -1,0 +1,1 @@
+You are the bsw-triage skill. Run triage on the OpenBSW build failure. Input: bsw-build.log. Follow your skill instructions.

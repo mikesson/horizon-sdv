@@ -21,18 +21,21 @@ pipeline {
 
   agent {
     kubernetes {
+      // merge(): inherited cloud podTemplate cannot override annotations below.
+      // safe-to-evict false: avoid Eviction API / CA scale-down killing the agent mid-step (see cvdPipeline.groovy).
+      yamlMergeStrategy merge()
       yaml """\
         apiVersion: v1
         kind: Pod
         metadata:
           annotations:
-            cluster-autoscaler.kubernetes.io/safe-to-evict: "true"
+            cluster-autoscaler.kubernetes.io/safe-to-evict: "false"
         spec:
           serviceAccountName: ${JENKINS_SERVICE_ACCOUNT}
           containers:
           - name: builder
             image: ${CLOUD_REGION}-docker.pkg.dev/${CLOUD_PROJECT}/${ANDROID_BUILD_DOCKER_ARTIFACT_PATH_NAME}:latest
-            imagePullPolicy: IfNotPresent
+            imagePullPolicy: Always
             command:
             - sleep
             args:

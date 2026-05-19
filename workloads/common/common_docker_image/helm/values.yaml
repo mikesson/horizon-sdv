@@ -1,0 +1,38 @@
+# Copyright (c) 2026 Accenture, All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#         http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# Description:
+# Default values for the common-docker-image-build ClusterWorkflowTemplate.
+# Usage:
+# 1) Apply: helm template common-docker-image-build workloads/common/common_docker_image/helm | kubectl apply -f -
+# 2) Run:   argo submit --from clusterworkflowtemplate/common-docker-image-build -n <namespace>
+clusterWorkflowTemplateName: common-docker-image-build
+
+# Set by GitOps (namespacePrefix). Argo Events Sensor: templates/sensors.yaml.
+namespacePrefix: ""
+
+# Optional local repo mount (hostPath for local clusters).
+localRepoHostPath: ""
+# Optional local repo mount (PVC for GKE).
+localRepoPvcName: ""
+localRepoMountPath: /workspace-local
+
+defaults:
+  dockerCredentialsUrl: https://github.com/GoogleCloudPlatform/docker-credential-gcr/releases/download/v2.1.29/docker-credential-gcr_linux_amd64-2.1.29.tar.gz
+
+# Used by templates/clusterworkflowtemplates.yaml only (not git clone; callers pass /workspace).
+spec:
+  # URL or local path to docker-credential-gcr binary (supports https://, file://, or absolute path).
+  # Leave empty to use defaults.dockerCredentialsUrl.
+  dockerCredentialsUrl: ""

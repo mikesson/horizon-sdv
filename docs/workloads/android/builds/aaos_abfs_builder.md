@@ -163,6 +163,21 @@ For GCS buckets, these labels can be applied as key=value pairs and can be provi
 
 E.g. `Release=X.Y.Z,Workload=Android`
 
+### `ENABLE_GEMINI_AI_ASSISTANT`
+
+Enable Gemini AI to support in diagnosis of build and test failures.
+
+### Gemini prompts
+
+The job uses the prompt file from the repository only; there is no Jenkins parameter to override it (default: `build_prompt_v2.txt`).
+
+### `GEMINI_COMMAND_LINE`
+
+Interface for the headless [gemini-cli](https://geminicli.com/docs/cli/headless/).
+Use this to specify settings such as the [Gemini model](https://ai.google.dev/gemini-api/docs/models) etc, e.g.
+`--debug` to include debug output.
+Note: Prompts are piped via `stdin` and output is redirected to a JSON file.
+
 ## SYSTEM VARIABLES <a name="system-variables"></a>
 
 There are a number of system environment variables that are unique to each platform but required by Jenkins build, test and environment pipelines.
@@ -192,11 +207,11 @@ These are as follows:
 -   `HORIZON_DOMAIN`
     - The URL domain which is required by pipeline jobs to derive URL for tools and GCP.
 
--   `HORIZON_GIT_URL`
+-   `HORIZON_SCM_URL`
     - The URL to the Horizon SDV Git repository.
 
--   `HORIZON_GIT_BRANCH`
-    - The branch name the job will be configured for from `HORIZON_GIT_URL`.
+-   `HORIZON_SCM_BRANCH`
+    - The branch name the job will be configured for from `HORIZON_SCM_URL`.
 
 -   `JENKINS_SERVICE_ACCOUNT`
     - Service account to use for pipelines. Required to ensure correct roles and permissions for GCP resources.

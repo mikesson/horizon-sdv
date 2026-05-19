@@ -60,37 +60,17 @@ Define the Linux Distribution to create the Docker image from. Values must be su
 
 User may override the default ARM GNU toolchain that will be installed in the Docker image and used for builds. Available toolchains are provided under [Arm GNU Toolchain Downloads](https://developer.arm.com/downloads/-/arm-gnu-toolchain-downloads).
 
-### `CLANG_TOOLS_URL`
-
-URL of the CLANG tools to install in the Docker image.
-
-### `CMAKE_URL`
-
-URL of the CMAKE shell script to install in the Docker image.
-
 ### `LLVM_ARM_TOOLCHAIN_URL`
 
 URL of LLVM Embedded Toolchain for Arm.
-
-### `LLVM_PROJECT_URL`
-
-URL of LLVM Compiler Infrastructure.
 
 ### `NODEJS_VERSION`
 
 The NodeJS version to install in the Docker image. This is required in order to use MTK Connect with the container.
 
-### `PYELFTOOLS_VERSION`
-
-pyelftools package version to install
-
 ### `PYTHON_VERSION`
 
 Python version version to install
-
-### `SSCACHE_URL`
-
-URL of Shared Compilation Cache.
 
 ### `TREEFMT_URL`
 
@@ -114,6 +94,15 @@ Define `latest` if wishing to use the latest available version.
 Version of `kubectl` to install. The version is typically `1:${GCLOUD_CLI_VERSION}`.
 Define `latest` if wishing to use the latest available version.
 
+### `ENABLE_GEMINI_AI_ASSISTANT`
+
+Enable Gemini AI to support in diagnosis of build and test failures.
+
+### `GEMINI_CLI_VERSION`
+
+The version of gemini-cli to be installed.
+Run `npm view @google/gemini-cli versions` for a full list of valid versions.
+
 ## SYSTEM VARIABLES <a name="system-variables"></a>
 
 There are a number of system environment variables that are unique to each platform but required by Jenkins build, test and environment pipelines.
@@ -131,11 +120,11 @@ These are as follows:
 -   `CLOUD_REGION`
     - The GCP project region. Important for bucket, registry paths used in pipelines.
 
--   `HORIZON_GIT_URL`
+-   `HORIZON_SCM_URL`
     - The URL to the Horizon SDV git repository.
 
--   `HORIZON_GIT_BRANCH`
-    - The branch name the job will be configured for from `HORIZON_GIT_URL`.
+-   `HORIZON_SCM_BRANCH`
+    - The branch name the job will be configured for from `HORIZON_SCM_URL`.
 
 -   `JENKINS_SERVICE_ACCOUNT`
     - Service account to use for pipelines. Required to ensure correct roles and permissions for GCP resources.

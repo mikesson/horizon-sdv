@@ -109,8 +109,8 @@ async function createUserIfRequired()  {
     let user = _.find(users, {username: config.keycloak.adminUser.username});
 
     if (user) {
-      console.info('deleting old instance of %s user', config.keycloak.adminUser.username);
-      await keycloakAdmin.users.del({id: user.id});
+      console.info('user "%s" already exists, skipping create and password reset', config.keycloak.adminUser.username);
+      return;
     }
 
     console.info('creating %s user', config.keycloak.adminUser.username);
@@ -121,7 +121,8 @@ async function createUserIfRequired()  {
       realm: config.keycloak.realm.realm,
       firstName: config.keycloak.adminUser.firstName,
       lastName: config.keycloak.adminUser.lastName,
-      email: config.keycloak.adminUser.email
+      email: config.keycloak.adminUser.email,
+      emailVerified: true
     });
 
     await keycloakAdmin.users.resetPassword({

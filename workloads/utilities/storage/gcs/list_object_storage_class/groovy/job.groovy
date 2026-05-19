@@ -23,14 +23,14 @@ pipelineJob('Utilities/Storage/GCS/Object - List Storage Class') {
       name('URL_PATH')
       defaultValue('')
       description('''<p>path to the desired object - e.g. gs://bucketname/path/objectname)
-      <br>or path to folder (ending with / or /*) - e.g. gs://bucketname/path/</p>''')
+      <br>or path to folder (can contain any number of wildcard characters) - e.g. gs://bucketname/path/ or gs://bucketname/subpath/*x86*</p>''')
       trim(true)
     }
   }
 
   logRotator {
-    daysToKeep(60)
-    numToKeep(200)
+    daysToKeep(7)
+    numToKeep(50)
   }
 
   definition {
@@ -39,10 +39,10 @@ pipelineJob('Utilities/Storage/GCS/Object - List Storage Class') {
       scm {
         git {
           remote {
-            url("${HORIZON_GIT_URL}")
-            credentials('jenkins-git-creds')
+            url("${HORIZON_SCM_URL}")
+            credentials('jenkins-scm-creds')
           }
-          branch("*/${HORIZON_GIT_BRANCH}")
+          branch("*/${HORIZON_SCM_BRANCH}")
         }
       }
       scriptPath('workloads/utilities/storage/gcs/list_object_storage_class/Jenkinsfile')

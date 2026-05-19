@@ -21,3 +21,9 @@ variable "location" {
   description = "Define the loation of the storage"
   type        = string
 }
+
+variable "lifecycle_delete_age_days" {
+  description = "If set, delete all bucket objects older than this many days (creation time). Omit for no age-based lifecycle rule."
+  type        = number
+  default     = null
+}

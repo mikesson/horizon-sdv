@@ -24,12 +24,12 @@ To run pipeline jobs, users must have access to Jenkins and be granted permissio
   - In `Jenkins` → `Manage Jenkins` → `Manage and Assign Roles` → `Assign Roles`.
     - Those roles are:
       - `Global:`
-        - `horizon-jenkins-administrators`
-        - `horizon-jenkins-workloads-developers`
-        - `horizon-jenkins-workloads-users`
+        - `administrators`
+        - `developers`
+        - `viewers`
       - `Items:`
-        - `workloads-developers`
-        - `workloads-users`
+        - `developers`
+        - `viewers`
   - Add the user to appropriate Global and Item Roles:
     - In `Global Roles` select `Add User`, enter the email address of the user and select the appropriate Keycloak Group.
     - In `Item Roles` select `Add User`, enter the email address of the user and select the appropriate Jenkins Item Role.

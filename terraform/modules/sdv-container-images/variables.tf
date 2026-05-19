@@ -28,10 +28,17 @@ variable "gcp_registry_id" {
 }
 
 variable "images" {
-  description = "A map of images to build. The key is the image name and the value is an object containing its build directory and version."
+  description = <<-EOT
+    Map of images to build. Key = image name in Artifact Registry.
+    Default context: images/<directory>/<key>. Optional context_path + dockerfile_path
+    allow overriding context_path and dockerfile_path when they differ from images/<directory>/<key>.
+  EOT
   type = map(object({
-    directory  = string
-    version    = string
-    build_args = optional(map(string), {})
+    directory       = string
+    version         = string
+    build_args      = optional(map(string), {})
+    context_path    = optional(string)
+    dockerfile_path = optional(string)
+    platform        = optional(string)
   }))
 }

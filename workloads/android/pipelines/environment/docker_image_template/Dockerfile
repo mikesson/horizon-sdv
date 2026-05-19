@@ -1,4 +1,4 @@
-# Copyright (c) 2024-2025 Accenture, All Rights Reserved.
+# Copyright (c) 2025-2026 Accenture, All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -27,8 +27,14 @@ ARG ABFS_DISTRIBUTION_REGISTRY
 # Gcloud CLI and kubectl version.
 ARG GCLOUD_CLI_VERSION="latest"
 ARG KUBECTL_VERSION="latest"
+ARG PACKER_VERSION="1.15.0"
+
+# Install gemini-cli if enabled.
+ARG ENABLE_GEMINI_AI_ASSISTANT="false"
+ARG GEMINI_CLI_VERSION="latest"
 
 # Install packages required for building AAOSP targets.
+# libsecret-1-0: Secret Service API (libsecret-1.so.0) for gemini-cli / credential helpers in-container.
 RUN apt-get update -y && \
     apt-get install -y --no-install-recommends apt-utils && \
     apt-get -y upgrade && \
@@ -36,11 +42,11 @@ RUN apt-get update -y && \
     apt-transport-https ca-certificates \
     git git-core gnupg flex bison build-essential zip unzip zlib1g-dev \
     libc6-dev libxml2-utils xsltproc unzip fontconfig gcc-multilib \
-    gettext gettext-base g++-multilib libncurses5 libssl-dev python3 python3-setuptools \
+    gettext gettext-base g++-multilib libncurses5 libsecret-1-0 libssl-dev python3 python3-setuptools \
     python3-pip python3-requests python3-venv python3-virtualenv procps \
     meson bc coreutils dosfstools e2fsprogs fdisk kpartx mtools ninja-build \
     pkg-config rsync less curl sudo vim ssh findutils gawk jq htop wget \
-    libcap2-bin psmisc && \
+    libcap2-bin psmisc lsof && \
     apt-get update -y && apt install -y npm nodejs && \
     rm -rf /var/lib/apt/lists/*
 
@@ -58,6 +64,15 @@ RUN curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | \
     [ "$KUBECTL_VERSION" = "latest" ] &&  apt-get install -y kubectl || apt-get install -y kubectl="$KUBECTL_VERSION" && \
     apt-get -y clean
 # GCS:END
+
+# Install Packer for VM image baking via HashiCorp APT repo.
+RUN curl -fsSL https://apt.releases.hashicorp.com/gpg | gpg --dearmor -o /usr/share/keyrings/hashicorp-archive-keyring.gpg && \
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com $(grep -oP '(?<=UBUNTU_CODENAME=).*' /etc/os-release || lsb_release -cs) main" | tee /etc/apt/sources.list.d/hashicorp.list && \
+    apt-get update -y && \
+    [ "$PACKER_VERSION" = "latest" ] && apt-get install -y packer || apt-get install -y "packer=${PACKER_VERSION}-1" && \
+    apt-get -y clean && \
+    rm -rf /var/lib/apt/lists/* && \
+    packer version
 
 # Install Google repo command tool
 RUN export REPO=$(mktemp /tmp/repo.XXXXXXXXX)  && \
@@ -91,10 +106,11 @@ RUN git config --global user.email "aaosp.jenkins@dummy.com" && \
     git config --global color.ui false
 
 # Create virtualenv ready for RPi builds (include-system-site-packages=true)
-# Install the required packages.
+# Install the required packages. pyyaml required for Gemini skills conversion.
 RUN virtualenv --system-site-packages venv && \
     . ${HOME}/venv/bin/activate && pip3 install --user meson==1.3.0 mako \
-    jinja2 ply pyyaml dataclasses && deactivate
+    jinja2 ply pyyaml dataclasses && deactivate && \
+    python3 -m pip install pyyaml
 
 ENV PATH="/root/.local/bin:/usr/local/bin:/usr/bin:$PATH"
 
@@ -102,5 +118,8 @@ ENV PATH="/root/.local/bin:/usr/local/bin:/usr/bin:$PATH"
 RUN sudo npm cache clean -f && \
     sudo npm install -g n && \
     sudo n "${NODEJS_VERSION}" && \
-    sudo npm install -g wait-on && \
-    sudo ln -sf /usr/local/bin/node /usr/local/bin/nodejs || true
+    sudo ln -sf /usr/local/bin/node /usr/local/bin/nodejs || true && \
+    if [ "$ENABLE_GEMINI_AI_ASSISTANT" = "true" ]; then \
+      echo "\033[1;32mInstalling gemini-cli@${GEMINI_CLI_VERSION}\033[0m" && \
+      sudo npm install -g @google/gemini-cli@${GEMINI_CLI_VERSION}; \
+    fi

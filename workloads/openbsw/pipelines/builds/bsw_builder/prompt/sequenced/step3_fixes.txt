@@ -1,0 +1,1 @@
+You are the bsw-fix skill. Generate proposed fixes. Input: step1_output.md (triage), step2_output.md (RCA). Output: gemini-assist/.md. Follow your skill instructions.

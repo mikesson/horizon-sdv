@@ -2,8 +2,10 @@
 
 ## Table of contents
 - [Introduction](#introduction)
+- [Packer and Startup Files](#packer-and-startup-files)
 - [Prerequisites](#prerequisites)
 - [Environment Variables/Parameters](#environment-variables)
+- [Private repo and branch (e.g. horizon/main) — artifacts and Jenkins GCE](#private-repo-and-branch-eg-horizonmain--artifacts-and-jenkins-gce)
 - [Example Usage](#examples)
 - [System Variables](#system-variables)
 
@@ -17,7 +19,7 @@ Users may select from standard machine types or create custom machine types.  If
 - `CUSTOM_CPUS`
 - `CUSTOM_MEMORY`
 
-During the process of creating an instance template, this pipeline also creates a custom image which is referenced by the created instance template. This image is created using the same naming convention as the instance template.
+During the process of creating an instance template, this pipeline also creates a custom image which is referenced by the created instance template. The image is baked with Packer and then used by `gcloud` to create the final instance template. This image is created using the same naming convention as the instance template.
 
 For example:
 
@@ -32,12 +34,52 @@ The following gcloud commands can be used to view images and instance templates:
 
 <b>Important:</b> This pipeline may not be run concurrently - this is to avoid clashes with temporary artifacts the job creates in order to produce the Cuttlefish instance template.
 
+### Pipeline execution stages
+
+The script command interface uses three primary stages:
+
+- `1`: Build image with Packer and create/update the instance template.
+- `2`: Refresh SSH key metadata on a **new** instance template revision (no Packer image rebuild; template resource is recreated with updated `jenkins-authorized-key` / related metadata).
+- `3`: Delete generated instance/template/image artifacts.
+
 ### References <a name="references"></a>
 
 - [Cuttlefish Virtual Devices](https://source.android.com/docs/devices/cuttlefish) for use with [CTS](https://source.android.com/docs/compatibility/cts) and emulators.
 - [Virtual Device for Android host-side utilities](https://github.com/google/android-cuttlefish)
 - [Compatibility Test Suite downloads](https://source.android.com/docs/compatibility/cts/downloads)
 - [Compute Instance Templates](https://cloud.google.com/sdk/gcloud/reference/compute/instance-templates/create)
+
+## Packer and Startup Files <a name="packer-and-startup-files"></a>
+
+The Cuttlefish image/template flow uses the following files together:
+
+- `workloads/android/pipelines/environment/cf_instance_template/packer/cuttlefish.pkr.hcl`
+  - Main Packer template.
+  - Defines the temporary build VM source image/machine/network.
+  - Copies provisioning scripts and runs provisioning steps.
+  - Produces the final GCE disk image used by the CF instance template.
+
+- `workloads/android/pipelines/environment/cf_instance_template/packer/provision_cf_host.sh`
+  - Script executed by Packer on the temporary build VM.
+  - Calls `cf_host_initialise.sh` to install/configure Cuttlefish host tooling.
+  - Ensures default user SSH bootstrap content is present during image bake.
+
+- `workloads/android/pipelines/environment/cf_instance_template/cf_host_initialise.sh`
+  - Performs host-side setup used by the Packer provisioning phase.
+  - Installs dependencies, builds/install Cuttlefish packages, and prepares host runtime.
+
+- `workloads/android/pipelines/environment/cf_instance_template/startup/refresh_authorized_keys.sh`
+  - Runtime startup script attached via instance template metadata.
+  - Runs when a VM boots from the template and rewrites **`authorized_keys` for the VM login user** (see below).
+  - Reads the public key from instance metadata attribute `jenkins-authorized-key` on every boot.
+  - Reads the target account from instance metadata attribute **`jenkins-user`** (historical name). If `jenkins-user` is empty, the script defaults to `jenkins`.
+  - The file updated is always **`/home/<jenkins-user value>/.ssh/authorized_keys`** — **not** necessarily `/home/jenkins/...` if the template was built with a different `DEFAULT_USER`.
+
+**VM SSH user (Cuttlefish GCE agent) vs Docker image user:** Jenkins CasC (`values-jenkins.yaml` / `jenkins-init.yaml`) configures the GCE plugin to SSH as **`jenkins`** with `remoteFs` `/home/jenkins`. The Packer/template pipeline therefore defaults **`DEFAULT_USER` to `jenkins`** in `cf_create_instance_template.sh` so the baked image, instance metadata (`jenkins-user`), and Jenkins agree. That is **independent** of the non-root user in the AAOS **Docker** image (`docker_image_template/Dockerfile`, typically `builder`), which only applies inside Kubernetes build pods.
+
+In short: **Packer files create the immutable image**, while the **startup script updates SSH key material at boot** so key rotation does not require rebuilding the image.
+
+When the Jenkins SSH key rotates, use `UPDATE_SSH_AUTHORIZED_KEYS=true` to republish the instance template with updated metadata (including `jenkins-authorized-key`). That path **does not** run a new Packer bake, but it **recreates** the instance template resource (same as a full template publish step), not an in-place metadata patch on an existing template API object.
 
 ## Prerequisites<a name="prerequisites"></a>
 
@@ -62,9 +104,9 @@ If using your own repository, and it a private repository, ensure `REPO_USERNAME
 This defines the branch/tag to use from `ANDROID_CUTTLEFISH_REPO_URL`, e.g.
 
 - `main` - the main working branch of `android-cuttlefish`
-- `v1.27.0` - the latest tagged version.
+- `v1.41.0` - the latest tagged version.
 - `horizon/main` - a private repository fork of `main`
-- `horizon/v1.35.0` - a private fork of tag `v1.35.0`
+- `horizon/v1.41.0` - a private fork of tag `v1.41.0`
 
 User may define any valid version so long as that version contains `tools/buildutils/build_packages.sh` which is a dependency for these scripts.
 
@@ -100,6 +142,28 @@ If user is deleting a uniquely-created instance template (i.e. name specified by
 - `DELETE`: This ensures the instance template, disk image and VM instance are deleted.
 - `Build` : trigger build to delete all artifacts.
 
+### `UPDATE_SSH_AUTHORIZED_KEYS`
+
+Republishes the instance template with an updated `jenkins-authorized-key` (and related fields) using the public key derived from `SSH_PRIVATE_KEY_NAME`. The implementation **recreates** the instance template; it does **not** run Packer.
+
+Use this when rotating the Jenkins SSH key and you need new VMs created from the template to pick up the new key without rebuilding the Packer image.
+
+- `UPDATE_SSH_AUTHORIZED_KEYS`: set to `true`
+- `DELETE`: keep `false`
+- `ANDROID_CUTTLEFISH_REVISION` or `CUTTLEFISH_INSTANCE_NAME`: set to target template
+- `Build`: triggers stage 2 (template republish; no image bake)
+
+### `SSH_PRIVATE_KEY_NAME`
+
+Jenkins credential name of the private SSH key used by the pipeline.
+
+The pipeline derives the matching public key and injects it into instance template metadata (`jenkins-authorized-key`).
+At VM boot, the startup script writes that key to **`/home/<jenkins-user>/.ssh/authorized_keys`**, where **`jenkins-user`** instance metadata is set from **`DEFAULT_USER`** when the template is created (default **`jenkins`** in `cf_create_instance_template.sh`). If you change `DEFAULT_USER`, you must align Jenkins CasC (`runAsUser`, `remoteFs`, and the SSH credential **username**) and rebuild the Packer image so the account exists on disk.
+
+### `DEFAULT_USER`
+
+Unix account created on the Cuttlefish VM during the Packer bake and propagated to instance template metadata as **`jenkins-user`**. Default in `cf_create_instance_template.sh` is **`jenkins`**, matching the Cuttlefish GCE cloud configuration in GitOps. Override only when you intentionally change CasC and the SSH credential to the same username; it is **not** tied to the Docker image `ARG USER` used by the CF Instance Template build pod.
+
 ### `REPO_USERNAME`
 
 Required if using a private repository defined in `ANDROID_CUTTLEFISH_REPO_URL`.
@@ -114,33 +178,7 @@ Command to run in the `ANDROID_CUTTLEFISH_REPO_URL` defined repo. e.g.
 - To fix the netsimd build issues with cxxbridge:
   - `git cherry-pick 78b66377`
 - Replace stale repos cuttlefish may be using, such as old kernel.org repos that have been deleted:
-  - `sed -i 's|https://git.kernel.org/pub/scm/linux/kernel/git/jaegeuk/f2fs-tools|https://github.com/jaegeuk/f2fs-tools|g' base/cvd/MODULE.bazel`
-
-### `ANDROID_CUTTLEFISH_PREBUILT`
-
-Users have the option to build cuttlefish from scratch, ie. from [android-cuttlefish.git](https://github.com/google/android-cuttlefish.git) repository. Alternatively they may choose to install Google prebuilt versions of cuttlefish.
-
-Disabled: build and install from repo.
-Enabled:  download and install Google prebuilt versions.
-
-Note: this is only applicable to `ANDROID_CUTTLEFISH_REVISION` `main` branch currently, and if packages are not found it will default to building cuttlefish from scratch.
-
-### `VM_INSTANCE_CREATE`
-
-**Enable Stopped VM Instance Creation**
-
-If enabled, this job will create a Cuttlefish VM instance from the final instance template. It will be placed in stop
-state after creation. This is provided for development testing and debugging.
-
-This would allow developers to:
-- Connect to the instance directly
-- Run tests on the instance manually, bypassing Jenkins
-
-**Important:**
-- Be aware that creating this instance may incur additional costs for your project.
-- Enable this only for instance templates created for developement purposes that are created with a well defined `CUTTLEFISH_INSTANCE_NAME`.
-- Set `MAX_RUN_DURATION` to 0 to ensure VM instance is never deleted on runtime expiry.
-- It is advisable to `DELETE` these development instances when testing is completed.
+  - `sed -i 's|https://git.kernel.org/pub/scm/linux/kernel/git/jaegeuk/f2fs-tools|https://github.com/jaegeuk/f2fs-tools|g' ./base/cvd/build_external/f2fs_tools/f2fs_tools.MODULE.bazel`
 
 ### `MACHINE_TYPE`
 
@@ -186,9 +224,12 @@ User may disable by setting the value to 0, but they must be aware of any costs 
 
 ### `JAVA_VERSION`
 
-Specify the version of Java to install (`openjdk-17-jdk-headless`).
+Exact **Debian/Ubuntu apt package name** for the JDK (no hidden fallbacks). Examples: **`temurin-21-jdk`** (Eclipse Temurin), **`openjdk-21-jdk-headless`** (distro OpenJDK). Match the Java major to your Jenkins controller (e.g. **2.555+** agents need **21**).
 
-Must be OpenJDK and headless to avoid installation issues with various operating system versions.
+- **x86 Jenkins job** default: **`temurin-21-jdk`**. If the package name starts with **`temurin-`**, provisioning adds the **Adoptium** apt repo, then runs **`apt install ${JAVA_VERSION}`**.
+- **ARM64 Jenkins job** default: **`openjdk-21-jdk-headless`** (Ubuntu repos). Use **`temurin-21-jdk`** there only if you want Temurin (Adoptium repo is added the same way).
+
+Build VMs need outbound **HTTPS** to distro mirrors and, for Temurin, **packages.adoptium.net**.
 
 ### `OS_VERSION`
 
@@ -243,6 +284,73 @@ Region of the instance to create. Leave black to use the default platform region
 
 Region of the instance to create. Leave black to use the default platform zone.
 
+## Private repo and branch (e.g. `horizon/main`) — artifacts and Jenkins GCE <a name="private-repo-and-branch-eg-horizonmain--artifacts-and-jenkins-gce"></a>
+
+Use this when **`ANDROID_CUTTLEFISH_REPO_URL`** points to a **private** fork (or mirror) and **`ANDROID_CUTTLEFISH_REVISION`** is a branch such as **`horizon/main`**.
+
+### 1. Jenkins job parameters (CF Instance Template)
+
+| Parameter | Example | Purpose |
+|-----------|---------|---------|
+| `ANDROID_CUTTLEFISH_REPO_URL` | `https://github.com/your-org/android-cuttlefish.git` | Clone URL for Cuttlefish sources (HTTPS is typical for `REPO_*` credentials). |
+| `ANDROID_CUTTLEFISH_REVISION` | `horizon/main` | Branch or tag to `git checkout` during the image bake. |
+| `REPO_USERNAME` | service account or PAT user | Required for **private** HTTPS clones. |
+| `REPO_PASSWORD` | PAT or password | Use a credential with **read** access to the repo. |
+| `CUTTLEFISH_INSTANCE_NAME` | *(empty)* | Leave empty to **derive** the VM/template name from the revision (see below), or set an explicit name starting with `cuttlefish-vm-`. |
+
+Run stage **`1`** (normal build) with **`DELETE=false`** unless you are deleting artifacts.
+
+### 2. What gets created in GCP (auto-derived name from `horizon/main`)
+
+Naming follows `cf_create_instance_template.sh`: the revision string is sanitized for GCE (`.` removed, **`/` → `-`**), then prefixed with `cuttlefish-vm-` when `CUTTLEFISH_INSTANCE_NAME` is left at the default `cuttlefish-vm`.
+
+For **`ANDROID_CUTTLEFISH_REVISION=horizon/main`** and default instance naming:
+
+| Resource | Name |
+|----------|------|
+| Cuttlefish “version” token | `horizon-main` (from `horizon/main`) |
+| Logical / VM prefix | **`cuttlefish-vm-horizon-main`** |
+| Disk image | **`image-cuttlefish-vm-horizon-main`** |
+| Instance template | **`instance-template-cuttlefish-vm-horizon-main`** |
+
+Verify after the job:
+
+```bash
+gcloud compute instance-templates list | grep cuttlefish-vm-horizon-main
+gcloud compute images list | grep image-cuttlefish-vm-horizon-main
+```
+
+### 3. Wire Jenkins GCE Cloud (GitOps — preferred)
+
+Test jobs (CVD Launcher, CTS Execution, etc.) provision agents via the **Google Compute Engine** plugin using a **label** that must match a **cloud** whose **`template`** URL points at your new instance template.
+
+1. Open **`gitops/workloads/values-jenkins.yaml`** (CasC for Jenkins).
+2. Under **`jenkins:` → `controller:` → `JCasC` → `configScripts:`** (or equivalent), find the **`clouds:`** list and the existing **`computeEngine`** entries (e.g. `cuttlefish-vm-main`).
+3. **Add a new** `- computeEngine:` block by **copying** an existing Cuttlefish entry and changing only what identifies the template and labels:
+   - **`cloudName`**: e.g. **`cuttlefish-vm-horizon-main`** (this is the **cloud id** in Jenkins).
+   - **`labelString`** / **`labels`** / **`namePrefix`**: use the **same** string as `cloudName` (e.g. **`cuttlefish-vm-horizon-main`**), consistent with existing entries.
+   - **`template`**: set to the full instance-template self-link for **`instance-template-cuttlefish-vm-horizon-main`** in your project (same pattern as siblings — only the template **name suffix** changes).
+   - Keep **`zone`**, **`region`**, **`projectId`**, **`credentialsId`**, **`sshConfiguration`**, **`remoteFs`**, **`runAsUser`** aligned with other Cuttlefish clouds unless you intentionally differ.
+4. Merge and deploy via your normal **GitOps** process so CasC reapplies Jenkins configuration.
+
+After sync, **Manage Jenkins → Clouds** should list the new cloud (e.g. `cuttlefish-vm-horizon-main`).
+
+### 4. Wire Jenkins GCE Cloud (UI only — not source of truth)
+
+You can **verify** or **prototype** under **Manage Jenkins → Clouds →** (Google Compute Engine plugin):
+
+- Add or edit a cloud so the **Instance template** points at `instance-template-cuttlefish-vm-horizon-main` and the **labels** match what test jobs use.
+
+**Caution:** Manual UI edits are **overwritten** on the next CasC sync unless the same settings exist in **`values-jenkins.yaml`**. Treat GitOps as authoritative for production.
+
+### 5. Point test jobs at the new cloud
+
+Jobs that run on Cuttlefish VMs expose **`JENKINS_GCE_CLOUD_LABEL`** (see job DSL under `workloads/android/pipelines/tests/*/groovy/job.groovy`). Set it to the **label** that matches the cloud — typically the same as **`cloudName`** / **`labelString`**, e.g.:
+
+- **`JENKINS_GCE_CLOUD_LABEL=cuttlefish-vm-horizon-main`**
+
+Default parameter values may still reference `cuttlefish-vm-main`; change per run or update the job default in **Jenkins** / **Seed job** / **CasC** if this template becomes the platform standard.
+
 ## Example Usage <a name="examples"></a>
 
 If user wishes to create a temporary test instance to work with, then they can do so as follows from Jenkins:
@@ -250,7 +358,6 @@ If user wishes to create a temporary test instance to work with, then they can d
 - `ANDROID_CUTTLEFISH_REVISION`: choose the version you wish to build the template from
 - `CUTTLEFISH_INSTANCE_NAME` : provide a name, starting with cuttlefish-vm, e.g. `cuttlefish-vm-test-instance-v110.`
 - `MAX_RUN_DURATION` : set to 0 to avoid instance being deleted after this time.
-- `VM_INSTANCE_CREATE` : Enable this option so that the instance template will create a VM instance for user to start, connect to and work with.
 - `Build`
 
 Once they have finished with the instances, they should delete to avoid excessive costs.
@@ -282,11 +389,11 @@ These are as follows:
 -   `HORIZON_DOMAIN`
     - The URL domain which is required by pipeline jobs to derive URL for tools and GCP.
 
--   `HORIZON_GIT_URL`
-    - The URL to the Horizon SDV Git repository.
+-   `HORIZON_SCM_URL`
+    - The URL to the Horizon SDV git repository.
 
--   `HORIZON_GIT_BRANCH`
-    - The branch name the job will be configured for from `HORIZON_GIT_URL`.
+-   `HORIZON_SCM_BRANCH`
+    - The branch name the job will be configured for from `HORIZON_SCM_URL`.
 
 -   `JENKINS_SERVICE_ACCOUNT`
     - Service account to use for pipelines. Required to ensure correct roles and permissions for GCP resources.

@@ -1,0 +1,1 @@
+../../../docs/workloads/utilities/gemini_ai_assistant.md

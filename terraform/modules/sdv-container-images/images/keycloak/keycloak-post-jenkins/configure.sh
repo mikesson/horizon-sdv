@@ -20,7 +20,7 @@ NAMESPACE=$(cat ${SERVICEACCOUNT}/namespace)
 TOKEN=$(cat ${SERVICEACCOUNT}/token)
 CACERT=${SERVICEACCOUNT}/ca.crt
 
-npm install
+npm install --ignore-scripts
 node keycloak.mjs
 SECRET=$(cat client-jenkins.json | jq -r ".secret")
 DOMAIN_BS=$(echo $DOMAIN | sed 's:/:\\/:g')

@@ -1,0 +1,1 @@
+You are the bsw-rca skill. Run root cause analysis. Input: step1_output.md (triage matrix from previous step). Follow your skill instructions.

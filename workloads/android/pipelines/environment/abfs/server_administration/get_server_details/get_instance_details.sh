@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+#
 # Copyright (c) 2025 Accenture, All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -62,12 +63,15 @@ function abfs_liveness() {
         fi
     else
         { echo; echo -e "\033[1;31mABFS Not running, consider DESTROY and APPLY\033[0m"; echo; } | artifact "${1}"
-
-        # Dump useful logs
-        gcloud compute ssh --quiet --zone="${ZONE}" "${1}" --tunnel-through-iap --command="sudo cat /var/log/cloud-init.log" > "${WORKSPACE}"/"${1}"-cloud-init.log 2>&1 || true
-        gcloud compute ssh --quiet --zone="${ZONE}" "${1}" --tunnel-through-iap --command="sudo cat /var/log/cloud-init-output.log" > "${WORKSPACE}"/"${1}"-cloud-init-output.log 2>&1 || true
-        gcloud compute ssh --quiet --zone="${ZONE}" "${1}" --tunnel-through-iap --command="sudo journalctl" > "${WORKSPACE}"/"${1}"-journalctl.log 2>&1 || true
-
+        # Print manual debug steps (console only).
+        echo
+        echo -e "\033[1;31mRun the following commands to debug ${1}:\033[0m"
+        echo "gcloud compute ssh --quiet --zone=\"${ZONE}\" \"${1}\" --tunnel-through-iap --ssh-flag=\"-tt\""
+        echo "sudo journalctl --no-pager -n 300"
+        echo "sudo journalctl -u google-startup-scripts.service --no-pager"
+        echo "sudo cat /var/log/cloud-init.log"
+        echo "sudo cat /var/log/cloud-init-output.log"
+        echo
         RESULT=1
     fi
 }

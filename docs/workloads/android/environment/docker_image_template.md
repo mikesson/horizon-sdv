@@ -58,6 +58,20 @@ Define `latest` if wishing to use the latest available version.
 Version of `kubectl` to install. The version is typically `1:${GCLOUD_CLI_VERSION}`.
 Define `latest` if wishing to use the latest available version.
 
+### `PACKER_VERSION`
+
+Version of `packer` to install in the builder image.
+Set this to a pinned supported release (recommended), or `latest` if you want the newest available package.
+
+### `ENABLE_GEMINI_AI_ASSISTANT`
+
+Enable Gemini AI to support in diagnosis of build and test failures.
+
+### `GEMINI_CLI_VERSION`
+
+The version of gemini-cli to be installed.
+Run `npm view @google/gemini-cli versions` for a full list of valid versions.
+
 ## SYSTEM VARIABLES <a name="system-variables"></a>
 
 There are a number of system environment variables that are unique to each platform but required by Jenkins build, test and environment pipelines.
@@ -75,11 +89,11 @@ These are as follows:
 -   `CLOUD_REGION`
     - The GCP project region. Important for bucket, registry paths used in pipelines.
 
--   `HORIZON_GIT_URL`
-    - The URL to the Horizon SDV Git repository.
+-   `HORIZON_SCM_URL`
+    - The URL to the Horizon SDV git repository.
 
--   `HORIZON_GIT_BRANCH`
-    - The branch name the job will be configured for from `HORIZON_GIT_URL`.
+-   `HORIZON_SCM_BRANCH`
+    - The branch name the job will be configured for from `HORIZON_SCM_URL`.
 
 -   `JENKINS_SERVICE_ACCOUNT`
     - Service account to use for pipelines. Required to ensure correct roles and permissions for GCP resources.

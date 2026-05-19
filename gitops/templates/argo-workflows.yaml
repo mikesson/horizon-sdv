@@ -1,0 +1,381 @@
+# Copyright (c) 2024-2026 Accenture, All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#         http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: {{ .Values.config.namespacePrefix }}argo-workflows
+  namespace: {{ .Values.config.namespacePrefix }}argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "6"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: {{ .Values.config.namespacePrefix }}horizon-sdv
+  source:
+    chart: argo-workflows
+    repoURL: https://argoproj.github.io/argo-helm
+    targetRevision: {{ .Values.config.chartVersions.argo_workflows.version }}
+    helm:
+      values: |
+        # Controller configuration
+        controller:
+          workflowNamespaces:
+            - {{ .Values.config.namespacePrefix }}workflows
+          serviceAccount:
+            create: true
+            name: argo-workflows-controller
+          workflowDefaults:
+            spec:
+              serviceAccountName: workflow-executor
+              # With podGC / completed pod deletion, the in-cluster log stream is empty; main.log must be
+              # uploaded to the GCS artifactRepository (archiveLogs in config + workflow-executor WI to the bucket).
+              archiveLogs: true
+              ttlStrategy:
+                secondsAfterCompletion: 86400  # Clean up after 24 hours
+                secondsAfterSuccess: 86400
+                secondsAfterFailure: 259200    # Keep failures for 3 days
+              # OnWorkflowDeletion runs GCS cleanup before the Workflow CR is removed; failures leave the
+              # workflows.argoproj.io/artifact-gc finalizer and the UI shows "Artifact garbage collection failed".
+              # forceFinalizerRemoval drops the finalizer if GC still fails (objects may remain in the bucket).
+              artifactGC:
+                strategy: OnWorkflowDeletion
+                forceFinalizerRemoval: true
+          metricsConfig:
+            enabled: true
+          telemetryConfig:
+            enabled: false
+
+        # Server configuration
+        server:
+          enabled: true
+          serviceAccount:
+            create: false
+            name: argo-workflows-server
+          baseHref: /workflows/
+          secure: false  # Using GKE Gateway for TLS termination
+
+          # SSO with Keycloak
+          sso:
+            enabled: true
+            issuer: https://{{ .Values.config.domain }}/auth/realms/horizon
+            clientId:
+              name: argo-workflows-sso
+              key: client-id
+            clientSecret:
+              name: argo-workflows-sso
+              key: client-secret
+            redirectUrl: https://{{ .Values.config.domain }}/workflows/oauth2/callback
+            customGroupClaimName: roles
+            scopes:
+              - openid
+              - profile
+              - email
+              - roles
+            rbac:
+              enabled: true
+
+          # SSO for humans; client for in-cluster SA bearer (horizon-api → Argo log API).
+          # Chart renders extraArgs before authModes; use split so we never end up with duplicate --auth-mode=sso only.
+          authModes:
+            - sso
+          extraArgs:
+            - --auth-mode=client
+
+          # Ingress disabled (using GKE Gateway)
+          ingress:
+            enabled: false
+
+        # Workflow defaults
+        workflow:
+          serviceAccount:
+            create: false
+            name: workflow-executor
+          rbac:
+            create: true
+            # Grant workflow-executor access to WorkflowArtifactGCTask (required for artifact GC pods).
+            # Without this, OnWorkflowDeletion GC often fails and workflows stay stuck terminating.
+            artifactGC: true
+
+        # Workflow executor (argoexec: init containers for git/artifact fetch, wait sidecar, etc.).
+        # Default 512Mi is too small for large monorepo git clones — OOMKilled (137) on the pod's init container.
+        executor:
+          resources:
+            requests:
+              cpu: 500m
+              memory: 2Gi
+            limits:
+              cpu: "4"
+              memory: 16Gi
+
+        # Use existing service accounts
+        useStaticCredentials: false
+
+        # Persist workflow artifacts and archived logs in GCS (Project: same as config.projectID; bucket
+        # from Terraform module.sdv_gcs_argo_workflows). If UIs show no log stream after steps finish, check
+        # status.nodes[].outputs.artifacts for main-logs in the Workflow CR, GCS object presence, and that
+        # gitops horizon-api gcsSigningServiceAccount matches the Workload Identity GSA for this environment.
+        artifactRepository:
+          archiveLogs: true
+          gcs:
+            bucket: {{ .Values.config.projectID }}-argo-workflows
+
+        # Custom links
+        links:
+          - name: "Workflow Documentation"
+            scope: "workflow"
+            url: "https://argo-workflows.readthedocs.io"
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: {{ .Values.config.namespacePrefix }}argo-workflows
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+---
+# Allow Argo Server ingress from Gateway
+{{- if .Values.config.enableNetworkPolicies }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-argo-server-ingress-from-gateway
+  namespace: {{ .Values.config.namespacePrefix }}argo-workflows
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: argo-workflows-server
+  policyTypes:
+  - Ingress
+  ingress:
+  - ports:
+    - protocol: TCP
+      port: 2746   # Argo Server HTTP port
+
+{{- end }}
+---
+# Allow Controller to access workflows namespace
+{{- if .Values.config.enableNetworkPolicies }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-controller-to-workflows-namespace
+  namespace: {{ .Values.config.namespacePrefix }}workflows
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  podSelector: {}
+  policyTypes:
+  - Ingress
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: {{ .Values.config.namespacePrefix }}argo-workflows
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: argo-workflows-workflow-controller
+
+{{- end }}
+---
+# Allow Controller to access Kubernetes API
+{{- if .Values.config.enableNetworkPolicies }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-controller-to-kube-api
+  namespace: {{ .Values.config.namespacePrefix }}argo-workflows
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: argo-workflows-workflow-controller
+  policyTypes:
+  - Egress
+  egress:
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: kube-system
+    ports:
+    - protocol: TCP
+      port: 443    # Kubernetes API
+    - protocol: TCP
+      port: 6443   # Kubernetes API (alternative port)
+
+{{- end }}
+---
+# Allow Server to access Kubernetes API
+{{- if .Values.config.enableNetworkPolicies }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-server-to-kube-api
+  namespace: {{ .Values.config.namespacePrefix }}argo-workflows
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: argo-workflows-server
+  policyTypes:
+  - Egress
+  egress:
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: kube-system
+    ports:
+    - protocol: TCP
+      port: 443    # Kubernetes API
+    - protocol: TCP
+      port: 6443   # Kubernetes API (alternative port)
+
+{{- end }}
+---
+# Allow Server to access workflows namespace
+{{- if .Values.config.enableNetworkPolicies }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-server-to-workflows-namespace
+  namespace: {{ .Values.config.namespacePrefix }}workflows
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  podSelector: {}
+  policyTypes:
+  - Ingress
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: {{ .Values.config.namespacePrefix }}argo-workflows
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: argo-workflows-server
+
+{{- end }}
+---
+# Allow workflow pods to access GCE metadata server for Workload Identity tokens.
+# Required for GCS artifact uploads, Secret Manager, and any GCP API call.
+#
+# On GKE with Calico CNI, iptables DNAT redirects 169.254.169.254:80 to the
+# gke-metadata-server DaemonSet on 169.254.169.252:988. Calico evaluates
+# policies post-DNAT, so both link-local IPs must be allowed without port
+# restriction. This mirrors the approach in jenkins.yaml for agent metadata.
+{{- if .Values.config.enableNetworkPolicies }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-workflows-to-metadata-server
+  namespace: {{ .Values.config.namespacePrefix }}workflows
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  podSelector: {}
+  policyTypes:
+  - Egress
+  egress:
+  - to:
+    - ipBlock:
+        cidr: 169.254.169.254/32
+    - ipBlock:
+        cidr: 169.254.169.252/32
+
+{{- end }}
+---
+# Allow workflow pods to access Artifact Registry and GCS (HTTPS)
+{{- if .Values.config.enableNetworkPolicies }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-workflows-to-artifact-registry
+  namespace: {{ .Values.config.namespacePrefix }}workflows
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  podSelector: {}
+  policyTypes:
+  - Egress
+  egress:
+  - to:
+    - ipBlock:
+        cidr: 0.0.0.0/0
+        except:
+        - 169.254.169.254/32
+    ports:
+    - protocol: TCP
+      port: 443    # HTTPS for Artifact Registry and GCS
+
+{{- end }}
+---
+# Allow workflow pods to access Kubernetes API
+{{- if .Values.config.enableNetworkPolicies }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-workflows-to-kube-api
+  namespace: {{ .Values.config.namespacePrefix }}workflows
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  podSelector: {}
+  policyTypes:
+  - Egress
+  egress:
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: kube-system
+    ports:
+    - protocol: TCP
+      port: 443    # Kubernetes API
+    - protocol: TCP
+      port: 6443   # Kubernetes API (alternative port)
+
+{{- end }}
+---
+# Allow Server to access Keycloak for SSO
+{{- if .Values.config.enableNetworkPolicies }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-server-to-keycloak
+  namespace: {{ .Values.config.namespacePrefix }}argo-workflows
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: argo-workflows-server
+  policyTypes:
+  - Egress
+  egress:
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: {{ .Values.config.namespacePrefix }}keycloak
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: keycloakx
+    ports:
+    - protocol: TCP
+      port: 8080   # Keycloak HTTP
+
+{{- end }}

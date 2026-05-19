@@ -139,6 +139,29 @@ Reference [Fleet management](https://docs.cloud.google.com/kubernetes-engine/ent
 - `gcloud container fleet memberships list`
 - `gcloud container fleet memberships get-credentials sdv-cluster`
 
+### `ENABLE_GEMINI_AI_ASSISTANT`
+
+Enable Gemini AI to support in diagnosis of build and test failures.
+
+### Gemini prompts
+
+The job uses prompt files from the repository only; there is no Jenkins parameter to override them. When an analysis path is set, the script uses three default **sequenced** prompts (step1 → step2 → step3; order matters). A single prompt is supported by the script but we do not ship single-prompt files.
+
+### `GEMINI_COMMAND_LINE`
+
+Interface for the headless [gemini-cli](https://geminicli.com/docs/cli/headless/).
+Use this to specify settings such as the [Gemini model](https://ai.google.dev/gemini-api/docs/models) etc, e.g.
+`--debug` to include debug output.
+Note: Prompts are piped via `stdin` and output is redirected to a JSON file.
+
+### `GEMINI_AI_EXECUTION_TIMEOUT`
+
+AI Execution Timeout (Hours)
+Set the maximum duration for the Gemini AI assistant.
+
+* Prevents jobs from hanging indefinitely.
+* Automatically terminates runaway processes to save build resources.
+
 ### `AAOS_ARTIFACT_STORAGE_SOLUTION`
 
 Define storage solution used to push artifacts.
@@ -286,11 +309,11 @@ These are as follows:
 -   `HORIZON_DOMAIN`
     - The URL domain which is required by pipeline jobs to derive URL for tools and GCP.
 
--   `HORIZON_GIT_URL`
-    - The URL to the Horizon SDV Git repository.
+-   `HORIZON_SCM_URL`
+    - The URL to the Horizon SDV git repository.
 
--   `HORIZON_GIT_BRANCH`
-    - The branch name the job will be configured for from `HORIZON_GIT_URL`.
+-   `HORIZON_SCM_BRANCH`
+    - The branch name the job will be configured for from `HORIZON_SCM_URL`.
 
 -   `JENKINS_AAOS_BUILD_CACHE_STORAGE_PREFIX`
     - This identifies the Persistent Volume Claim (PVC) prefix that is used to provision persistent storage for build cache, ensuring efficient reuse of cached resources across builds.  The default is [`pd-balanced`](https://cloud.google.com/compute/docs/disks/performance), which strikes a balance between optimal performance and cost-effectiveness.
@@ -367,3 +390,9 @@ These are as follows:
 ### Build Cache Corruption
 
 - The shared build cache can significantly accelerate build jobs, but it's not without risks. If a build job crashes or is aborted during initialization, the cache can become unstable, causing subsequent jobs to encounter issues with the `repo sync` command due to lingering lock files. To mitigate this, a retry and recovery process is triggered after multiple failed attempts, which involves deleting and recreating the cache. However, this process can substantially prolong the build job duration.
+
+### Gemini AI assistant (`ENABLE_GEMINI_AI_ASSISTANT`)
+
+- **Experimental:** Gemini-assisted diagnosis in this pipeline is experimental; behavior, quality, and availability can change without notice.
+- **Examples only:** Repository prompts and skills are **illustrative examples**—tune, replace, or disable them for your environment.
+- **Upstream issues:** Problems may come from [Gemini CLI](https://github.com/google-gemini/gemini-cli) itself; see [open issues](https://github.com/google-gemini/gemini-cli/issues) for known bugs and workarounds.

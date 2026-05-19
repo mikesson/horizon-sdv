@@ -86,6 +86,9 @@ resource "google_container_cluster" "sdv_cluster" {
     gcp_filestore_csi_driver_config {
       enabled = true
     }
+    config_connector_config {
+      enabled = true
+    }
   }
 
   # Enable network policy enforcement for pod-to-pod traffic restriction
@@ -352,6 +355,49 @@ resource "google_container_node_pool" "sdv_openbsw_build_node_pool" {
   autoscaling {
     min_node_count = var.openbsw_build_node_pool_min_node_count
     max_node_count = var.openbsw_build_node_pool_max_node_count
+  }
+
+}
+
+resource "google_container_node_pool" "sdv_utility_node_pool" {
+  name           = var.utility_node_pool_name
+  location       = var.location
+  cluster        = google_container_cluster.sdv_cluster.name
+  node_count     = var.utility_node_pool_node_count
+  node_locations = var.node_locations
+  node_config {
+    preemptible  = false
+    machine_type = var.utility_node_pool_machine_type
+    disk_size_gb = 500
+    image_type   = "UBUNTU_CONTAINERD"
+
+    service_account = var.service_account
+    oauth_scopes = [
+      "https://www.googleapis.com/auth/cloud-platform"
+    ]
+
+    labels = {
+      workloadLabel = "utility"
+    }
+
+    taint {
+      key    = "workloadType"
+      value  = "utility"
+      effect = "NO_SCHEDULE"
+    }
+
+    metadata = {
+      disable-legacy-endpoints = "true"
+    }
+
+    workload_metadata_config {
+      mode = "GKE_METADATA"
+    }
+  }
+
+  autoscaling {
+    min_node_count = var.utility_node_pool_min_node_count
+    max_node_count = var.utility_node_pool_max_node_count
   }
 
 }

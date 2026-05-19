@@ -1,0 +1,283 @@
+# Copyright (c) 2024-2026 Accenture, All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#         http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hello-world
+  namespace: {{ .Values.namespace }}
+  labels:
+    app.kubernetes.io/name: hello-world
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: hello-world
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: hello-world
+    spec:
+{{- if .Values.parentModuleName }}
+      volumes:
+        - name: soft-features
+          configMap:
+            name: horizon-sdv-soft-features-{{ .Values.parentModuleName | replace "_" "-" }}
+            optional: true
+      initContainers:
+        - name: log-soft-feature
+          image: busybox:1.36
+          command: ["sh", "-c", "cat /etc/horizon-soft-features/features.env 2>/dev/null || true"]
+          volumeMounts:
+            - name: soft-features
+              mountPath: /etc/horizon-soft-features
+              readOnly: true
+      containers:
+        # Soft flags from Module Manager ConfigMap (ModuleCatalog softFeaturesPropagation: ConfigMap); pod template stays stable when toggling.
+        - name: hello-world
+          image: busybox:1.36
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              FEATURE_DIR=/etc/horizon-soft-features
+              gen() {
+              mkdir -p /www
+              {
+                cat << 'HTMLHEAD'
+              <!DOCTYPE html>
+              <html lang="en">
+              <head>
+              <meta charset="utf-8"/>
+              <meta name="viewport" content="width=device-width, initial-scale=1"/>
+              <title>Hello — sample-module</title>
+              <style>
+                :root { color-scheme: light dark; }
+                body {
+                  margin: 0;
+                  min-height: 100vh;
+                  font-family: system-ui, "Segoe UI", Roboto, sans-serif;
+                  background: linear-gradient(160deg, #0f172a 0%, #1e293b 45%, #334155 100%);
+                  color: #e2e8f0;
+                  display: flex;
+                  align-items: center;
+                  justify-content: center;
+                  padding: 1.5rem;
+                }
+                .card {
+                  max-width: 36rem;
+                  width: 100%;
+                  background: rgba(15, 23, 42, 0.85);
+                  border: 1px solid rgba(148, 163, 184, 0.35);
+                  border-radius: 12px;
+                  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.35);
+                  padding: 1.75rem 1.5rem;
+                }
+                h1 {
+                  margin: 0 0 0.35rem;
+                  font-size: 1.5rem;
+                  font-weight: 600;
+                  letter-spacing: -0.02em;
+                }
+                .muted { color: #94a3b8; font-size: 0.875rem; margin: 0 0 1.25rem; }
+                h2 {
+                  margin: 0 0 0.5rem;
+                  font-size: 0.95rem;
+                  font-weight: 600;
+                  color: #cbd5e1;
+                }
+                table { width: 100%; border-collapse: collapse; font-size: 0.8125rem; }
+                th, td { text-align: left; padding: 0.4rem 0.35rem; border-bottom: 1px solid rgba(148, 163, 184, 0.2); }
+                th { color: #94a3b8; font-weight: 500; width: 40%; }
+                code { font-family: ui-monospace, monospace; color: #fbbf24; word-break: break-all; }
+                .empty { color: #64748b; font-style: italic; }
+              </style>
+              </head>
+              <body>
+              <div class="card">
+                <h1>Hello from sample-module</h1>
+                <p class="muted">Gateway route · busybox httpd · soft flags from ConfigMap</p>
+                <section>
+                  <h2>Soft feature flags</h2>
+                  <table>
+                    <thead><tr><th>Variable</th><th>Value</th></tr></thead>
+                    <tbody>
+              HTMLHEAD
+                if [ ! -f "$FEATURE_DIR/features.env" ] || [ ! -s "$FEATURE_DIR/features.env" ]; then
+                  printf '              <tr><td colspan="2" class="empty">No soft-feature flags (ConfigMap empty or not mounted yet).</td></tr>\n'
+                else
+                  while IFS= read -r line || [ -n "$line" ]; do
+                    [ -z "$line" ] && continue
+                    case "$line" in SOFT_FEATURE_ENABLED_*=*) ;;
+                    *) continue ;;
+                    esac
+                    key="${line%%=*}"
+                    val="${line#*=}"
+                    esc_key=$(printf '%s' "$key" | sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g')
+                    esc_val=$(printf '%s' "$val" | sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g')
+                    printf '              <tr><td><code>%s</code></td><td><code>%s</code></td></tr>\n' "$esc_key" "$esc_val"
+                  done < "$FEATURE_DIR/features.env"
+                fi
+                cat << 'HTMLTAIL'
+                    </tbody>
+                  </table>
+                </section>
+              </div>
+              </body>
+              </html>
+              HTMLTAIL
+              } > /www/index.html
+              }
+              gen
+              ( while true; do gen; sleep 3; done ) &
+              exec busybox httpd -f -p 8080 -h /www
+          volumeMounts:
+            - name: soft-features
+              mountPath: /etc/horizon-soft-features
+              readOnly: true
+          ports:
+            - containerPort: 8080
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: 3
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 20
+{{- else }}
+      initContainers:
+        - name: log-soft-feature
+          image: busybox:1.36
+          command: ["sh", "-c", "env | grep '^SOFT_FEATURE_ENABLED_' || true"]
+          env:
+            {{- range $name, $on := .Values.softFeaturesEnabled }}
+            - name: SOFT_FEATURE_ENABLED_{{ $name | replace "-" "_" | replace "." "_" | upper }}
+              value: {{ $on | quote }}
+            {{- end }}
+      containers:
+        # Soft-feature toggles change Helm values → this Deployment’s env → pod rollout (expected).
+        - name: hello-world
+          image: busybox:1.36
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              mkdir -p /www
+              {
+                cat << 'HTMLHEAD'
+              <!DOCTYPE html>
+              <html lang="en">
+              <head>
+              <meta charset="utf-8"/>
+              <meta name="viewport" content="width=device-width, initial-scale=1"/>
+              <title>Hello — sample-module</title>
+              <style>
+                :root { color-scheme: light dark; }
+                body {
+                  margin: 0;
+                  min-height: 100vh;
+                  font-family: system-ui, "Segoe UI", Roboto, sans-serif;
+                  background: linear-gradient(160deg, #0f172a 0%, #1e293b 45%, #334155 100%);
+                  color: #e2e8f0;
+                  display: flex;
+                  align-items: center;
+                  justify-content: center;
+                  padding: 1.5rem;
+                }
+                .card {
+                  max-width: 36rem;
+                  width: 100%;
+                  background: rgba(15, 23, 42, 0.85);
+                  border: 1px solid rgba(148, 163, 184, 0.35);
+                  border-radius: 12px;
+                  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.35);
+                  padding: 1.75rem 1.5rem;
+                }
+                h1 {
+                  margin: 0 0 0.35rem;
+                  font-size: 1.5rem;
+                  font-weight: 600;
+                  letter-spacing: -0.02em;
+                }
+                .muted { color: #94a3b8; font-size: 0.875rem; margin: 0 0 1.25rem; }
+                h2 {
+                  margin: 0 0 0.5rem;
+                  font-size: 0.95rem;
+                  font-weight: 600;
+                  color: #cbd5e1;
+                }
+                table { width: 100%; border-collapse: collapse; font-size: 0.8125rem; }
+                th, td { text-align: left; padding: 0.4rem 0.35rem; border-bottom: 1px solid rgba(148, 163, 184, 0.2); }
+                th { color: #94a3b8; font-weight: 500; width: 40%; }
+                code { font-family: ui-monospace, monospace; color: #fbbf24; word-break: break-all; }
+                .empty { color: #64748b; font-style: italic; }
+              </style>
+              </head>
+              <body>
+              <div class="card">
+                <h1>Hello from sample-module</h1>
+                <p class="muted">Gateway route · busybox httpd</p>
+                <section>
+                  <h2>Soft feature flags</h2>
+                  <table>
+                    <thead><tr><th>Variable</th><th>Value</th></tr></thead>
+                    <tbody>
+              HTMLHEAD
+                if ! env | grep -q '^SOFT_FEATURE_ENABLED_'; then
+                  printf '              <tr><td colspan="2" class="empty">No SOFT_FEATURE_ENABLED_* variables in this pod.</td></tr>\n'
+                else
+                  env | grep '^SOFT_FEATURE_ENABLED_' | sort | while IFS= read -r line; do
+                    key="${line%%=*}"
+                    val="${line#*=}"
+                    esc_key=$(printf '%s' "$key" | sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g')
+                    esc_val=$(printf '%s' "$val" | sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g')
+                    printf '              <tr><td><code>%s</code></td><td><code>%s</code></td></tr>\n' "$esc_key" "$esc_val"
+                  done
+                fi
+                cat << 'HTMLTAIL'
+                    </tbody>
+                  </table>
+                </section>
+              </div>
+              </body>
+              </html>
+              HTMLTAIL
+              } > /www/index.html
+              exec busybox httpd -f -p 8080 -h /www
+          env:
+            {{- range $name, $on := .Values.softFeaturesEnabled }}
+            - name: SOFT_FEATURE_ENABLED_{{ $name | replace "-" "_" | replace "." "_" | upper }}
+              value: {{ $on | quote }}
+            {{- end }}
+          ports:
+            - containerPort: 8080
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: 3
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 20
+{{- end }}

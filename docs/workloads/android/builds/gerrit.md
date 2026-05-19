@@ -38,6 +38,8 @@ One-time setup requirements.
 - Before running this pipeline job, ensure that the following templates have been created by running the corresponding jobs:
   - Docker image template: `Android Workflows/Environment/Docker Image Template`
   - Cuttlefish instance template: `Android Workflows/Environment/CF Instance Template`
+    - The CF job now uses a Packer-based build flow for template creation.
+    - Script stage mapping is `1=build`, `2=ssh refresh`, `3=delete` (documented in `docs/workloads/android/environment/cf_instance_template.md`).
 
 To successfully run the pipeline, ensure that the referenced Cuttlefish instance template exists, as specified in the `JENKINS_GCE_CLOUD_LABEL` variable defined in the Android Seed job. If the template is missing, the job will fail. The variable must reference align with the `computeEngine` label of the instance you intend to use.
 
@@ -114,11 +116,11 @@ These are as follows:
 -   `HORIZON_DOMAIN`
     - The URL domain which is required by pipeline jobs to derive URL for tools and GCP.
 
--   `HORIZON_GIT_URL`
-    - The URL to the Horizon SDV Git repository.
+-   `HORIZON_SCM_URL`
+    - The URL to the Horizon SDV git repository.
 
--   `HORIZON_GIT_BRANCH`
-    - The branch name the job will be configured for from `HORIZON_GIT_URL`.
+-   `HORIZON_SCM_BRANCH`
+    - The branch name the job will be configured for from `HORIZON_SCM_URL`.
 
 -   `JENKINS_AAOS_BUILD_CACHE_STORAGE_PREFIX`
     - This identifies the Persistent Volume Claim (PVC) prefix that is used to provision persistent storage for build cache, ensuring efficient reuse of cached resources across builds.  The default is [`pd-balanced`](https://cloud.google.com/compute/docs/disks/performance), which strikes a balance between optimal performance and cost-effectiveness.

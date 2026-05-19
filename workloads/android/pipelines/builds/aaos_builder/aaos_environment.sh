@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# Copyright (c) 2024-2025 Accenture, All Rights Reserved.
+# Copyright (c) 2024-2026 Accenture, All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -29,6 +29,8 @@
 #  - AAOS_ARTIFACT_STORAGE_SOLUTION: the persistent storage location for
 #        artifacts (GCS_BUCKET default).
 #  - AAOS_ARTIFACT_ROOT_NAME: the name of the bucket to store artifacts.
+#  - AAOS_BUILD_STAGE_FAILED: when "true", OUT_DIR artifacts are not added to
+#        AAOS_ARTIFACT_LIST (used by storage when build failed but AI Review ran).
 #  - ANDROID_VERSION: the Android version (default: 14).
 #  - REPO_SYNC_JOBS: the number of parallel repo sync jobs to use Default: 3).
 #  - MAX_REPO_SYNC_JOBS: the maximum number of parallel repo sync jobs
@@ -157,7 +159,7 @@ else
 fi
 
 # Disk space ceiling, remove older build targets if insufficient space.
-DISK_SPACE_WATERMARK=${DISK_SPACE_WATERMARK:-88}
+DISK_SPACE_WATERMARK=${DISK_SPACE_WATERMARK:-85}
 if [[ "${AAOS_LUNCH_TARGET}" =~ "rpi" ]]; then
     DISK_SPACE_WATERMARK=78
 fi
@@ -169,7 +171,7 @@ if [ -d "${AAOS_CACHE_DIRECTORY}" ]; then
     sudo chmod g+s /"${AAOS_CACHE_DIRECTORY}"
 
     if [[ "${ABFS_BUILDER}" == "true" ]]; then
-        if [[ "${ABFS_CACHED_BUILD}" = "true" ]]; then
+        if [[ "${ABFS_CACHED_BUILD}" == "true" ]]; then
             ABFS_CMD_FLAGS="--cache-dir ${AAOS_CACHE_DIRECTORY}/cache"
             mkdir -p "${AAOS_CACHE_DIRECTORY}/cache"
             mkdir -p "${AAOS_CACHE_DIRECTORY}/${ABFS_MOUNT_POINT}"
@@ -178,7 +180,7 @@ if [ -d "${AAOS_CACHE_DIRECTORY}" ]; then
     case "$0" in
         *initialise.sh | *build.sh)
             if [[ "${ABFS_BUILDER}" == "true" ]]; then
-                if [[ "${ABFS_CACHED_BUILD}" = "true" ]]; then
+                if [[ "${ABFS_CACHED_BUILD}" == "true" ]]; then
                     USAGE=$(df -h "${AAOS_CACHE_DIRECTORY}" | tail -1 | awk '{print "Used " $3 " of " $2}')
                     USED_PERCENTAGE=$(df "${AAOS_CACHE_DIRECTORY}" | tail -1 | awk '{print ($3/$2)*100}' | cut -d '.' -f 1)
                     if [ "${USED_PERCENTAGE}" -lt "${DISK_SPACE_WATERMARK}" ]; then
@@ -204,8 +206,8 @@ if [ -d "${AAOS_CACHE_DIRECTORY}" ]; then
                     USAGE=$(df -h "${AAOS_CACHE_DIRECTORY}" | tail -1 | awk '{print "Used " $3 " of " $2}')
                     echo "WARNING: Insufficient disk space - ${USED_PERCENTAGE}% (${USAGE})"
 
-                    # List the oldest target directory
-                    OLDEST_DIR=$(find "${AAOS_CACHE_DIRECTORY}"/aaos_builds* -mindepth 1 -maxdepth 1 -type d -name 'out_sdv*' -exec ls -drt {} + | head -1)
+                    # List the oldest target directory (exclude current lunch target)
+                    OLDEST_DIR=$(find "${AAOS_CACHE_DIRECTORY}"/aaos_builds* -mindepth 1 -maxdepth 1 -type d -name 'out_sdv*' ! -name "out_sdv-${AAOS_LUNCH_TARGET}" -exec ls -drt {} + | head -1)
                     if [ -z "${OLDEST_DIR}" ]; then
                         echo "No further target directories to clean up."
                         break
@@ -231,7 +233,7 @@ if [[ "${ABFS_BUILDER}" == "false" ]]; then
         "${AAOS_CACHE_DIRECTORY}"/"${AAOS_BUILDS_DIRECTORY}"
     )
 else
-    if [[ "${ABFS_CACHED_BUILD}" = "true" ]]; then
+    if [[ "${ABFS_CACHED_BUILD}" == "true" ]]; then
         DIRECTORY_LIST+=(
             "${AAOS_CACHE_DIRECTORY}/cache"
         )
@@ -241,6 +243,23 @@ else
     fi
 fi
 
+# Build records directory: aaos-build-info.txt + aaos-build.log (after WORKSPACE is finalized).
+# Jenkins: WORKSPACE is reassigned to the AAOS cache tree, but ORIG_WORKSPACE is still the job workspace —
+# archiveArtifacts / storage expecting workspace paths need records there. Argo keeps them on the PVC
+# build WORKSPACE. Set AAOS_BUILD_LOGS_USE_ORIG_WORKSPACE=true|false to force either behaviour.
+if [[ "${AAOS_BUILD_LOGS_USE_ORIG_WORKSPACE:-}" == "true" ]]; then
+  AAOS_BUILD_RECORDS_DIR="${ORIG_WORKSPACE}"
+elif [[ "${AAOS_BUILD_LOGS_USE_ORIG_WORKSPACE:-}" == "false" ]]; then
+  AAOS_BUILD_RECORDS_DIR="${WORKSPACE}"
+elif [[ -n "${JENKINS_URL:-}" ]] || [[ -n "${HUDSON_URL:-}" ]]; then
+  AAOS_BUILD_RECORDS_DIR="${ORIG_WORKSPACE}"
+else
+  AAOS_BUILD_RECORDS_DIR="${WORKSPACE}"
+fi
+AAOS_BUILD_INFO_FILE="${AAOS_BUILD_RECORDS_DIR}/aaos-build-info.txt"
+AAOS_BUILD_LOG_FILE="${AAOS_BUILD_RECORDS_DIR}/aaos-build.log"
+export AAOS_BUILD_RECORDS_DIR AAOS_BUILD_INFO_FILE AAOS_BUILD_LOG_FILE
+
 # Clean commands
 AAOS_CLEAN=${AAOS_CLEAN:-NO_CLEAN}
 
@@ -249,9 +268,6 @@ ABFS_CLEAN_CACHE=${ABFS_CLEAN_CACHE:-false}
 if [[ "${ABFS_CLEAN_CACHE}" == "true" ]]; then
     AAOS_CLEAN=CLEAN_ALL
 fi
-
-# Build info file name
-BUILD_INFO_FILE="${WORKSPACE}/build_info.txt"
 
 # Override build output directory to keep builds
 # separate from each other.
@@ -293,11 +309,27 @@ declare -a POST_BUILD_COMMANDS
 
 # Declare artifact array.
 declare -a AAOS_ARTIFACT_LIST=(
-    "${BUILD_INFO_FILE}"
+    "${AAOS_BUILD_INFO_FILE}"
+    "${AAOS_BUILD_LOG_FILE}"
 )
+
+# Gemini AI assistant: only upload Gemini artifacts when build failed (AI Review ran)
+ENABLE_GEMINI_AI_ASSISTANT=${ENABLE_GEMINI_AI_ASSISTANT:-false}
+
+if [[ "${ENABLE_GEMINI_AI_ASSISTANT}" == "true" ]] && [[ "${AAOS_BUILD_STAGE_FAILED}" == "true" ]]; then
+    AAOS_ARTIFACT_LIST+=(
+      "${ORIG_WORKSPACE}/gemini-assist/"
+      "${ORIG_WORKSPACE}/*.json"
+      "/aaos-cache/aaos_builds/gemini-assist/"
+      "/aaos-cache/aaos_builds/headless_output*.json"
+      "/aaos-cache/aaos_builds/gemini-client-error.zip"
+    )
+fi
+
 # Post storage commands
 declare -a POST_STORAGE_COMMANDS=(
-    "rm -f ${BUILD_INFO_FILE}"
+    "rm -f ${AAOS_BUILD_INFO_FILE}"
+    "rm -f ${AAOS_BUILD_LOG_FILE}"
     "rm -rf vendor"
 )
 
@@ -310,11 +342,13 @@ case "${AAOS_LUNCH_TARGET}" in
         # FIXME: we can build full flashable image but may require special
         # permissions, for now host the individual parts.
         # ${VERSION}-${DATE}-rpi5.img # rpi5-mkimg.sh
-        AAOS_ARTIFACT_LIST+=(
-            "${OUT_DIR}/target/product/${AAOS_ARCH}/boot.img"
-            "${OUT_DIR}/target/product/${AAOS_ARCH}/system.img"
-            "${OUT_DIR}/target/product/${AAOS_ARCH}/vendor.img"
-        )
+        if [[ "${AAOS_BUILD_STAGE_FAILED}" != "true" ]]; then
+            AAOS_ARTIFACT_LIST+=(
+                "${OUT_DIR}/target/product/${AAOS_ARCH}/boot.img"
+                "${OUT_DIR}/target/product/${AAOS_ARCH}/system.img"
+                "${OUT_DIR}/target/product/${AAOS_ARCH}/vendor.img"
+            )
+        fi
 
         case "${AAOS_LUNCH_TARGET}" in
             # Download the RPi manifest if we are building for an RPi device.
@@ -363,12 +397,14 @@ case "${AAOS_LUNCH_TARGET}" in
         AAOS_BUILD_CTS="false"
         AAOS_MAKE_CMDLINE="m -j${AAOS_PARALLEL_BUILD_JOBS}&& m emu_img_zip -j${AAOS_PARALLEL_BUILD_JOBS}&& m sbom -j${AAOS_PARALLEL_BUILD_JOBS}"
         # Newer versions, sbom is under SOONG
-        AAOS_ARTIFACT_LIST+=(
-            "${OUT_DIR}/soong/sbom/sdk_car_${AAOS_ARCH}/sbom.spdx.json"
-            "${OUT_DIR}/target/product/emulator_car64_${AAOS_ARCH}/sbom.spdx.json"
-            "${OUT_DIR}/target/product/emulator_car64_${AAOS_ARCH}/${AAOS_SDK_SYSTEM_IMAGE_PREFIX}*.zip"
-            "${OUT_DIR}/target/product/emulator_car64_${AAOS_ARCH}/${AAOS_SDK_ADDON_FILE}"
-        )
+        if [[ "${AAOS_BUILD_STAGE_FAILED}" != "true" ]]; then
+            AAOS_ARTIFACT_LIST+=(
+                "${OUT_DIR}/soong/sbom/sdk_car_${AAOS_ARCH}/sbom.spdx.json"
+                "${OUT_DIR}/target/product/emulator_car64_${AAOS_ARCH}/sbom.spdx.json"
+                "${OUT_DIR}/target/product/emulator_car64_${AAOS_ARCH}/${AAOS_SDK_SYSTEM_IMAGE_PREFIX}*.zip"
+                "${OUT_DIR}/target/product/emulator_car64_${AAOS_ARCH}/${AAOS_SDK_ADDON_FILE}"
+            )
+        fi
         POST_STORAGE_COMMANDS+=(
             "rm -f devices.xml"
             "rm -f ${AAOS_SDK_ADDON_FILE}"
@@ -395,26 +431,33 @@ case "${AAOS_LUNCH_TARGET}" in
             threads=$(( $(nproc) / 2 ))
             threads=$(( threads < 1 ? 1 : threads ))
   
-            # Always build aosp_cf and then CTS.
+            # Build only the CTS test suite.
             AAOS_MAKE_CMDLINE="m cts -j ${threads}"
-            AAOS_ARTIFACT_LIST+=("${OUT_DIR}/host/linux-x86/cts/android-cts.zip")
+            if [[ "${AAOS_BUILD_STAGE_FAILED}" != "true" ]]; then
+                AAOS_ARTIFACT_LIST+=("${OUT_DIR}/host/linux-x86/cts/android-cts.zip")
+            fi
         else
-            AAOS_ARTIFACT_LIST+=(
-                "${OUT_DIR}/dist/cvd-host_package.tar.gz"
-                "${OUT_DIR}/dist/sbom/sbom.spdx.json"
-                "${OUT_DIR}/dist/aosp_cf_${AAOS_ARCH}_auto-img*.zip"
-                "${WIFI_APK_NAME}"
-            )
+            if [[ "${AAOS_BUILD_STAGE_FAILED}" != "true" ]]; then
+                AAOS_ARTIFACT_LIST+=(
+                    "${OUT_DIR}/dist/cvd-host_package.tar.gz"
+                    "${OUT_DIR}/dist/sbom/sbom.spdx.json"
+                    "${OUT_DIR}/dist/aosp_cf_${AAOS_ARCH}_auto-img*.zip"
+                    "${WIFI_APK_NAME}"
+                )
+            fi
         fi
         POST_STORAGE_COMMANDS+=(
             "rm -f ${WIFI_APK_NAME}"
+            "rm -f ${OUT_DIR}/dist/aosp_cf_${AAOS_ARCH}_auto-img*.zip"
         )
         ;;
     *tangorpro_car*)
         AAOS_BUILD_CTS="false"
-        AAOS_ARTIFACT_LIST+=(
-            "${OUT_DIR}.tgz"
-        )
+        if [[ "${AAOS_BUILD_STAGE_FAILED}" != "true" ]]; then
+            AAOS_ARTIFACT_LIST+=(
+                "${OUT_DIR}.tgz"
+            )
+        fi
         AAOS_MAKE_CMDLINE="m -j${AAOS_PARALLEL_BUILD_JOBS} && m android.hardware.automotive.vehicle@2.0-default-service android.hardware.automotive.audiocontrol-service.example -j${AAOS_PARALLEL_BUILD_JOBS}"
         # Pixel Tablet binaries for Android ap1a/ap2a/ap3a/ap4a/bp1a
         case "${AAOS_LUNCH_TARGET}" in
@@ -624,6 +667,8 @@ case "$0" in
         AAOS_ARTIFACT_ROOT_NAME=${AAOS_ARTIFACT_ROOT_NAME}
 
         AAOS_BUILD_CTS=${AAOS_BUILD_CTS}
+
+        ENABLE_GEMINI_AI_ASSISTANT=${ENABLE_GEMINI_AI_ASSISTANT}
         "
         ;;
     *)
@@ -631,15 +676,19 @@ case "$0" in
 esac
 
 VARIABLES+="
+        ORIG_WORKSPACE=${ORIG_WORKSPACE}
         WORKSPACE=${WORKSPACE}
+        AAOS_BUILD_RECORDS_DIR=${AAOS_BUILD_RECORDS_DIR}
+        AAOS_BUILD_INFO_FILE=${AAOS_BUILD_INFO_FILE}
+        AAOS_BUILD_LOG_FILE=${AAOS_BUILD_LOG_FILE}
         hostname=$(hostname)
 
         Storage Usage (${AAOS_CACHE_DIRECTORY}): $(df -h "${AAOS_CACHE_DIRECTORY}" | tail -1 | awk '{print "Used " $3 " of " $2}')
         Kernel Revision: $(uname -r)
 "
 # Add to build info for storage.
-echo "$0 Build Info:" | tee -a "${BUILD_INFO_FILE}"
-echo "${VARIABLES}" | tee -a "${BUILD_INFO_FILE}"
+echo "$0 Build Info:" | tee -a "${AAOS_BUILD_INFO_FILE}"
+echo "${VARIABLES}" | tee -a "${AAOS_BUILD_INFO_FILE}"
 
 # Remove directories if requested.
 RSYNC_DELETE=${RSYNC_DELETE:-false}
@@ -682,7 +731,7 @@ function create_workspace() {
     if [[ "${ABFS_BUILDER}" == "false" ]]; then
         mkdir -p "${WORKSPACE}" > /dev/null 2>&1
     else
-        if [[ "${ABFS_CACHED_BUILD}" = "false" ]]; then
+        if [[ "${ABFS_CACHED_BUILD}" == "false" ]]; then
             sudo mkdir -p "/${ABFS_MOUNT_POINT}"
             sudo chown builder:builder "/${ABFS_MOUNT_POINT}"
         fi

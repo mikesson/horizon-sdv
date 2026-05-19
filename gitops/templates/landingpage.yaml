@@ -31,7 +31,7 @@ spec:
         config:
           namespacePrefix: {{ .Values.config.namespacePrefix }}
           gitops:
-            landingpage: {{ .Values.config.apps.landingpage }}
+            landingpage: {{ .Values.config.containerImages.landingpage | quote }}
         spec:
           source:
             repoURL: {{ .Values.spec.source.repoURL }}

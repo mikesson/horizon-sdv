@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# Copyright (c) 2024-2025 Accenture, All Rights Reserved.
+# Copyright (c) 2024-2026 Accenture, All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -115,6 +115,16 @@ function cts_store_results() {
     rm -rf "${HOME}"/android-cts/results
 }
 
+function cts_failure_check() {
+    local n
+    cd "${WORKSPACE}"/android-cts-results || return 1
+    n=$(grep '^[[:space:]]*FAILED' invocation_summary.txt | awk '{print $NF}')
+    cd - >/dev/null || true
+    n="${n//[^0-9]/}"   # keep only digits (strips stray " or \r that break (( ))
+    n="${n:-1}" # default to 1 if no digits found
+    (( n == 0 ))
+}
+
 # Main
 cd "${HOME}"/android-cts/tools || exit
 cts_info
@@ -123,6 +133,10 @@ if [[ "${CTS_TEST_LISTS_ONLY}" == "false" ]]; then
     cts_run
     RESULT="${CTS_RESULT}"
     cts_store_results
+    if ! cts_failure_check; then
+        echo "Tests failed."
+        exit 1
+    fi
     cts_cleanup
 fi
 

@@ -47,8 +47,8 @@ if [ -n "${AAOS_MAKE_CMDLINE}" ]; then
     echo "Building: $AAOS_MAKE_CMDLINE"
 
     # Run the build.
-    eval "${AAOS_MAKE_CMDLINE}"
-    RESULT=$?
+    eval "${AAOS_MAKE_CMDLINE}" | tee -a "${AAOS_BUILD_LOG_FILE}"
+    RESULT="${PIPESTATUS[0]}"
 else
     echo -e "\033[1;31mERROR: make command line undefined!\033[0m"
     exit 1
@@ -58,7 +58,7 @@ if (( RESULT == 0 )); then
     echo "Post build commands:"
     for command in "${POST_BUILD_COMMANDS[@]}"; do
         echo "${command}"
-        eval "${command}"
+        eval "${command}" | tee -a "${AAOS_BUILD_LOG_FILE}"
     done
 fi
 

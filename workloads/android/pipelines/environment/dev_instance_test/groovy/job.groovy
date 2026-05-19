@@ -1,4 +1,4 @@
-// Copyright (c) 2025 Accenture, All Rights Reserved.
+// Copyright (c) 2025-2026 Accenture, All Rights Reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -27,9 +27,9 @@ pipelineJob('Android/Environment/Development Test Instance') {
       defaultValue("${JENKINS_GCE_CLOUD_LABEL}")
       description('''<p>The Jenkins GCE Clouds label for the VM instance template, e.g.<br/></p>
         <ul>
-          <li>cuttlefish-vm-v1350</li>
+          <li>cuttlefish-vm-v1410</li>
           <li>cuttlefish-vm-main</li>
-          <li>cuttlefish-vm-v1350-arm64</li>
+          <li>cuttlefish-vm-v1410-arm64</li>
           <li>cuttlefish-vm-main-arm64</li>
         </ul>''')
       trim(true)
@@ -58,8 +58,8 @@ pipelineJob('Android/Environment/Development Test Instance') {
   }
 
   logRotator {
-    daysToKeep(60)
-    numToKeep(200)
+    daysToKeep(7)
+    numToKeep(50)
   }
 
   definition {
@@ -68,10 +68,10 @@ pipelineJob('Android/Environment/Development Test Instance') {
       scm {
         git {
           remote {
-            url("${HORIZON_GIT_URL}")
-            credentials('jenkins-git-creds')
+            url("${HORIZON_SCM_URL}")
+            credentials('jenkins-scm-creds')
           }
-          branch("*/${HORIZON_GIT_BRANCH}")
+          branch("*/${HORIZON_SCM_BRANCH}")
         }
       }
       scriptPath('workloads/android/pipelines/environment/dev_instance_test/Jenkinsfile')

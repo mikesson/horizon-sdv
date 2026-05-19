@@ -66,7 +66,7 @@ debug_log "kubectl connectivity OK"
 
 # Run node script
 debug_log "Installing npm packages"
-npm install --silent
+npm install --silent --ignore-scripts
 
 debug_log "===================="
 debug_log "Running keycloak.mjs"
@@ -151,4 +151,3 @@ debug_log "======================"
 
 echo "All steps finished successfully"
 exit 0
-

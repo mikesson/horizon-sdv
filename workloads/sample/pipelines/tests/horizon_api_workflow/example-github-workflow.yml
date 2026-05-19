@@ -1,0 +1,66 @@
+# Copyright (c) 2026 Accenture, All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#         http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# EXAMPLE ONLY — GitHub runs workflows from .github/workflows/ only.
+# Copy this file to .github/workflows/horizon-api-workflow-example.yml (or similar),
+# then adjust secrets and inputs.
+#
+# Aligned with Jenkins job "Sample/Tests/Horizon API Workflow" (see groovy/job.groovy)
+# for WORKFLOW_MODULE, WORKFLOW_TEMPLATE, WORKFLOW_PARAMETERS_JSON (Node REST only; no driver mode).
+#
+# Store KEYCLOAK_CLIENT_SECRET in GitHub: Settings → Secrets and variables → Actions.
+# Set HORIZON_DOMAIN as a repository Variable (vars.HORIZON_DOMAIN) or Secret, like Jenkins HORIZON_DOMAIN.
+
+name: Horizon API Workflow (example)
+
+on:
+  workflow_dispatch:
+    inputs:
+      WORKFLOW_MODULE:
+        description: Horizon catalog module (default sample).
+        required: false
+        default: sample
+        type: string
+      WORKFLOW_TEMPLATE:
+        description: Workflow template name from GET /v1/catalog.
+        required: false
+        default: sample-smoke-test
+        type: string
+      WORKFLOW_PARAMETERS_JSON:
+        description: JSON object for submit parameters (see job.groovy help text).
+        required: false
+        default: '{"horizonSubmittedFrom":"","sampleEnv":"github-actions","sampleBuildId":"","sampleNote":""}'
+        type: string
+
+jobs:
+  horizon-api-workflow:
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    env:
+      # Required: API host (no scheme), e.g. horizon.example.com
+      HORIZON_DOMAIN: ${{ vars.HORIZON_DOMAIN }}
+      KEYCLOAK_CLIENT_SECRET: ${{ secrets.KEYCLOAK_CLIENT_SECRET }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Submit, wait for logs, show (Node REST)
+        uses: ./workloads/sample/pipelines/tests/horizon_api_workflow/github-action
+        with:
+          workflow_module: ${{ inputs.WORKFLOW_MODULE }}
+          workflow_template: ${{ inputs.WORKFLOW_TEMPLATE }}
+          workflow_parameters_json: ${{ inputs.WORKFLOW_PARAMETERS_JSON }}
+        # Optional overrides (uncomment):
+        # horizon_domain: ${{ vars.HORIZON_DOMAIN }}
+        # keycloak_client_id: horizon-api-ci
+        # keycloak_realm: horizon

@@ -38,23 +38,57 @@ variable "manual_secrets" {
   }
 }
 
-variable "git_auth_method" {
-  description = "Auth method for Argo CD 'app' or 'pat'"
+# SCM Configuration
+variable "scm_type" {
+  description = "SCM type: 'github' (GitHub-specific features) or 'git' (generic Git server)"
   type        = string
+  default     = "github"
   validation {
-    condition     = contains(["app", "pat"], var.git_auth_method)
-    error_message = "The auth method must be either 'app' or 'pat'."
+    condition     = contains(["github", "git"], var.scm_type)
+    error_message = "SCM type must be either 'github' or 'git'."
   }
 }
 
+variable "scm_auth_method" {
+  description = "Auth method: 'app' (GitHub App only), 'userpass' (username/password or token), or 'none' (public repos)"
+  type        = string
+  validation {
+    condition     = contains(["app", "userpass", "none"], var.scm_auth_method)
+    error_message = "Auth method must be 'app' (GitHub App), 'userpass' (username/password), or 'none' (public repository)."
+  }
+}
+
+variable "scm_repo_url" {
+  description = "Full repository URL (e.g., https://github.com/owner/repo or https://git.example.com/project/repo)"
+  type        = string
+}
+
+variable "scm_repo_branch" {
+  description = "Repository branch or ref"
+  type        = string
+}
+
+variable "scm_username" {
+  description = "SCM username (use 'git' for GitHub PAT, actual username for other Git servers)"
+  type        = string
+  default     = "git"
+}
+
+variable "scm_password" {
+  description = "SCM password or token (GitHub PAT, Gerrit HTTP password, GitLab token, etc.)"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
 variable "sdv_github_app_id" {
-  description = "The var gh_app_id value"
+  description = "GitHub App ID (only for GitHub App auth)"
   type        = string
   default     = ""
 }
 
 variable "sdv_github_app_install_id" {
-  description = "The var gh_installation_id value"
+  description = "GitHub App Installation ID (only for GitHub App auth)"
   type        = string
   default     = ""
 }
@@ -100,28 +134,6 @@ variable "sdv_keycloak_horizon_admin_password" {
     )
     error_message = local.password_policy_error
   }
-}
-
-variable "sdv_git_pat" {
-  description = "Git personal access token"
-  type        = string
-  default     = ""
-  sensitive   = true
-}
-
-variable "sdv_git_repo_branch" {
-  description = "Git repository branch"
-  type        = string
-}
-
-variable "sdv_git_repo_name" {
-  description = "Git repository name"
-  type        = string
-}
-
-variable "sdv_git_repo_owner" {
-  description = "Git repository owner (user or organization name)"
-  type        = string
 }
 
 variable "sdv_env_name" {
@@ -245,6 +257,12 @@ variable "sdv_dns_dnssec_enabled" {
   description = "Enable DNSSEC for Cloud DNS zone. Requires domain ownership verification. Enabled by default."
   type        = bool
   default     = true
+}
+
+variable "sdv_dns_use_static_a_records" {
+  description = "Use static A records in parent zone instead of zone delegation. When true: no Cloud DNS zone, LB cert auth, DNSSEC off. Add A records (domain and mcp.domain) to parent zone manually; LB IP from GCP Console."
+  type        = bool
+  default     = false
 }
 
 variable "sdv_enable_kms_encryption" {

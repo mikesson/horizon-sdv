@@ -41,16 +41,16 @@ pipeline {
     stage ('Start Instance') {
       agent { kubernetes { yaml kubernetesPodTemplate } }
       stages {
-        stage ('Uploader Action') {
-          when {
-            anyOf {
-              allOf {
-                expression { env.ABFS_TERRAFORM_ACTION == 'APPLY' }
-                expression { env.ABFS_LICENSE_B64 }
+        stage ('Input Validation') {
+          steps {
+            script {
+              if (env.ABFS_TERRAFORM_ACTION == 'APPLY' && (!env.ABFS_LICENSE_B64 || !env.ABFS_LICENSE_B64.trim())) {
+                error('ABFS_LICENSE_B64 is mandatory for APPLY actions. Please provide a valid base64-encoded ABFS license.')
               }
-              expression { env.ABFS_TERRAFORM_ACTION != 'APPLY' }
             }
           }
+        }
+        stage ('Uploader Action') {
           steps {
             container(name: 'abfs-uploader-builder') {
               catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
@@ -65,9 +65,15 @@ pipeline {
                     UPLOADER_MACHINE_TYPE="${UPLOADER_MACHINE_TYPE}" \
                     UPLOADER_DATADISK_SIZE_GB="${UPLOADER_DATADISK_SIZE_GB}" \
                     UPLOADER_MANIFEST_SERVER="${UPLOADER_MANIFEST_SERVER}" \
+                    UPLOADER_MANIFEST_SCHEME="${UPLOADER_MANIFEST_SCHEME}" \
                     UPLOADER_GIT_BRANCH="${UPLOADER_GIT_BRANCH}" \
                     UPLOADER_MANIFEST_FILE="${UPLOADER_MANIFEST_FILE}" \
+                    ABFS_EXTRA_PARAMS="${ABFS_EXTRA_PARAMS}" \
+                    ABFS_GERRIT_UPLOADER_EXTRA_PARAMS="${ABFS_GERRIT_UPLOADER_EXTRA_PARAMS}" \
+                    ABFS_ENABLE_GIT_LFS="${ABFS_ENABLE_GIT_LFS}" \
+                    PRE_START_HOOKS="${PRE_START_HOOKS}" \
                     ABFS_COS_IMAGE_REF="${ABFS_COS_IMAGE_REF}" \
+                    UPLOADER_POST_APPLY_DELAY_SECONDS="${UPLOADER_POST_APPLY_DELAY_SECONDS}" \
                     ABFS_LICENSE_B64=${ABFS_LICENSE_B64} \
                     ./abfs_uploader_run.sh
                     '''

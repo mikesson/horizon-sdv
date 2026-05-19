@@ -1,0 +1,165 @@
+# Copyright (c) 2026 Accenture, All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#         http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# Description:
+# Argo WorkflowTemplate for the AAOS builder pipeline (Horizon catalog: exposed when module workloads-android is enabled).
+# Argo Events: Sensor webhook-aaos-builder filters body.workflowTemplateName == this metadata.name (workflow/sensors.yaml).
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: {{ .Values.workflowTemplateName | quote }}
+  namespace: {{ include "aaos-builder.workflowNamespace" . | quote }}
+  labels:
+    app.kubernetes.io/name: aaos-builder
+    horizon-sdv.io/expose: "true"
+    horizon-sdv.io/module: workloads-android
+  annotations:
+    argocd.argoproj.io/sync-wave: "8"
+spec:
+  entrypoint: main
+  # Ensure main container logs are archived to the cluster artifact repo (GCS) per step; reinforces controller artifactRepository.archiveLogs.
+  archiveLogs: true
+  serviceAccountName: {{ include "aaos-builder.workflowServiceAccountName" . | quote }}
+  # Argo UI list: title + description (https://argo-workflows.readthedocs.io/en/latest/title-and-description/)
+  workflowMetadata:
+    annotations:
+      workflows.argoproj.io/title: '{{ "{{" }}workflow.parameters.lunchTarget{{ "}}" }}'
+      workflows.argoproj.io/description: '{{ "{{" }}workflow.parameters.androidRevision{{ "}}" }}'
+{{- if .Values.podGcStrategy }}
+  # podGC strategy per Argo (e.g., OnPodCompletion, OnWorkflowCompletion).
+  podGC:
+    strategy: {{ .Values.podGcStrategy | quote }}
+{{- end }}
+{{- if .Values.spec.workflowTtlSecondsAfterCompletion }}
+  # TTL deletes workflow objects after completion (set via values).
+  ttlStrategy:
+    secondsAfterCompletion: {{ .Values.spec.workflowTtlSecondsAfterCompletion }}
+{{- end }}
+{{- if .Values.spec.volumeClaimGcStrategy }}
+  # volumeClaimGC strategy per Argo (e.g., OnWorkflowCompletion).
+  volumeClaimGC:
+    strategy: {{ .Values.spec.volumeClaimGcStrategy | quote }}
+{{- end }}
+  arguments:
+    parameters:
+      - name: horizonSubmittedFrom
+        value: ""
+        description: "Where the submit call originated (Horizon); mirrored on workflow label horizon-sdv.io/submitted-from."
+      - name: lunchTarget
+        value: {{ .Values.spec.lunchTarget | quote }}
+        description: "AAOS lunch target to build."
+      - name: androidRevision
+        value: {{ .Values.spec.androidRevision | quote }}
+        description: "AAOS branch or tag to sync."
+      - name: manifestUrl
+        value: {{ .Values.spec.manifestUrl | quote }}
+        description: "Base manifest URL for repo init."
+      - name: cleanBuild
+        value: {{ .Values.spec.cleanBuild | quote }}
+        description: "Clean mode: NO_CLEAN, CLEAN_BUILD, or CLEAN_ALL."
+      - name: buildCtsOnly
+        value: {{ .Values.spec.buildCtsOnly | quote }}
+        description: "When true, build CTS only."
+      - name: forceImageBuild
+        value: {{ .Values.spec.forceImageBuild | quote }}
+        description: "When true, always rebuild the AAOS builder image."
+      - name: storageLabels
+        value: {{ .Values.spec.storageLabels | quote }}
+        description: "Labels for storage metadata."
+      - name: enableGeminiAiAssistant
+        value: {{ .Values.spec.enableGeminiAiAssistant | quote }}
+        description: "Enable Gemini AI review on failure (when build fails)."
+      - name: parallelSyncJobs
+        value: {{ .Values.spec.parallelSyncJobs | quote }}
+        description: "Parallel repo sync jobs."
+      - name: pipelineRepoUrl
+        value: {{ .Values.spec.pipelineRepoUrl | quote }}
+        description: "Pipeline repo URL for Argo git artifacts (GKE/non-local). Match gitops config.workloads.android.url."
+      - name: pipelineRepoRevision
+        value: {{ .Values.spec.pipelineRepoRevision | quote }}
+        description: "Pipeline repo branch or tag. Match gitops config.workloads.android.branch."
+      - name: scmAuthMethod
+        value: {{ include "aaos-builder.scmAuthMethod" . | trim | quote }}
+        description: "SCM auth for pipeline git (app | userpass | none); passed to prepare-pipeline-git-creds when remote."
+      - name: pipelineStaticGitSecretName
+        value: {{ .Values.spec.pipelineRepoSecret | default "workflow-pipeline-git-creds" | quote }}
+        description: "Kubernetes Secret name (username/password) to copy from when scmAuthMethod is userpass."
+  templateDefaults:
+    metadata:
+      annotations:
+        cluster-autoscaler.kubernetes.io/safe-to-evict: "true"
+      labels:
+        aaos_pod: "true"
+    nodeSelector:
+      workloadLabel: android
+    tolerations:
+      - key: workloadType
+        operator: Equal
+        value: android
+        effect: NoSchedule
+    # Pod anti-affinity is applied only to build templates.
+  # Per-workflow PVC (one per workflow execution).
+  # Per-workflow mode keeps different workflows isolated even on same node.
+  volumeClaimTemplates:
+    - metadata:
+        name: aaos-cache
+        labels:
+          app.kubernetes.io/name: {{ .Chart.Name | quote }}
+          app.kubernetes.io/instance: {{ .Release.Name | quote }}
+          aaos-cache-scope: "workflow"
+          aaos-revision: {{ printf "{{=sprig.regexFind(\"android-[0-9]+\", workflow.parameters.androidRevision)}}" | quote }}
+          aaos-lunch-target: {{ printf "{{=workflow.parameters.lunchTarget}}" | quote }}
+          # View: kubectl get pvc -n <ns> -l aaos-cache-scope=workflow --show-labels
+          # View: kubectl get pvc -n <ns> -o custom-columns=NAME:.metadata.name,SCOPE:.metadata.labels.aaos-cache-scope,REV:.metadata.labels.aaos-revision,LUNCH:.metadata.labels.aaos-lunch-target
+      spec:
+        accessModes:
+          - {{ .Values.spec.aaosCacheAccessMode | default "ReadWriteOnce" | quote }}
+        storageClassName: 'reclaimable-storage-class-android-{{ printf "{{=sprig.regexFind(\"[0-9]+\", workflow.parameters.androidRevision)}}" }}{{ printf "{{=sprig.regexFind(\"rpi\", workflow.parameters.lunchTarget) != \"\" ? \"-rpi\" : \"\"}}" }}'
+        resources:
+          requests:
+            storage: "1000Gi"
+{{- if and .Values.sharedPipelineWorkspace (not (or .Values.localRepoHostPath .Values.localRepoPvcName)) }}
+    - metadata:
+        name: pipeline-workspace
+        labels:
+          app.kubernetes.io/name: {{ .Chart.Name | quote }}
+          app.kubernetes.io/instance: {{ .Release.Name | quote }}
+          aaos-pipeline-workspace: "workflow"
+      spec:
+        accessModes:
+          - {{ .Values.spec.aaosCacheAccessMode | default "ReadWriteOnce" | quote }}
+        # Delete reclaim policy: single class pipeline-workspace-delete (gitops dynpvc). Unlike aaos-cache Retain disks, PV is removed when PVC is deleted after the workflow.
+        storageClassName: {{ .Values.spec.pipelineWorkspaceStorageClassName | default "pipeline-workspace-delete" | quote }}
+        resources:
+          requests:
+            storage: {{ .Values.spec.pipelineWorkspaceStorageSize | quote }}
+{{- end }}
+  # local-repo is always defined so the ai-review step can mount /workspace-local (PVC, hostPath, or emptyDir).
+  volumes:
+    - name: local-repo
+{{- if .Values.localRepoHostPath }}
+      # hostPath is for local clusters only (Docker Desktop/Kind). Leave localRepoHostPath empty for GKE.
+      hostPath:
+        path: {{ .Values.localRepoHostPath | quote }}
+        type: Directory
+{{- else if .Values.localRepoPvcName }}
+      # PVC-backed repo (e.g. repo copied to PVC for GKE).
+      persistentVolumeClaim:
+        claimName: {{ .Values.localRepoPvcName | quote }}
+{{- else }}
+      # emptyDir when not using local repo; shared pipeline-workspace mounts at /horizon on WT steps only (not on ai-review).
+      emptyDir: {}
+{{- end }}
+  templates:
+{{- include "aaos-builder.templates" . | nindent 2 }}

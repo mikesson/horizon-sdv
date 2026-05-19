@@ -20,7 +20,7 @@ NAMESPACE=$(cat ${SERVICEACCOUNT}/namespace)
 TOKEN=$(cat ${SERVICEACCOUNT}/token)
 CACERT=${SERVICEACCOUNT}/ca.crt
 
-npm install
+npm install --ignore-scripts
 node keycloak.mjs
 WEB_CLIENT_SECRET=$(cat client-mcp-gateway-registry-web.json | jq -r ".secret")
 sed -i "s/##SECRET##/${WEB_CLIENT_SECRET}/g" ./web-client-secret.json

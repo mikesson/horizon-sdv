@@ -1,4 +1,4 @@
-// Copyright (c) 2025 Accenture, All Rights Reserved.
+// Copyright (c) 2025-2026 Accenture, All Rights Reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -30,7 +30,7 @@ pipeline {
       kind: Pod
       metadata:
         annotations:
-          cluster-autoscaler.kubernetes.io/safe-to-evict: "true"
+          cluster-autoscaler.kubernetes.io/safe-to-evict: "false"
         labels:
           aaos_abfs_pod: "true"
       spec:
@@ -77,7 +77,7 @@ pipeline {
       kind: Pod
       metadata:
         annotations:
-          cluster-autoscaler.kubernetes.io/safe-to-evict: "true"
+          cluster-autoscaler.kubernetes.io/safe-to-evict: "false"
         labels:
           aaos_abfs_pod: "true"
       spec:
@@ -136,7 +136,10 @@ pipeline {
 
   stages {
     stage ('Start VM Instance') {
-      agent { kubernetes { yaml "${POD_TEMPLATE}" } }
+      agent { kubernetes {
+        yamlMergeStrategy merge()
+        yaml "${POD_TEMPLATE}"
+      } }
       stages {
         stage ('Initialise') {
           when {
@@ -208,6 +211,76 @@ pipeline {
                   ./workloads/android/pipelines/builds/aaos_builder/aaos_build.sh
                 '''
               }
+              archiveArtifacts artifacts: 'aaos-build*.log', followSymlinks: false, onlyIfSuccessful: false, allowEmptyArchive: true
+            }
+          }
+        }
+
+        stage ('AI Review'){
+          when {
+            allOf {
+              expression { env.AAOS_LUNCH_TARGET }
+              expression { env.ENABLE_GEMINI_AI_ASSISTANT == 'true' }
+              expression { currentBuild.currentResult == 'FAILURE' }
+            }
+          }
+          steps {
+            container(name: 'builder') {
+              catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
+                sh '''
+                  set +ex
+                  if [ "${ABFS_CACHED_BUILD}" = "true" ]; then export GEMINI_ANALYSIS_PATH="/aaos-cache/abfs"; else export GEMINI_ANALYSIS_PATH="/abfs"; fi
+                  echo "Analysis path: ${GEMINI_ANALYSIS_PATH}"
+                  # Copy artifacts so Gemini can analyse the source in situ (avoid workspace security issues).
+                  cp -f aaos-build*.* "${GEMINI_ANALYSIS_PATH%/}/" || true
+                  cd "${GEMINI_ANALYSIS_PATH%/}" || true
+                  # AI Review: reuse the same artifact name as AAOS triage (aaos-build.log.tail). ABFS uses a full
+                  # copy of aaos-build.log here so early failures (e.g. #error) are not dropped above a short tail.
+                  # skills.yaml: grep-first on huge logs; AAOS jobs still use bounded tail / prepare script.
+                  [ -f aaos-build.log ] && cp -f aaos-build.log aaos-build.log.tail || true
+                  export GEMINI_PROMPT_FILE="${WORKSPACE}/workloads/android/pipelines/builds/aaos_builder/prompt/sequenced/step1_triage.txt"
+                  export GEMINI_PROMPT_FILE_2="${WORKSPACE}/workloads/android/pipelines/builds/aaos_builder/prompt/sequenced/step2_rca.txt"
+                  export GEMINI_PROMPT_FILE_3="${WORKSPACE}/workloads/android/pipelines/builds/aaos_builder/prompt/sequenced/step3_fixes.txt"
+                  export GEMINI_STEP2_PRIOR_CONTEXT_BYTES="${GEMINI_STEP2_PRIOR_CONTEXT_BYTES:-131072}"
+                  export GEMINI_PREVIEW_FEATURES="${GEMINI_PREVIEW_FEATURES}"
+                  [ "$GEMINI_LOCATION_GLOBAL" = "true" ] && export GOOGLE_CLOUD_LOCATION="global" || export GOOGLE_CLOUD_LOCATION="${CLOUD_REGION}"
+                  export GOOGLE_CLOUD_PROJECT="${CLOUD_PROJECT}"
+                  export GEMINI_COMMAND_LINE="${GEMINI_COMMAND_LINE}"
+                    "${WORKSPACE}"/workloads/common/agentic-ai/gemini/gemini_initialise.sh
+                    timeout "${GEMINI_AI_EXECUTION_TIMEOUT}"h "${WORKSPACE}"/workloads/common/agentic-ai/gemini/gemini_analysis.sh
+                    GEMINI_EXIT_CODE=$?
+
+                    echo "Check artifacts create in gemini-assist"
+                    ls -la ${GEMINI_ANALYSIS_PATH}/gemini-assist || true
+
+                    # Restore order to cache/PV and workspace.
+                    # Avoid gemini deafness and it applying changes, cleanup!
+                    repo forall -c 'git checkout -- .; git clean -xfd;' >/dev/null 2>&1
+                    rm -f aaos-build*.*
+
+                    cd - || true
+                    bash -c 'source \"${WORKSPACE}/workloads/common/agentic-ai/gemini/gemini_environment.sh\" && \
+                             move_gemini_artifacts \"${GEMINI_ANALYSIS_PATH%/}\" \"${WORKSPACE}\"' || true
+
+                    find . -type f -name "headless*.json" -size 0 -delete
+
+                    # Fail stage if gemini-client-error.zip exists (CLI error even when exit code was 0)
+                    if [ -f "${GEMINI_ANALYSIS_PATH}/gemini-client-error.zip" ] || [ -f "${WORKSPACE}/gemini-client-error.zip" ]; then
+                      echo "ERROR: Gemini AI assistant reported errors (gemini-client-error.zip present)"
+                      GEMINI_EXIT_CODE=1
+                    fi
+
+                    set -e
+                    exit ${GEMINI_EXIT_CODE}
+                  '''
+              }
+              archiveArtifacts artifacts: 'gemini-assist/*', followSymlinks: false, onlyIfSuccessful: false, allowEmptyArchive: true
+              archiveArtifacts artifacts: 'headless_output*.json', followSymlinks: false, onlyIfSuccessful: false, allowEmptyArchive: false
+              script {
+                if (fileExists('gemini-client-error.zip')) {
+                  archiveArtifacts artifacts: 'gemini-client-error.zip', followSymlinks: false, onlyIfSuccessful: false, allowEmptyArchive: true
+                }
+              }
             }
           }
         }
@@ -217,24 +290,35 @@ pipeline {
             allOf {
               expression { env.AAOS_LUNCH_TARGET }
               expression { env.AAOS_ARTIFACT_STORAGE_SOLUTION }
-              expression { currentBuild.currentResult == 'SUCCESS' }
+              anyOf {
+                expression { currentBuild.currentResult == 'SUCCESS' }
+                expression { env.ENABLE_GEMINI_AI_ASSISTANT == 'true' }
+              }
             }
           }
           steps {
             container(name: 'builder') {
               catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
+                script {
+                  env.AAOS_BUILD_STAGE_FAILED = (currentBuild.currentResult != 'SUCCESS') ? 'true' : 'false'
+                }
                 sh '''
-                  AAOS_LUNCH_TARGET="${AAOS_LUNCH_TARGET}" \
-                  AAOS_REVISION="${AAOS_REVISION}" \
-                  ANDROID_VERSION="${ANDROID_VERSION}" \
-                  ABFS_BUILDER="true" \
-                  ./workloads/android/pipelines/builds/aaos_builder/aaos_avd_sdk.sh || true
+                  if [ "${AAOS_BUILD_STAGE_FAILED}" != "true" ]; then
+                    AAOS_LUNCH_TARGET="${AAOS_LUNCH_TARGET}" \
+                    AAOS_REVISION="${AAOS_REVISION}" \
+                    ANDROID_VERSION="${ANDROID_VERSION}" \
+                    ABFS_BUILDER="true" \
+                    ./workloads/android/pipelines/builds/aaos_builder/aaos_avd_sdk.sh || true
+                  fi
 
+                  AAOS_LUNCH_TARGET="${AAOS_LUNCH_TARGET}" \
                   AAOS_ARTIFACT_ROOT_NAME="${ANDROID_BUILD_BUCKET_ROOT_NAME}" \
                   AAOS_ARTIFACT_STORAGE_SOLUTION="${AAOS_ARTIFACT_STORAGE_SOLUTION}" \
                   ABFS_BUILDER="true" \
                   STORAGE_BUCKET_DESTINATION="${STORAGE_BUCKET_DESTINATION}" \
                   STORAGE_LABELS="${STORAGE_LABELS}" \
+                  ENABLE_GEMINI_AI_ASSISTANT="${ENABLE_GEMINI_AI_ASSISTANT}" \
+                  AAOS_BUILD_STAGE_FAILED="${AAOS_BUILD_STAGE_FAILED}" \
                   ./workloads/android/pipelines/builds/aaos_builder/aaos_storage.sh
                 '''
                 archiveArtifacts artifacts: '*artifacts*.txt', followSymlinks: false, onlyIfSuccessful: false, allowEmptyArchive: true

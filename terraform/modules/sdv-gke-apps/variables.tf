@@ -26,9 +26,42 @@ variable "sub_env_branches" {
   default     = {}
 }
 
-variable "git_auth_method" {
-  description = "Authentication method for Argo CD: 'app' or 'pat'."
+variable "scm_type" {
+  description = "SCM type: 'github' or 'git'"
   type        = string
+}
+
+variable "scm_auth_method" {
+  description = "SCM auth method: 'app' or 'userpass'"
+  type        = string
+}
+
+variable "scm_repo_url" {
+  description = "Full SCM repository URL"
+  type        = string
+}
+
+variable "scm_repo_branch" {
+  description = "SCM repository branch"
+  type        = string
+}
+
+variable "scm_repo_owner" {
+  description = "SCM repository owner (for GitHub only)"
+  type        = string
+  default     = ""
+}
+
+variable "scm_repo_name" {
+  description = "SCM repository name (for GitHub only)"
+  type        = string
+  default     = ""
+}
+
+variable "scm_username" {
+  description = "SCM username"
+  type        = string
+  default     = "git"
 }
 
 variable "es_namespace" {
@@ -76,26 +109,6 @@ variable "argocd_application_name" {
   default     = "horizon-sdv"
 }
 
-variable "git_repo_url" {
-  description = "The URL of the git repository."
-  type        = string
-}
-
-variable "git_repo_branch" {
-  description = "The target branch for Argo CD."
-  type        = string
-}
-
-variable "git_repo_owner" {
-  description = "Git repository owner (user or organization name)"
-  type        = string
-}
-
-variable "git_repo_name" {
-  description = "Git repository name"
-  type        = string
-}
-
 variable "domain_name" {
   description = "The base domain name."
   type        = string
@@ -132,4 +145,10 @@ variable "enable_network_policies" {
   description = "Enable network policies for all workloads. When disabled, all network policies will be removed. Default is enabled."
   type        = bool
   default     = true
+}
+
+variable "use_static_dns_a_records" {
+  description = "When true, no Cloud DNS zone and no external-dns; use static A records in parent zone instead."
+  type        = bool
+  default     = false
 }

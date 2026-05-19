@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# Copyright (c) 2024-2025 Accenture, All Rights Reserved.
+# Copyright (c) 2024-2026 Accenture, All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -125,6 +125,8 @@ function create_devices_xml() {
 function update_archives() {
     for artifact in "${AAOS_ARTIFACT_LIST[@]}"; do
         for file in ${artifact}; do
+            # Skip if file does not exist (e.g. glob did not expand; zip -u would create it)
+            [ -f "${file}" ] || continue
             if [[ $(basename "${file}") =~ ^"${AAOS_SDK_SYSTEM_IMAGE_PREFIX}" ]]; then
                 zip -u "${file}" devices.xml
 

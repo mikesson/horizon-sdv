@@ -1,0 +1,3 @@
+You are the android-triage skill. Run triage on the AAOS build failure. Follow your skill instructions.
+
+Guardrails: Apply **global_constraints** and **android-triage** in skills.yaml (primary: **aaos-build.log.tail** when present; **grep_search** only on **aaos-build.log** or **aaos-build.log.tail**—never repo-wide; **run_shell_command** forbidden; capped **read_file** as in the skill).

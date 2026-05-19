@@ -70,6 +70,24 @@ spec:
     kind: Service
     name: {{ .Values.config.namespacePrefix }}argocd-server
 ---
+# Argo CD UI keeps long-lived streams (WebSocket / gRPC-Web) to the API server for live Application sync.
+# Default Gateway/LB backend timeouts can close those connections; the SPA then reconnects and can appear to
+# refresh the whole UI. Align with gateway-argo-workflows / mtk-connect long-connection backends.
+apiVersion: networking.gke.io/v1
+kind: GCPBackendPolicy
+metadata:
+  name: argocd-server-backendpolicy
+  namespace: {{ .Values.config.namespacePrefix }}argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  default:
+    timeoutSec: 86400
+  targetRef:
+    group: ""
+    kind: Service
+    name: {{ .Values.config.namespacePrefix }}argocd-server
+---
 # Allow ArgoCD Server ingress from Gateway
 # Security is enforced by GCP Load Balancer and HTTPRoute configuration
 {{- if .Values.config.enableNetworkPolicies }}

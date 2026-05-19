@@ -1,4 +1,4 @@
-# Copyright (c) 2024-2025 Accenture, All Rights Reserved.
+# Copyright (c) 2024-2026 Accenture, All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -43,14 +43,14 @@ spec:
           redirect-url: "https://{{ .Values.config.domain }}/headlamp/oauth2/callback"
           cookie-secure: "true"
           cookie-samesite: "lax"
-          scope: "openid profile email groups"
+          scope: "openid profile email roles"
           upstream: "http://{{ .Values.config.namespacePrefix }}headlamp-token-injector.{{ .Values.config.namespacePrefix }}headlamp.svc.cluster.local:8080/"
           http-address: "0.0.0.0:4180"
           pass-user-headers: "true"
           pass-authorization-header: "false"
           set-xauthrequest: "true"
-          allowed-group: "horizon-headlamp-administrators"
-          oidc-groups-claim: "groups"
+          allowed-group: "administrators"
+          oidc-groups-claim: "roles"
           skip-jwt-bearer-tokens: "false"
           skip-provider-button: "true"
           cookie-expire: "2h"

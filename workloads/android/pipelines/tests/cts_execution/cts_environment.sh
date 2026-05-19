@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# Copyright (c) 2024-2025 Accenture, All Rights Reserved.
+# Copyright (c) 2024-2026 Accenture, All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -38,6 +38,9 @@ CTS_TEST_LISTS_ONLY=${CTS_TEST_LISTS_ONLY:-false}
 CTS_TIMEOUT=$(echo "${CTS_TIMEOUT}" | xargs)
 CTS_TIMEOUT=${CTS_TIMEOUT:-600}
 ANDROID_VERSION=${ANDROID_VERSION:-14}
+CTS_BUILD_NUMBER=${CTS_BUILD_NUMBER:-${BUILD_NUMBER}}
+JOB_NAME=${JOB_NAME:-cts}
+CTS_ARTIFACT_STORAGE_SOLUTION=${CTS_ARTIFACT_STORAGE_SOLUTION:-"GCS_BUCKET"}
 
 SUMMARY_FILE="${WORKSPACE}/cts_execution_parameters.txt"
 
@@ -48,7 +51,6 @@ SHARD_COUNT=${SHARD_COUNT:-8}
 if [ -z "${WORKSPACE}" ]; then
     WORKSPACE="${HOME}"
 fi
-
 
 # Don't risk downloading CTS locally!
 if [ "$(uname -s)" = "Darwin" ]; then

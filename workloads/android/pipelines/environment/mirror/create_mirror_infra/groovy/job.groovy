@@ -91,8 +91,8 @@ pipelineJob('Android/Environment/Mirror/Create Mirror Infra') {
   }
 
   logRotator {
-    daysToKeep(60)
-    numToKeep(200)
+    daysToKeep(7)
+    numToKeep(50)
   }
 
   definition {
@@ -101,10 +101,10 @@ pipelineJob('Android/Environment/Mirror/Create Mirror Infra') {
       scm {
         git {
           remote {
-            url("${HORIZON_GIT_URL}")
-            credentials('jenkins-git-creds')
+            url("${HORIZON_SCM_URL}")
+            credentials('jenkins-scm-creds')
           }
-          branch("*/${HORIZON_GIT_BRANCH}")
+          branch("*/${HORIZON_SCM_BRANCH}")
         }
       }
       scriptPath('workloads/android/pipelines/environment/mirror/create_mirror_infra/Jenkinsfile')

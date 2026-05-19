@@ -1,4 +1,4 @@
-// Copyright (c) 2025 Accenture, All Rights Reserved.
+// Copyright (c) 2025-2026 Accenture, All Rights Reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -89,6 +89,35 @@ pipelineJob('Android/Environment/Docker Image Template') {
       description('''<p>Version of <code>kubectl</code>. Typically based on <a target="_blank" https://docs.cloud.google.com/sdk/docs/release-notes>Google Cloud CLI</a><br/>Note: Define <code>latest</code> if wishing to use the latest available version.</p>''')
       trim(true)
     }
+
+    stringParam {
+      name('PACKER_VERSION')
+      defaultValue('1.15.0')
+      description('''<p>Version of <a target="_blank" href="https://github.com/hashicorp/packer/releases">Packer</a> to install in the builder image.<br/>Use a pinned version (recommended) or <code>latest</code>.</p>''')
+      trim(true)
+    }
+
+    separator {
+      name('Agentic AI: Configuration (Experimental)')
+      sectionHeader('Agentic AI: Configuration (Experimental)')
+      sectionHeaderStyle("${HEADER_STYLE}")
+      separatorStyle("${SEPARATOR_STYLE}")
+    }
+
+    booleanParam {
+      name('ENABLE_GEMINI_AI_ASSISTANT')
+      defaultValue(${ENABLE_GEMINI_AI_ASSISTANT})
+      description('''<p>Enable Gemini AI to support in diagnosis of build and test failures.</p>''')
+    }
+
+    stringParam {
+      name('GEMINI_CLI_VERSION')
+      defaultValue("${GEMINI_CLI_VERSION}")
+      description('''<p>The version of gemini-cli to be installed.<br/>
+        <b>Default</b>: Latest available version.<br/>
+        <b>Reference</b>: Run <code>npm view @google/gemini-cli versions</code> for a full list of valid versions.</p>''')
+      trim(true)
+    }
   }
 
   // Block build if certain jobs are running.
@@ -100,8 +129,8 @@ pipelineJob('Android/Environment/Docker Image Template') {
   }
 
   logRotator {
-    daysToKeep(60)
-    numToKeep(200)
+    daysToKeep(7)
+    numToKeep(50)
   }
 
   definition {
@@ -110,10 +139,10 @@ pipelineJob('Android/Environment/Docker Image Template') {
       scm {
         git {
           remote {
-            url("${HORIZON_GIT_URL}")
-            credentials('jenkins-git-creds')
+            url("${HORIZON_SCM_URL}")
+            credentials('jenkins-scm-creds')
           }
-          branch("*/${HORIZON_GIT_BRANCH}")
+          branch("*/${HORIZON_SCM_BRANCH}")
         }
       }
       scriptPath('workloads/android/pipelines/environment/docker_image_template/Jenkinsfile')

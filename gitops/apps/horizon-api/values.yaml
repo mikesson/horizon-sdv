@@ -1,0 +1,56 @@
+# Copyright (c) 2026 Accenture, All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#         http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+namespace: horizon-api
+# Full image ref; parent Application sets this from config.containerImages.horizonApi.
+image: "horizon-api-app:1.0.0"
+
+moduleManagerNamespace: module-manager
+moduleManagerStateName: cluster
+moduleManagerCatalogName: cluster
+
+# Full issuer URL e.g. https://example.com/auth/realms/horizon
+oidcIssuerUrl: ""
+
+workflowsNamespace: ""
+
+# Optional: restrict OIDC aud/azp (leave empty with skip true)
+oidcClientId: ""
+oidcSkipClientIdCheck: true
+
+# Argo Events webhook POST target (required by the app).
+eventsWebhookUrl: ""
+
+# Namespace where Argo Workflows server runs (for live log streaming).
+argoWorkflowsNamespace: ""
+
+# Default GCS bucket for gs:// archived log links when Workflow status omits bucket (match artifactRepository.gcs.bucket).
+gcsArtifactBucket: ""
+
+# Optional: service account email used to sign V4 GET URLs for GET .../downloadArtifact/... (IAM signBlob; Workload Identity).
+gcsSigningServiceAccount: ""
+
+# When set, exported as GCE_METADATA_HOST so Google ADC hits the GKE metadata server. Standard GKE 1.21+: 169.254.169.252:988.
+# Leave empty on Dataplane V2 clusters (defaults to 169.254.169.254:80). See cloud.google.com/kubernetes-engine/docs/how-to/network-policy.
+gceMetadataHost: ""
+
+# Echoed on GET /v1/workflows/running and /history (mirror Argo workflowDefaults.ttlStrategy).
+workflowTtlSecondsAfterSuccess: 86400
+workflowTtlSecondsAfterFailure: 259200
+workflowTtlSecondsAfterCompletion: 86400
+
+# Optional: max duration (Go duration, e.g. 15m) DELETE /v1/workflows/{name} waits for CR removal (finalizers). Empty = binary default (10m). Gateway timeouts may need to exceed this.
+workflowDeleteWaitTimeout: ""
+
+config: {}

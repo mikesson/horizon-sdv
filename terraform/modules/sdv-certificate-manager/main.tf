@@ -16,7 +16,8 @@ data "google_project" "project" {}
 
 locals {
   # Certificate map hostname matching is entry-based, not SAN-based.
-  # Create both apex and wildcard entries per environment domain.
+  # Wildcard map entries (and wildcard cert SANs) require DNS authorization;
+  # load_balancer auth does not support wildcard domains.
   certificate_map_host_entries = merge(
     {
       for k, d in var.domains : "${k}-apex" => {
@@ -25,14 +26,37 @@ locals {
         hostname   = d
       }
     },
-    {
+    var.certificate_authorization_type == "dns" ? {
       for k, d in var.domains : "${k}-wildcard" => {
         name       = "${var.name}-entry-${k}-wildcard"
         domain_key = k
         hostname   = "*.${d}"
       }
-    }
+    } : {},
+    var.certificate_authorization_type == "load_balancer" ? {
+      for k, d in var.domains : "${k}-mcp" => {
+        name       = "${var.name}-entry-${k}-mcp"
+        domain_key = k
+        hostname   = "mcp.${d}"
+      }
+    } : {}
   )
+}
+
+# DNS authorization (CNAME) only for certificate_authorization_type = "dns".
+# "load_balancer" uses managed domains without DNS authorizations (static A records flow).
+resource "google_certificate_manager_dns_authorization" "instance" {
+  for_each = var.certificate_authorization_type == "dns" ? var.domains : {}
+
+  name   = each.key == "main" ? "${var.name}-dns-auth" : "${var.name}-dns-auth-${each.key}"
+  domain = each.value
+}
+
+# TAA-1571: State migration block for 3.0.0 -> 3.1.0 upgrade.
+# Remove after all environments have been upgraded.
+moved {
+  from = google_certificate_manager_dns_authorization.instance
+  to   = google_certificate_manager_dns_authorization.instance["main"]
 }
 
 resource "google_certificate_manager_certificate" "horizon_sdv_cert" {
@@ -43,28 +67,17 @@ resource "google_certificate_manager_certificate" "horizon_sdv_cert" {
   scope = "DEFAULT"
 
   managed {
-    domains = [
+    domains = var.certificate_authorization_type == "load_balancer" ? [
+      each.value,
+      "mcp.${each.value}",
+      ] : [
       google_certificate_manager_dns_authorization.instance[each.key].domain,
-      "*.${google_certificate_manager_dns_authorization.instance[each.key].domain}"
+      "*.${google_certificate_manager_dns_authorization.instance[each.key].domain}",
     ]
-    dns_authorizations = [
-      google_certificate_manager_dns_authorization.instance[each.key].id
-    ]
+    dns_authorizations = var.certificate_authorization_type == "dns" ? [
+      google_certificate_manager_dns_authorization.instance[each.key].id,
+    ] : []
   }
-}
-
-# TAA-1571: State migration block for 3.0.0 -> 3.1.0 upgrade.
-# Remove after all environments have been upgraded.
-moved {
-  from = google_certificate_manager_dns_authorization.instance
-  to   = google_certificate_manager_dns_authorization.instance["main"]
-}
-
-resource "google_certificate_manager_dns_authorization" "instance" {
-  for_each = var.domains
-
-  name   = each.key == "main" ? "${var.name}-dns-auth" : "${var.name}-dns-auth-${each.key}"
-  domain = each.value
 }
 
 resource "google_certificate_manager_certificate_map" "horizon_sdv_map" {

@@ -1,4 +1,4 @@
-# Copyright (c) 2024-2025 Accenture, All Rights Reserved.
+# Copyright (c) 2024-2026 Accenture, All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -26,7 +26,7 @@ spec:
   source:
     chart: keycloakx
     repoURL: https://codecentric.github.io/helm-charts
-    targetRevision: {{ .Values.config.applications.keycloak.version }}
+    targetRevision: {{ .Values.config.chartVersions.keycloak.version }}
     helm:
       values: |
         command:
@@ -115,6 +115,9 @@ spec:
     - namespaceSelector:
         matchLabels:
           kubernetes.io/metadata.name: {{ .Values.config.namespacePrefix }}argocd
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: {{ .Values.config.namespacePrefix }}horizon-api
     ports:
     - protocol: TCP
       port: 8080   # HTTP API
@@ -197,6 +200,9 @@ spec:
       - {{ .Values.config.namespacePrefix }}keycloak-post-mtk-connect-job
       - {{ .Values.config.namespacePrefix }}keycloak-post-gerrit-job
       - {{ .Values.config.namespacePrefix }}keycloak-post-grafana-job
+      - {{ .Values.config.namespacePrefix }}keycloak-post-argo-workflows-job
+      - {{ .Values.config.namespacePrefix }}keycloak-post-horizon-dev-portal-client-job
+      - {{ .Values.config.namespacePrefix }}keycloak-post-horizon-api-job
   policyTypes:
   - Egress
   egress:
@@ -232,6 +238,9 @@ spec:
       - {{ .Values.config.namespacePrefix }}keycloak-post-mtk-connect-job
       - {{ .Values.config.namespacePrefix }}keycloak-post-gerrit-job
       - {{ .Values.config.namespacePrefix }}keycloak-post-grafana-job
+      - {{ .Values.config.namespacePrefix }}keycloak-post-argo-workflows-job
+      - {{ .Values.config.namespacePrefix }}keycloak-post-horizon-dev-portal-client-job
+      - {{ .Values.config.namespacePrefix }}keycloak-post-horizon-api-job
   policyTypes:
   - Egress
   egress:
@@ -270,6 +279,9 @@ spec:
       - {{ .Values.config.namespacePrefix }}keycloak-post-mtk-connect-job
       - {{ .Values.config.namespacePrefix }}keycloak-post-gerrit-job
       - {{ .Values.config.namespacePrefix }}keycloak-post-grafana-job
+      - {{ .Values.config.namespacePrefix }}keycloak-post-argo-workflows-job
+      - {{ .Values.config.namespacePrefix }}keycloak-post-horizon-dev-portal-client-job
+      - {{ .Values.config.namespacePrefix }}keycloak-post-horizon-api-job
   policyTypes:
   - Egress
   egress:

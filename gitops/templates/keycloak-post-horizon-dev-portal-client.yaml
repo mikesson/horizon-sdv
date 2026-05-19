@@ -1,0 +1,105 @@
+# Copyright (c) 2024-2026 Accenture, All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#         http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ .Values.config.namespacePrefix }}keycloak-post-horizon-dev-portal-client-job
+  namespace: {{ .Values.config.namespacePrefix }}keycloak
+  annotations:
+    argocd.argoproj.io/sync-wave: "5"
+    argocd.argoproj.io/hook: Sync
+spec:
+  backoffLimit: 2
+  ttlSecondsAfterFinished: 120
+  activeDeadlineSeconds: 600
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: create-horizon-dev-portal-client
+          image: curlimages/curl:8.11.0
+          terminationMessagePolicy: FallbackToLogsOnError
+          env:
+            - name: PLATFORM_URL
+              value: "http://{{ .Values.config.namespacePrefix }}keycloak-keycloakx-http:8080"
+            - name: DOMAIN
+              value: "https://{{ .Values.config.domain }}"
+            - name: HORIZON_DEV_PORTAL_PATH
+              value: {{ .Values.config.horizonDevelopmentPortal.publicPath | quote }}
+            - name: KEYCLOAK_HTTP_PATH_PREFIX
+              value: {{ .Values.config.horizonDevelopmentPortal.keycloakHttpPathPrefix | quote }}
+            - name: KEYCLOAK_REALM
+              value: {{ .Values.config.horizonDevelopmentPortal.keycloakRealm | quote }}
+            - name: HORIZON_DEV_PORTAL_OIDC_CLIENT_ID
+              value: {{ .Values.config.horizonDevelopmentPortal.keycloakClientId | quote }}
+            - name: KEYCLOAK_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: keycloak-initial-creds
+                  key: password
+          command:
+            - sh
+            - -c
+            - |
+              exec 2>&1
+              echo "keycloak-post-horizon-dev-portal-client: starting"
+              set -e
+
+              KP="${KEYCLOAK_HTTP_PATH_PREFIX%/}"
+              TOKEN_URL="${PLATFORM_URL}${KP}/realms/master/protocol/openid-connect/token"
+              REALM_ADMIN="${PLATFORM_URL}${KP}/admin/realms/${KEYCLOAK_REALM}"
+
+              BODY=$(mktemp)
+              trap 'rm -f "$BODY"' EXIT
+              CODE=$(curl -sS -o "$BODY" -w "%{http_code}" \
+                --data-urlencode "client_id=admin-cli" \
+                --data-urlencode "username=admin" \
+                --data-urlencode "password=${KEYCLOAK_PASSWORD}" \
+                --data-urlencode "grant_type=password" \
+                "$TOKEN_URL")
+              if [ "$CODE" != "200" ]; then
+                echo "keycloak-post-horizon-dev-portal-client: token request failed HTTP $CODE from $TOKEN_URL"
+                cat "$BODY"
+                exit 1
+              fi
+              TOKEN=$(sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p' "$BODY")
+              if [ -z "$TOKEN" ]; then
+                echo "keycloak-post-horizon-dev-portal-client: could not parse access_token from response"
+                cat "$BODY"
+                exit 1
+              fi
+
+              EXISTING=$(curl -sS -H "Authorization: Bearer ${TOKEN}" \
+                "${REALM_ADMIN}/clients?clientId=${HORIZON_DEV_PORTAL_OIDC_CLIENT_ID}" | sed 's/\[\]/EMPTY/')
+
+              if echo "${EXISTING}" | grep -q "\"clientId\":\"${HORIZON_DEV_PORTAL_OIDC_CLIENT_ID}\""; then
+                echo "Client ${HORIZON_DEV_PORTAL_OIDC_CLIENT_ID} already exists — skipping creation."
+                exit 0
+              fi
+
+              POST_BODY=$(printf '%s' "{\"clientId\":\"${HORIZON_DEV_PORTAL_OIDC_CLIENT_ID}\",\"name\":\"Horizon Developer Portal\",\"publicClient\":true,\"standardFlowEnabled\":true,\"directAccessGrantsEnabled\":true,\"attributes\":{\"pkce.code.challenge.method\":\"S256\"},\"redirectUris\":[\"${DOMAIN}${HORIZON_DEV_PORTAL_PATH}/*\"],\"webOrigins\":[\"${DOMAIN}\"]}")
+
+              CODE=$(curl -sS -o "$BODY" -w "%{http_code}" -X POST \
+                -H "Authorization: Bearer ${TOKEN}" \
+                -H "Content-Type: application/json" \
+                -d "${POST_BODY}" \
+                "${REALM_ADMIN}/clients")
+              if [ "$CODE" != "201" ] && [ "$CODE" != "409" ]; then
+                echo "keycloak-post-horizon-dev-portal-client: create client failed HTTP $CODE"
+                cat "$BODY"
+                exit 1
+              fi
+
+              echo "Client ${HORIZON_DEV_PORTAL_OIDC_CLIENT_ID} created successfully (HTTP $CODE)."

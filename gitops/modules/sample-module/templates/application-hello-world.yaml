@@ -1,0 +1,54 @@
+# Copyright (c) 2024-2026 Accenture, All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#         http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Child app-of-apps Application: installs the hello-world chart (Deployment + Service + PubSubTopic KCC).
+# This is applied when the Module Manager "enable" creates the parent Application for sample-module.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: mod-{{ .Values.moduleName }}-hello-world
+  namespace: {{ .Values.argocd.namespace }}
+  labels:
+    app.kubernetes.io/name: {{ .Values.moduleName }}
+    horizon-sdv.io/module: {{ .Values.moduleName }}
+    horizon-sdv.io/app-role: child
+    horizon-sdv.io/expose: "true"
+    horizon-sdv.io/module-manager-managed: "true"
+  annotations:
+    horizon-sdv.io/portal-url: {{ .Values.helloWorld.rootPath | quote }}
+    horizon-sdv.io/portal-title: "Hello World"
+    horizon-sdv.io/portal-id: hello-world
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: {{ .Values.argocd.project }}
+  source:
+    repoURL: {{ .Values.repo.url | quote }}
+    targetRevision: {{ .Values.repo.revision | quote }}
+    path: gitops/modules/sample-module/hello-world
+    helm:
+      values: |
+        namespace: {{ .Values.helloWorldNamespace }}
+        rootPath: {{ .Values.helloWorld.rootPath | quote }}
+        gcpProjectId: {{ .Values.config.projectID | quote }}
+        parentModuleName: {{ .Values.moduleName | quote }}
+        config:
+{{ .Values.config | toYaml | nindent 10 }}
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: {{ .Values.helloWorldNamespace }}
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+    automated: {}

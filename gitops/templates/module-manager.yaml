@@ -1,0 +1,64 @@
+# Copyright (c) 2024-2026 Accenture, All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#         http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: {{ .Values.config.namespacePrefix }}module-manager
+  namespace: {{ .Values.config.namespacePrefix }}argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: {{ .Values.config.namespacePrefix }}horizon-sdv
+  source:
+    repoURL: {{ .Values.spec.source.repoURL }}
+    targetRevision: {{ .Values.spec.source.targetRevision }}
+    helm:
+      # Overrides merged on top of gitops/apps/module-manager/values.yaml (module list is in templates/module-catalog.yaml).
+      values: |
+        image: {{ .Values.config.containerImages.moduleManager | quote }}
+        namespace: module-manager
+        argocd:
+          namespace: {{ .Values.config.namespacePrefix }}argocd
+          project: {{ .Values.config.namespacePrefix }}horizon-sdv
+        gitopsRootAppName: {{ .Values.config.namespacePrefix }}horizon-sdv
+        repo:
+          url: {{ .Values.spec.source.repoURL | quote }}
+          revision: {{ .Values.spec.source.targetRevision | quote }}
+        config:
+          domain: {{ .Values.config.domain }}
+          projectID: {{ .Values.config.projectID }}
+          region: {{ .Values.config.region }}
+          zone: {{ .Values.config.zone }}
+          backendBucket: {{ .Values.config.backendBucket }}
+          namespacePrefix: {{ .Values.config.namespacePrefix | quote }}
+          isSubEnvironment: {{ .Values.config.isSubEnvironment }}
+          environmentName: {{ .Values.config.environmentName | quote }}
+          enableNetworkPolicies: {{ .Values.config.enableNetworkPolicies }}
+          scm:
+            authMethod: {{ .Values.scm.authMethod | quote }}
+          workloads:
+            android:
+              url: {{ .Values.config.workloads.android.url | quote }}
+              branch: {{ .Values.config.workloads.android.branch | quote }}
+    path: gitops/apps/module-manager
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: module-manager
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+    automated: {}

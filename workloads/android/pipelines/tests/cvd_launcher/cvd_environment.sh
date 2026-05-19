@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# Copyright (c) 2024-2025 Accenture, All Rights Reserved.
+# Copyright (c) 2024-2026 Accenture, All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,6 +17,11 @@
 # Description:
 # Common environment functions and variables for Cuttlefish Virtual Device
 # (CVD).
+
+GREEN='\033[1;32m'
+ORANGE='\033[1;33m'
+RED='\033[1;31m'
+NC='\033[0m'
 
 # Time (seconds) to wait for Virtual Device to boot.
 CUTTLEFISH_MAX_BOOT_TIME=$(echo "${CUTTLEFISH_MAX_BOOT_TIME}" | xargs)
@@ -38,7 +43,7 @@ ARCHITECTURE=$(uname -m)
 case "${ARCHITECTURE}" in
   x86_64)  ARCHITECTURE="x86_64" ;;
   aarch64) ARCHITECTURE="arm64" ;;
-  *)       echo "Error: ${ARCHITECTURE} is not supported!"; exit 1 ;;
+  *)       echo -e "${RED}Error: ${ARCHITECTURE} is not supported!${NC}" >&2; exit 1 ;;
 esac
 
 # Download URL for artifacts.
@@ -55,8 +60,14 @@ VM_CPUS=${VM_CPUS:-3}
 VM_MEMORY_MB=$(echo "${VM_MEMORY_MB}" | xargs)
 VM_MEMORY_MB=${VM_MEMORY_MB:-8192}
 
-# Resolutions
-CVD_ADDITIONAL_FLAGS=${CVD_ADDITIONAL_FLAGS:-}
+# Full cvd invocation after HOME=... (same default as cuttlefish_start() previously inlined).
+# Placeholders ${NUM_INSTANCES}, ${VM_CPUS}, ${VM_MEMORY_MB} expand when cvd_start_stop.sh evals CVD_CMD.
+CVD_COMMAND_LINE=$(echo "${CVD_COMMAND_LINE}" | xargs)
+if [[ -z "${CVD_COMMAND_LINE}" ]]; then
+    # shellcheck disable=SC2016
+    # CI-oriented defaults: no host GPU passthrough, no host Bluetooth, skip setup wizard.
+    CVD_COMMAND_LINE='/usr/bin/cvd create --noresume -config=auto -report_anonymous_usage_stats=no --num_instances="${NUM_INSTANCES}" --cpus="${VM_CPUS}" --memory_mb="${VM_MEMORY_MB}" --console=true --setupwizard_mode DISABLED --enable_host_bluetooth false --gpu_mode guest_swiftshader'
+fi
 
 WORKSPACE=${WORKSPACE:-$(pwd)}
 
@@ -79,7 +90,7 @@ case "$0" in
         VM_CPUS=${VM_CPUS} (--cpu ${VM_CPUS})
         VM_MEMORY_MB=${VM_MEMORY_MB} (--memory_mb ${VM_MEMORY_MB})
 
-        CVD_ADDITIONAL_FLAGS=${CVD_ADDITIONAL_FLAGS}
+        CVD_COMMAND_LINE=${CVD_COMMAND_LINE}
 
         ARCHITECTURE=${ARCHITECTURE}
 

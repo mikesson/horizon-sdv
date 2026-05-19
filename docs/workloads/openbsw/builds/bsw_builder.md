@@ -42,10 +42,10 @@ options to override the build and test commands.
 
 ### References
 
-- [Welcome to Eclipse OpenBSW](https://eclipse-openbsw.github.io/openbsw/sphinx_docs/doc/index.html).
-- [Building and Running Unit Tests.](https://eclipse-openbsw.github.io/openbsw/sphinx_docs/doc/learning/unit_tests/index.html).
-- [POSIX Platform](https://eclipse-openbsw.github.io/openbsw/sphinx_docs/doc/learning/setup/setup_posix_ubuntu_build.html#setup-posix-ubuntu-build).
-- [NXP S32K148 Platform](https://eclipse-openbsw.github.io/openbsw/sphinx_docs/doc/learning/setup/setup_s32k148_ubuntu_build.html).
+- [Welcome to Eclipse OpenBSW](https://eclipse-openbsw.github.io/openbsw/sphinx_docs/doc/dev/index.html).
+- [Building and Running Unit Tests.](https://eclipse-openbsw.github.io/openbsw/sphinx_docs/doc/dev/learning/unit_tests/index.html).
+- [POSIX Platform](ttps://eclipse-openbsw.github.io/openbsw/sphinx_docs/doc/dev/learning/setup/setup_posix_build.html#setup-posix-build).
+- [NXP S32K148 Platform](https://eclipse-openbsw.github.io/openbsw/sphinx_docs/doc/dev/learning/setup/setup_s32k148_ubuntu_build.htmll).
 - [OpenBSW GitHub repo](https://github.com/eclipse-openbsw/openbsw.git).
 
 ## Prerequisites<a name="prerequisites"></a>
@@ -72,6 +72,20 @@ This provides the branch/tag revision for the OpenBSW repository.
 
 Optional parameter that allows the user to include additional commands to run after the repository has been cloned.
 Useful to pin OpenBSW to a particular sha1.
+
+### `RTOS_PLATFORM`
+
+RTOS Kernel implementation, e.g. `threadx` or `freertos`, currently supported.
+
+Note: Ensure the selected toolchain supports the specific kernel port.
+
+### `BUILD_CONFIG`
+
+Compilation profile, `debug` or `release`.
+
+### `TOOLCHAIN`
+
+Select the Compiler Toolchain for the build. GCC is standard; Clang provides enhanced static analysis.
 
 ### `IMAGE_TAG`
 
@@ -133,7 +147,7 @@ directory.
 
 e.g. `UNIT_TEST_TARGET` set to `bspTest` use the following override:
 
-`ctest --test-dir build/tests/Debug/libs/bsw/bsp/test/gtest --parallel ${CMAKE_SYNC_JOBS}`
+`ctest --test-dir build/tests/posix/Debug/libs/bsw/bsp/test--parallel ${CMAKE_SYNC_JOBS}`
 
 ### `BUILD_POSIX`
 
@@ -193,6 +207,21 @@ The override must be a full GCS URI, including the `gs://` prefix, bucket name, 
 
 `gs://${OPENBSW_BUILD_BUCKET_ROOT_NAME}/OpenBSW/Releases/010129`
 
+### `ENABLE_GEMINI_AI_ASSISTANT`
+
+Enable Gemini AI to support in diagnosis of build and test failures.
+
+### Gemini prompts
+
+The job uses prompt files from the repository only; there is no Jenkins parameter to override them. Sequenced prompts (order matters): `prompt/sequenced/step1_triage.txt`, `step2_rca.txt`, `step3_fixes.txt`. Outputs: `step1_output.md`, `step2_output.md`, `step3_output.md`.
+
+### `GEMINI_COMMAND_LINE`
+
+Interface for the headless [gemini-cli](https://geminicli.com/docs/cli/headless/).
+Use this to specify settings such as the [Gemini model](https://ai.google.dev/gemini-api/docs/models) etc, e.g.
+`--debug` to include debug output.
+Note: Prompts are piped via `stdin` and output is redirected to a JSON file.
+
 ## SYSTEM VARIABLES <a name="system-variables"></a>
 
 There are a number of system environment variables that are unique to each platform but required by Jenkins build, test and environment pipelines.
@@ -216,16 +245,22 @@ These are as follows:
 -   `HORIZON_DOMAIN`
     - The URL domain which is required by pipeline jobs to derive URL for tools and GCP.
 
--   `HORIZON_GIT_URL`
+-   `HORIZON_SCM_URL`
     - The URL to the Horizon SDV git repository.
 
--   `HORIZON_GIT_BRANCH`
-    - The branch name the job will be configured for from `HORIZON_GIT_URL`.
+-   `HORIZON_SCM_BRANCH`
+    - The branch name the job will be configured for from `HORIZON_SCM_URL`.
 
 -   `JENKINS_SERVICE_ACCOUNT`
     - Service account to use for pipelines. Required to ensure correct roles and permissions for GCP resources.
 
-## Known Limitations<a name="known-limitations">
+## Known Limitations<a name="known-limitations"></a>
+
+### Gemini AI assistant (`ENABLE_GEMINI_AI_ASSISTANT`)
+
+- **Experimental:** Gemini-assisted diagnosis in this pipeline is experimental; behavior, quality, and availability can change without notice.
+- **Examples only:** Repository prompts and skills are **illustrative examples**—tune, replace, or disable them for your environment.
+- **Upstream issues:** Problems may come from [Gemini CLI](https://github.com/google-gemini/gemini-cli) itself; see [open issues](https://github.com/google-gemini/gemini-cli/issues) for known bugs and workarounds.
 
 **Document Generation:**
 

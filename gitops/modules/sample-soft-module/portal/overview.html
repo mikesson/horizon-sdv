@@ -1,0 +1,124 @@
+<!-- Copyright (c) 2026 Accenture, All Rights Reserved.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+        http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License. -->
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>sample-soft module</title>
+  <style>
+    :root {
+      --bg: #f8f9fa;
+      --paper: #ffffff;
+      --text: #202124;
+      --muted: #5f6368;
+      --primary: #1a73e8;
+      --border: #e8eaed;
+      --hero-end: rgba(26, 115, 232, 0.08);
+      --hero-start: rgba(66, 133, 244, 0.22);
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #202124;
+        --paper: #292a2d;
+        --text: #e8eaed;
+        --muted: #9aa0a6;
+        --primary: #8ab4f8;
+        --border: #3c4043;
+        --hero-end: rgba(26, 115, 232, 0.12);
+        --hero-start: rgba(66, 133, 244, 0.28);
+      }
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Roboto", "Helvetica Neue", Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.55;
+      padding: 1.25rem clamp(1rem, 3vw, 1.75rem) 2rem;
+    }
+    .wrap { max-width: 960px; margin: 0 auto; }
+    .hero {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: clamp(1.25rem, 3vw, 2rem);
+      margin-bottom: 1.5rem;
+      background: linear-gradient(135deg, var(--hero-start) 0%, var(--hero-end) 45%, var(--paper) 100%);
+    }
+    .overline {
+      font-size: 0.7rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin: 0 0 0.35rem;
+    }
+    h1 { font-size: clamp(1.35rem, 2.5vw, 1.6rem); font-weight: 700; margin: 0 0 0.5rem; line-height: 1.2; }
+    .lead { color: var(--muted); margin: 0; max-width: 44rem; font-size: 0.95rem; }
+    .grid {
+      display: grid;
+      gap: 1rem;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    }
+    .card {
+      background: var(--paper);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1rem 1.1rem;
+      box-shadow: 0 1px 2px rgba(60, 64, 67, 0.12);
+    }
+    .card h2 {
+      margin: 0 0 0.45rem;
+      font-size: 1rem;
+      font-weight: 600;
+      color: var(--primary);
+    }
+    .card p { margin: 0; font-size: 0.875rem; color: var(--muted); }
+    code { font-size: 0.84em; color: var(--text); }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header class="hero">
+      <p class="overline">Horizon module</p>
+      <h1>sample-soft</h1>
+      <p class="lead">
+        Companion module for <strong>soft dependencies</strong>. Catalog entries can list <code>sample-soft</code>
+        under <code>softDependencies</code> so parents can merge optional Helm values and ConfigMaps without
+        blocking enable or disable when this module is off.
+      </p>
+    </header>
+    <div class="grid">
+      <article class="card">
+        <h2>Workflows</h2>
+        <p>
+          Ships <code>sample-soft-smoke-test</code> and related Argo Events sensors in the module&rsquo;s
+          <strong>argo-workflows</strong> chart. Templates are intentionally <em>not</em> labeled for the Horizon
+          workflow catalog; they are invoked from other modules (for example via <code>templateRef</code>) when
+          soft wiring is enabled.
+        </p>
+      </article>
+      <article class="card">
+        <h2>Child applications</h2>
+        <p>
+          Same pattern as other sample modules: a lightweight <strong>hello-world</strong> application
+          (workload plus GCP resources) and the workflows chart, both managed as Argo CD child Applications under
+          this module&rsquo;s umbrella.
+        </p>
+      </article>
+    </div>
+  </div>
+</body>
+</html>

@@ -34,7 +34,7 @@ variable "sdv_network" {
 variable "abfs_server_cos_image_ref" {
   type        = string
   description = "Reference to the COS boot image to use for the ABFS server"
-  default     = "projects/cos-cloud/global/images/family/cos-113-lts"
+  default     = "projects/cos-cloud/global/images/family/cos-125-lts"
 }
 
 variable "abfs_server_machine_type" {
@@ -47,6 +47,18 @@ variable "abfs_docker_image_uri" {
   description = "Docker image URI for main ABFS server"
 }
 
+variable "abfs_extra_params" {
+  type        = list(string)
+  description = "Extra parameters appended to the abfs command"
+  default     = []
+}
+
+variable "existing_bucket_name" {
+  type        = string
+  description = "Existing ABFS bucket name to reuse instead of creating a new bucket"
+  default     = ""
+}
+
 variable "abfs_license" {
   type        = string
   description = "ABFS license (JSON)"
@@ -56,4 +68,28 @@ variable "abfs_server_allow_stopping_for_update" {
   type        = bool
   description = "Allow to stop the server to update properties"
   default     = true
+}
+
+variable "abfs_spanner_instance_min_nodes" {
+  type        = number
+  description = "Minimum number of nodes in the ABFS Spanner instance"
+  default     = 1
+}
+
+variable "abfs_spanner_instance_max_nodes" {
+  type        = number
+  description = "Maximum number of nodes in the ABFS Spanner instance"
+  default     = 10
+}
+
+variable "abfs_spanner_database_create_tables" {
+  type        = bool
+  description = "Create Spanner tables using online DDL schema"
+  default     = false
+}
+
+variable "abfs_spanner_database_schema_version" {
+  type        = string
+  description = "DDL schema version to use when creating Spanner tables"
+  default     = "0.0.31"
 }

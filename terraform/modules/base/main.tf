@@ -50,9 +50,9 @@ module "sdv_wi" {
   wi_service_accounts = var.sdv_wi_service_accounts
   project_id          = data.google_project.project.project_id
 
-  depends_on = [
+  depends_on = [ 
     module.sdv_gke_cluster
-  ]
+   ]
 }
 
 module "sdv_gcs" {
@@ -67,6 +67,14 @@ module "sdv_gcs_openbsw" {
 
   bucket_name = "${data.google_project.project.project_id}-openbsw"
   location    = var.sdv_location
+}
+
+module "sdv_gcs_argo_workflows" {
+  source = "../sdv-gcs"
+
+  bucket_name               = "${data.google_project.project.project_id}-argo-workflows"
+  location                  = var.sdv_location
+  lifecycle_delete_age_days = 7
 }
 
 module "sdv_network" {
@@ -111,9 +119,12 @@ module "sdv_container_images" {
 
   images = {
     for name, image in local.images : name => {
-      directory  = image.directory
-      version    = image.build_version
-      build_args = try(image.build_args, {})
+      directory       = image.directory
+      version         = image.build_version
+      build_args      = try(image.build_args, {})
+      context_path    = try(image.context_path, null)
+      dockerfile_path = try(image.dockerfile_path, null)
+      platform        = try(image.platform, null)
     }
   }
 }
@@ -125,6 +136,7 @@ module "sdv_gke_cluster" {
     module.sdv_network,
     module.sdv_gcs,
     module.sdv_gcs_openbsw,
+    module.sdv_gcs_argo_workflows,
     module.sdv_container_images,
     module.sdv_certificate_manager,
     module.sdv_ssl_policy,
@@ -169,6 +181,13 @@ module "sdv_gke_cluster" {
   openbsw_build_node_pool_min_node_count = var.sdv_openbsw_build_node_pool_min_node_count
   openbsw_build_node_pool_max_node_count = var.sdv_openbsw_build_node_pool_max_node_count
 
+  # Utility node pool (Gemini/Vertex CLI; workloadLabel utility + taint workloadType=utility)
+  utility_node_pool_name           = var.sdv_utility_node_pool_name
+  utility_node_pool_node_count     = var.sdv_utility_node_pool_node_count
+  utility_node_pool_machine_type   = var.sdv_utility_node_pool_machine_type
+  utility_node_pool_min_node_count = var.sdv_utility_node_pool_min_node_count
+  utility_node_pool_max_node_count = var.sdv_utility_node_pool_max_node_count
+
   # KMS encryption for GKE secrets
   enable_kms_encryption = var.sdv_enable_kms_encryption
   kms_crypto_key_id     = local.kms_crypto_key_id
@@ -178,6 +197,7 @@ module "sdv_gke_apps" {
   source = "../sdv-gke-apps"
   depends_on = [
     module.sdv_gke_cluster,
+    module.sdv_wi,
   ]
 
   providers = {
@@ -193,11 +213,14 @@ module "sdv_gke_apps" {
   gcp_backend_bucket = var.gcp_backend_bucket_name
   gcp_registry_id    = var.sdv_artifact_registry_repository_id
 
-  git_repo_url    = "https://github.com/${var.git_repo_owner}/${var.git_repo_name}"
-  git_auth_method = var.git_auth_method
-  git_repo_owner  = var.git_repo_owner
-  git_repo_name   = var.git_repo_name
-  git_repo_branch = var.git_repo_branch
+  # SCM configuration
+  scm_type        = var.scm_type
+  scm_auth_method = var.scm_auth_method
+  scm_repo_url    = var.scm_repo_url
+  scm_repo_branch = var.scm_repo_branch
+  scm_repo_owner  = var.scm_repo_owner
+  scm_repo_name   = var.scm_repo_name
+  scm_username    = var.scm_username
 
   domain_name      = var.domain_name
   subdomain_name   = var.env_name
@@ -206,6 +229,8 @@ module "sdv_gke_apps" {
 
   # Network policies configuration
   enable_network_policies = var.sdv_enable_network_policies
+
+  use_static_dns_a_records = var.sdv_dns_use_static_a_records
 
   images = {
     for name, image in local.images : name => {
@@ -216,18 +241,22 @@ module "sdv_gke_apps" {
 }
 
 module "sdv_certificate_manager" {
-  source   = "../sdv-certificate-manager"
+  source = "../sdv-certificate-manager"
 
   name    = var.sdv_ssl_certificate_name
   domains = local.cert_domains
+
+  certificate_authorization_type = var.sdv_dns_use_static_a_records ? "load_balancer" : "dns"
 
   depends_on = [
     module.sdv_apis,
   ]
 }
 
+# Only create Cloud DNS zone when not using static A records (zone delegation flow).
 module "sdv_dns_zone" {
   source = "../sdv-dns-zone"
+  count  = var.sdv_dns_use_static_a_records ? 0 : 1
 
   zone_name        = "${var.env_name}-${var.sdv_ssl_certificate_name}-com"
   dns_name         = "${var.env_name}.${var.domain_name}."

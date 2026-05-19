@@ -41,52 +41,105 @@ version_ge() {
   [ "$2" = "$(echo -e "$1\n$2" | sort -V | head -n1)" ]
 }
 
-# Workspace Setup 
-setup_workspace() {
-    if [[ -f "$CONTAINER_CONFIG" ]]; then
-        # Clone repository if running within container
-        log_info "Container environment detected. Setting up workspace..."
-
-        # Extract Repo Details from terraform.tfvars
-        REPO_OWNER=$(grep '^\s*sdv_git_repo_owner\s*=' "$CONTAINER_CONFIG" | cut -d'"' -f2)
-        REPO_NAME=$(grep '^\s*sdv_git_repo_name\s*=' "$CONTAINER_CONFIG" | cut -d'"' -f2)
-        REPO_BRANCH=$(grep '^\s*sdv_git_repo_branch\s*=' "$CONTAINER_CONFIG" | cut -d'"' -f2)
-        GIT_PAT=$(grep '^\s*sdv_git_pat\s*=' "$CONTAINER_CONFIG" | cut -d'"' -f2)
-
-        # Clone repository
-        if [[ "$GIT_PAT" == "<OPTIONAL>" || "$GIT_PAT" == "<REQUIRED>" ]]; then GIT_PAT=""; fi
-        
-        log_info "Cloning ${REPO_OWNER}/${REPO_NAME} (Branch: ${REPO_BRANCH})..."
-        if [[ -n "$GIT_PAT" ]]; then
-            git clone -q -b "$REPO_BRANCH" "https://${GIT_PAT}@github.com/${REPO_OWNER}/${REPO_NAME}.git" .
-        else
-            if ! git clone -q -b "$REPO_BRANCH" "https://github.com/${REPO_OWNER}/${REPO_NAME}.git" . 2>/dev/null; then
-                log_warn "Public clone failed. Repository might be private."
-                read -s -p "Enter Git PAT: " MANUAL_PAT; echo ""
-                if [[ -z "$MANUAL_PAT" ]]; then log_err "No token provided."; exit 1; fi
-                git clone -q -b "$REPO_BRANCH" "https://${MANUAL_PAT}@github.com/${REPO_OWNER}/${REPO_NAME}.git" .
-            fi
-        fi
-        
-        # Copy the terraform.tfvars file
-        DEST_TFVARS="terraform/env/terraform.tfvars"
-        mkdir -p "$(dirname "$DEST_TFVARS")"
-        cp "$CONTAINER_CONFIG" "$DEST_TFVARS"
-        
-        # Set TF_DIR to the newly cloned location
-        TF_DIR="$(pwd)/terraform/env"
-
-    else
-        # Skip cloning repository if running on local/native machine
-        log_info "Local environment detected. Skipping clone."
-        TF_DIR="${SCRIPT_DIR}/../../../terraform/env"
-        
-        if [[ ! -f "${TF_DIR}/terraform.tfvars" ]]; then
-            log_err "Config file not found at ${TF_DIR}/terraform.tfvars"
-            exit 1
-        fi
-    fi
+# Help command
+usage() {
+  echo ""
+  echo "Please use one of the valid commands below:"
+  echo "  ./deploy.sh [OPTION] for e.g. ./deploy.sh -p or --plan (recommended for native runs on Linux distributions)"
+  echo "  ./container-deploy.sh [OPTION] for e.g. ./container-deploy.sh -p or --plan (for containerized execution)"
+  echo ""
+  echo "Options:"
+  echo "  -p, --plan       Run Terraform plan"
+  echo "  -a, --apply      Run Terraform apply"
+  echo "  -d, --destroy    Run Terraform destroy"
+  echo "  -h, --help       Help message"
+  echo ""
+  exit 0
 }
+
+# Argument validation before any terraform logic
+if [[ $# -eq 0 ]]; then
+  usage
+fi
+
+case "$1" in
+  -h|--help)
+    usage
+    ;;
+  -p|--plan|-a|--apply|-d|--destroy)
+    ;;
+  *)
+    echo "Invalid option: $1"
+    usage
+    ;;
+esac
+
+
+# Workspace Setup
+setup_workspace() {
+  if [[ -f "$CONTAINER_CONFIG" ]]; then
+    # Clone repository if running within container
+    log_info "Container environment detected. Setting up workspace..."
+
+    # Extract SCM configuration from terraform.tfvars
+    SCM_TYPE=$(grep '^\s*scm_type\s*=' "$CONTAINER_CONFIG" | cut -d'"' -f2)
+    SCM_AUTH_METHOD=$(grep '^\s*scm_auth_method\s*=' "$CONTAINER_CONFIG" | cut -d'"' -f2)
+    SCM_REPO_URL=$(grep '^\s*scm_repo_url\s*=' "$CONTAINER_CONFIG" | cut -d'"' -f2)
+    SCM_REPO_BRANCH=$(grep '^\s*scm_repo_branch\s*=' "$CONTAINER_CONFIG" | cut -d'"' -f2)
+    SCM_USERNAME=$(grep '^\s*scm_username\s*=' "$CONTAINER_CONFIG" | cut -d'"' -f2)
+    SCM_USERNAME=$(echo -n "$SCM_USERNAME" | jq -sRr @uri)
+    SCM_PASSWORD=$(grep '^\s*scm_password\s*=' "$CONTAINER_CONFIG" | cut -d'"' -f2)
+    SCM_PASSWORD=$(echo -n "$SCM_PASSWORD" | jq -sRr @uri)
+
+    log_info "Cloning from ${SCM_REPO_URL} (Branch: ${SCM_REPO_BRANCH})..."
+
+    # Handle authentication based on method
+    if [[ "$SCM_AUTH_METHOD" == "userpass" ]]; then
+      # Build authenticated URL for username/password
+      SCM_HOST=$(echo "$SCM_REPO_URL" | sed -e 's|^https://||' -e 's|/.*||')
+      SCM_PATH=$(echo "$SCM_REPO_URL" | sed -e 's|^https://[^/]*/||')
+      AUTH_URL="https://${SCM_USERNAME}:${SCM_PASSWORD}@${SCM_HOST}/${SCM_PATH}"
+      git clone -q -b "$SCM_REPO_BRANCH" "$AUTH_URL" .
+    elif [[ "$SCM_AUTH_METHOD" == "none" ]]; then
+      # Public repository - no authentication
+      git clone -q -b "$SCM_REPO_BRANCH" "$SCM_REPO_URL" .
+    else
+      # Try public clone first, then prompt if needed
+      if ! git clone -q -b "$SCM_REPO_BRANCH" "$SCM_REPO_URL" . 2>/dev/null; then
+        log_warn "Public clone failed. Repository might be private."
+        read -s -p "Enter password/token: " MANUAL_PASSWORD
+        echo ""
+        if [[ -z "$MANUAL_PASSWORD" ]]; then
+          log_err "No password provided."
+          exit 1
+        fi
+
+        SCM_HOST=$(echo "$SCM_REPO_URL" | sed -e 's|^https://||' -e 's|/.*||')
+        SCM_PATH=$(echo "$SCM_REPO_URL" | sed -e 's|^https://[^/]*/||')
+        AUTH_URL="https://${SCM_USERNAME:-git}:${MANUAL_PASSWORD}@${SCM_HOST}/${SCM_PATH}"
+        git clone -q -b "$SCM_REPO_BRANCH" "$AUTH_URL" .
+      fi
+    fi
+
+    # Copy the terraform.tfvars file
+    DEST_TFVARS="terraform/env/terraform.tfvars"
+    mkdir -p "$(dirname "$DEST_TFVARS")"
+    cp "$CONTAINER_CONFIG" "$DEST_TFVARS"
+
+    # Set TF_DIR to the newly cloned location
+    TF_DIR="$(pwd)/terraform/env"
+
+  else
+    # Skip cloning repository if running on local/native machine
+    log_info "Local environment detected. Skipping clone."
+    TF_DIR="${SCRIPT_DIR}/../../../terraform/env"
+
+    if [[ ! -f "${TF_DIR}/terraform.tfvars" ]]; then
+      log_err "Config file not found at ${TF_DIR}/terraform.tfvars"
+      exit 1
+    fi
+  fi
+} 
 
 check_requirements() {
   log_info "Checking requirements..."
@@ -170,6 +223,20 @@ check_auth() {
 
 # Terraform Execution
 run_terraform() {
+  MODE="apply"
+
+  case "$1" in
+    -p|--plan)
+      MODE="plan"
+      ;;
+    -a|--apply)
+      MODE="apply"
+      ;;
+    -d|--destroy)
+      MODE="destroy"
+      ;;
+  esac
+
   cd "$TF_DIR"
   TFVARS_FILE="terraform.tfvars"
 
@@ -194,7 +261,7 @@ run_terraform() {
 
   # Handle KMS infrastructure if encryption is enabled
     KMS_DIR="$(dirname "$TF_DIR")/kms"
-    if [[ "$KMS_ENABLED" == "true" ]] && [[ -d "$KMS_DIR" ]] && [[ ! "$SKIP_KMS" == "true" ]]; then
+    if [[ "$KMS_ENABLED" == "true" ]] && [[ -d "$KMS_DIR" ]] && [[ "$MODE" == "apply" ]] && [[ ! "$SKIP_KMS" == "true" ]]; then
         log_info "KMS encryption enabled - checking KMS infrastructure..."
         
         # Check if KMS resources exist in GCP (using explicit project/location flags)
@@ -227,23 +294,21 @@ run_terraform() {
   terraform init -upgrade -reconfigure \
     -backend-config="bucket=$BACKEND_BUCKET"
 
-  # Check for Destroy Mode
-  DESTROY_MODE=false
-  for arg in "$@"; do
-    if [[ "$arg" == "--destroy" || "$arg" == "-d" ]]; then DESTROY_MODE=true; fi
-  done
+# Execute based on selected mode
+if [[ "$MODE" == "plan" ]]; then
+  log_info "Running Terraform plan..."
+  terraform plan
 
-  if [[ "$DESTROY_MODE" == "true" ]]; then
-    log_warn "!!! DESTRUCTION MODE ENABLED !!!"
+elif [[ "$MODE" == "destroy" ]]; then
+  log_warn "!!! DESTRUCTION MODE ENABLED !!!"
+  log_info "Running Terraform destroy..."
+  log_info "Note: KMS resources (if any) will persist in GCP (separate state)"
+  terraform destroy -auto-approve
 
-    # Run Terraform destroy
-    log_info "Running Terraform destroy..."
-    log_info "Note: KMS resources (if any) will persist in GCP (separate state)"
-    terraform destroy -auto-approve
-  else
-    log_info "Running Terraform Apply..."
-    terraform apply -auto-approve
-  fi
+else
+  log_info "Running Terraform Apply..."
+  terraform apply -auto-approve
+fi
 }
 
 setup_workspace

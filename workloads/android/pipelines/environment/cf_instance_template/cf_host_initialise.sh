@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# Copyright (c) 2024-2025 Accenture, All Rights Reserved.
+# Copyright (c) 2024-2026 Accenture, All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -25,7 +25,10 @@
 # shellcheck disable=SC1091
 source "$(dirname "${BASH_SOURCE[0]}")"/cf_environment.sh "$0"
 
-declare -r JENKINS_USER="jenkins"
+# Apt package name for the JDK (e.g. temurin-21-jdk, openjdk-21-jdk-headless). Default matches cf_create / x86 Jenkins job.
+JAVA_VERSION=${JAVA_VERSION:-temurin-21-jdk}
+
+DEFAULT_USER=${DEFAULT_USER:-jenkins}
 declare -r sha1File="${HOME}/${CUTTLEFISH_LATEST_SHA1_FILENAME}"
 
 # Colours for logging.
@@ -33,6 +36,57 @@ GREEN='\033[1;32m'
 ORANGE='\033[1;33m'
 RED='\033[1;31m'
 NC='\033[0m'
+
+# Eclipse Temurin packages (temurin-*-jdk) are published on Adoptium apt, not Debian/Ubuntu main.
+function ensure_adoptium_apt_for_temurin_package() {
+    if [[ "${JAVA_VERSION}" != temurin-* ]]; then
+        return 0
+    fi
+    echo -e "${GREEN}Adding Adoptium apt (required for ${JAVA_VERSION}).${NC}"
+    sudo env DEBIAN_FRONTEND=noninteractive apt-get install -y ca-certificates wget gnupg
+    sudo mkdir -p /etc/apt/keyrings
+    wget -qO - https://packages.adoptium.net/artifactory/api/gpg/key/public | sudo gpg --dearmor -o /etc/apt/keyrings/adoptium.gpg
+    # shellcheck source=/dev/null
+    . /etc/os-release
+    echo "deb [signed-by=/etc/apt/keyrings/adoptium.gpg] https://packages.adoptium.net/artifactory/deb ${VERSION_CODENAME} main" | sudo tee /etc/apt/sources.list.d/adoptium.list > /dev/null
+}
+
+function install_jdk_from_apt() {
+    # shellcheck source=/dev/null
+    [ -f /etc/os-release ] && . /etc/os-release
+    echo -e "${GREEN}JDK install: package=${JAVA_VERSION} (ID=${ID:-} VERSION_CODENAME=${VERSION_CODENAME:-})${NC}"
+    sudo env DEBIAN_FRONTEND=noninteractive apt-get update -y
+    ensure_adoptium_apt_for_temurin_package
+    sudo env DEBIAN_FRONTEND=noninteractive apt-get update -y
+    sudo env DEBIAN_FRONTEND=noninteractive apt-get install -y "${JAVA_VERSION}" || {
+        echo -e "${RED}ERROR: apt install failed for ${JAVA_VERSION}${NC}" >&2
+        return 1
+    }
+}
+
+function verify_jdk() {
+    if ! command -v java >/dev/null 2>&1; then
+        echo -e "${RED}ERROR: java not on PATH after installing ${JAVA_VERSION}${NC}" >&2
+        exit 1
+    fi
+    local java_bin jdk_home
+    java_bin=$(readlink -f "$(command -v java)")
+    jdk_home=$(dirname "$(dirname "${java_bin}")")
+    echo -e "${GREEN}JDK verify: package=${JAVA_VERSION}${NC}"
+    /usr/bin/java --version
+    /usr/bin/java -fullversion
+    echo -e "${GREEN}JDK resolved: JAVA_HOME=${jdk_home} java=${java_bin}${NC}"
+}
+
+# Mesa EGL loader, Vulkan loader, and Mesa Vulkan drivers (e.g. lavapipe) for host-side
+# graphics checks. assemble_cvd still probes EGL/Vulkan with gpu_mode=guest_swiftshader.
+function ensure_apt_headless_graphics_for_cvd() {
+    echo -e "${GREEN}Installing Mesa EGL/Vulkan host libraries for Cuttlefish (Debian/Ubuntu apt).${NC}"
+    sudo env DEBIAN_FRONTEND=noninteractive apt-get update -y
+    if ! sudo env DEBIAN_FRONTEND=noninteractive apt-get install -y libegl1-mesa libvulkan1 mesa-vulkan-drivers; then
+        echo -e "${ORANGE}WARNING: could not install libegl1-mesa, libvulkan1, and/or mesa-vulkan-drivers; continuing without them.${NC}" >&2
+    fi
+}
 
 # Check virtualization enabled.
 function cuttlefish_virtualization() {
@@ -44,39 +98,40 @@ function cuttlefish_virtualization() {
 
 # Install additional packages.
 function cuttlefish_install_additional_packages() {
-    local -a package_list=("default-jdk" "adb" "git" "npm" "aapt" "htop" "zip" "unzip")
+    # Do not install default-jdk: on Debian 12 it pins OpenJDK 17 alternatives even when another JAVA_VERSION is also installed.
+    local -a package_list=("adb" "git" "npm" "aapt" "htop" "zip" "unzip" "lsof")
 
     echo -e "${GREEN}Installing additional packages.${NC}"
 
-    # Ensure update to latest package list.
-    sudo apt update -y
+    echo -e "${ORANGE}Install JDK: ${JAVA_VERSION}${NC}"
+    install_jdk_from_apt
+
     for package in "${package_list[@]}"; do
         if ! dpkg -s "${package}" > /dev/null 2>&1; then
             echo -e "${GREEN}Installing ${package}${NC}"
-            sudo apt install -y "${package}"
+            sudo env DEBIAN_FRONTEND=noninteractive apt install -y "${package}"
         else
             echo -e "${GREEN}${package} already installed${NC}"
         fi
     done
 
-    echo -e "${ORANGE}Install version ${JAVA_VERSION}.${NC}"
-    sudo apt-get update -y
-    sudo apt-get install -y "${JAVA_VERSION}" || true
+    verify_jdk
 
-    echo -e "${GREEN}Java version:${NC}"
-    java --version
+    ensure_apt_headless_graphics_for_cvd
 
     # Install Node version manager and nodejs.
     echo -e "${GREEN}Installing nodejs ${NODEJS_VERSION}${NC}"
     npm cache clean -f
     sudo npm install -g n
     sudo n "${NODEJS_VERSION}"
-    sudo npm install -g wait-on
     sudo ln -sf /usr/local/bin/node  /usr/local/bin/nodejs || true
 
     # Show node version and path.
     which node
     node -v
+    echo -e "${ORANGE}npx version and path:${NC}"
+    command -v npx || true
+    npx -v || true
 
     echo -e "${GREEN}Installing additional packages completed.${NC}"
 }
@@ -84,7 +139,7 @@ function cuttlefish_install_additional_packages() {
 function update_curl() {
     if [ -n "${CURL_UPDATE_COMMAND}" ]; then
         echo -e "${GREEN}Curl update: ${CURL_UPDATE_COMMAND}.${NC}"
-        sudo apt update -y
+        sudo env DEBIAN_FRONTEND=noninteractive apt update -y
         if ! eval "${CURL_UPDATE_COMMAND}"
         then
             echo -e "${RED}Curl update failed, exit!${NC}"
@@ -100,8 +155,8 @@ function update_curl() {
 # Disable unattended-upgrades
 function disable_unattended_upgrades() {
     sudo systemctl status unattended-upgrades || true
-    sudo apt remove -y --purge unattended-upgrades
-    sudo apt autoremove -y
+    sudo env DEBIAN_FRONTEND=noninteractive apt remove -y --purge unattended-upgrades
+    sudo env DEBIAN_FRONTEND=noninteractive apt autoremove -y
     sudo rm -rf /var/log/unattended-upgrades
 }
 
@@ -112,16 +167,16 @@ function download_cts() {
     if [[ "${url}" == gs://* ]]; then
         CMD="gcloud storage cp ${url} ${dest}"
         echo "Download $CMD"
-        su -l "${JENKINS_USER}" -c "eval $CMD"
+        su -l "${DEFAULT_USER}" -c "eval $CMD"
     elif [[ "${url}" == http*  ]]; then
         CMD="wget -nv ${url} -O ${dest}"
         echo "Download $CMD"
-        su -l "${JENKINS_USER}" -c "eval $CMD"
+        su -l "${DEFAULT_USER}" -c "eval $CMD"
     else
         echo "echo 'Unknown URL scheme (${url})."
         exit 1
     fi
-    su -l "${JENKINS_USER}" -c "du -sh ${dest}"
+    su -l "${DEFAULT_USER}" -c "du -sh ${dest}"
 }
 
 # Install CTS test harness on instance to avoid lengthy CTS runs.
@@ -136,34 +191,34 @@ function cuttlefish_install_cts() {
     local start=$SECONDS
 
     if [ ! -z "${CTS_ANDROID_16_URL}" ]; then
-        su -l "${JENKINS_USER}" -c "mkdir -p android-cts_16"
+        su -l "${DEFAULT_USER}" -c "mkdir -p android-cts_16"
         echo -e "${GREEN}Downloading.${NC} ${CTS_ANDROID_16_URL}. ${ORANGE}This can take several minutes to complete, please wait!${NC}"
         download_cts  "${CTS_ANDROID_16_URL}" android-cts_16.zip
         echo -e "${GREEN}Unpacking.${NC} android-cts_16.zip. ${ORANGE}This can take several minutes to complete, please wait!${NC}"
-        su -l "${JENKINS_USER}" -c "unzip -q android-cts_16.zip -d android-cts_16"
-        su -l "${JENKINS_USER}" -c "rm -f android-cts_16.zip"
+        su -l "${DEFAULT_USER}" -c "unzip -q android-cts_16.zip -d android-cts_16"
+        su -l "${DEFAULT_USER}" -c "rm -f android-cts_16.zip"
     else
         echo -e "${ORANGE} Skipped Android 16 CTS, nothing to install.${NC}"
     fi
 
     if [ ! -z "${CTS_ANDROID_15_URL}" ]; then
-        su -l "${JENKINS_USER}" -c "mkdir -p android-cts_15"
+        su -l "${DEFAULT_USER}" -c "mkdir -p android-cts_15"
         echo -e "${GREEN}Downloading.${NC} ${CTS_ANDROID_15_URL}. ${ORANGE}This can take several minutes to complete, please wait!${NC}"
         download_cts  "${CTS_ANDROID_15_URL}" android-cts_15.zip
         echo -e "${GREEN}Unpacking.${NC} android-cts_15.zip. ${ORANGE}This can take several minutes to complete, please wait!${NC}"
-        su -l "${JENKINS_USER}" -c "unzip -q android-cts_15.zip -d android-cts_15"
-        su -l "${JENKINS_USER}" -c "rm -f android-cts_15.zip"
+        su -l "${DEFAULT_USER}" -c "unzip -q android-cts_15.zip -d android-cts_15"
+        su -l "${DEFAULT_USER}" -c "rm -f android-cts_15.zip"
     else
         echo -e "${ORANGE} Skipped Android 15 CTS, nothing to install.${NC}"
     fi
 
     if [ ! -z "${CTS_ANDROID_14_URL}" ]; then
-        su -l "${JENKINS_USER}" -c "mkdir -p android-cts_14"
+        su -l "${DEFAULT_USER}" -c "mkdir -p android-cts_14"
         echo -e "${GREEN}Downloading.${NC} ${CTS_ANDROID_14_URL}. ${ORANGE}This can take several minutes to complete, please wait!${NC}"
         download_cts  "${CTS_ANDROID_14_URL}" android-cts_14.zip
         echo -e "${GREEN}Unpacking.${NC} android-cts_14.zip. ${ORANGE}This can take several minutes to complete, please wait!${NC}"
-        su -l "${JENKINS_USER}" -c "unzip -q android-cts_14.zip -d android-cts_14"
-        su -l "${JENKINS_USER}" -c "rm -f android-cts_14.zip"
+        su -l "${DEFAULT_USER}" -c "unzip -q android-cts_14.zip -d android-cts_14"
+        su -l "${DEFAULT_USER}" -c "rm -f android-cts_14.zip"
     else
         echo -e "${ORANGE} Skipped Android 14 CTS, nothing to install.${NC}"
     fi
@@ -172,27 +227,6 @@ function cuttlefish_install_cts() {
     m=$(( elapsed / 60 ))
     s=$(( elapsed % 60 ))
     echo -e "${GREEN}Installing CTS test harness completed in ${m}m${s}s.${NC}"
-}
-
-# Install Cuttlefish prebuilts
-function cuttlefish_install_prebuilt() {
-    # Register the apt repository on Artifact Registry
-    echo -e "${GREEN}Cuttlefish attempt prebuilt install on $1 ...${NC}"
-    sudo curl -fsSL https://us-apt.pkg.dev/doc/repo-signing-key.gpg \
-        -o /etc/apt/trusted.gpg.d/artifact-registry.asc
-    sudo chmod a+r /etc/apt/trusted.gpg.d/artifact-registry.asc
-    echo "deb https://us-apt.pkg.dev/projects/android-cuttlefish-artifacts android-cuttlefish $1" \
-        | sudo tee -a /etc/apt/sources.list.d/artifact-registry.list
-    sudo cat /etc/apt/sources.list.d/artifact-registry.list
-    sudo apt update -y
-
-    if ! sudo apt install -y cuttlefish-base cuttlefish-user cuttlefish-orchestration; then
-        echo -e "${RED}Failed to install prebuilt for revision ${1}${NC}"
-        return 1
-    else
-        echo -e "${GREEN}Installed prebuilt for revision ${1}${NC}"
-        return 0
-    fi
 }
 
 # Add the user to the CVD groups.
@@ -216,7 +250,7 @@ function update_sudoers() {
     if ! getent group google-sudoers; then
         # TAA-1216: workaround for debian updates from 20251014, google-sudoers
         # group not created from gcloud compute instance create and as such
-        # jenkins can't access the instance without being added to the standard
+        # users can't access the instance without being added to the standard
         # sudoers file. Referred to Google but workaround appears to resolve this
         # regression.
         echo -e "${ORANGE}Group google-sudoers missing, use sudoers instead for user $1.${NC}"
@@ -227,21 +261,21 @@ function update_sudoers() {
     fi
 }
 
-function cuttlefish_jenkins_user() {
+function cuttlefish_default_user() {
     if [[ "$OS_VERSION" == *ubuntu* ]]; then
         # Delete any ubuntu default user (1000)
         # shellcheck disable=SC2046
         sudo userdel $(awk -F: '$3==1000{print $1}' /etc/passwd) > /dev/null 2>&1 || true
     fi
-    sudo useradd -u 1000 -ms /bin/bash ${JENKINS_USER} > /dev/null 2>&1
-    sudo passwd -d ${JENKINS_USER} > /dev/null 2>&1
-    update_sudoers ${JENKINS_USER}
+    sudo useradd -u 1000 -ms /bin/bash "${DEFAULT_USER}" > /dev/null 2>&1
+    sudo passwd -d "${DEFAULT_USER}" > /dev/null 2>&1
+    update_sudoers "${DEFAULT_USER}"
 }
 
 function cuttlefish_cleanup() {
-    # Clean up
+    # Clean up (clone lives next to this script: provision_cf_host.sh runs from /tmp/cf, not $HOME).
     cd ..
-    sudo rm -rf "${HOME}/${CUTTLEFISH_REPO_NAME}"
+    sudo rm -rf "./${CUTTLEFISH_REPO_NAME}"
     # Remove bazel cache to save space before disk image is created.
     sudo rm -rf "${HOME}"/.cache/bazel/
 }
@@ -250,81 +284,86 @@ function cuttlefish_cleanup() {
 function cuttlefish_build() {
     # Cuttlefish will request package restart, override mode.
     export NEEDRESTART_MODE=a
-    # Prebuilts are only supported on X86_64 and main currently, fall through to build on error.
-    if [ "${ANDROID_CUTTLEFISH_PREBUILT}" != "true" ] || ! cuttlefish_install_prebuilt "${CUTTLEFISH_REVISION}"; then
-        echo -e "${GREEN}Cuttlefish Building from ${CUTTLEFISH_URL} ${CUTTLEFISH_REVISION}.${NC}"; echo
-        git clone "${CUTTLEFISH_REPO_URL}" >/dev/null 2>&1
-        chown -R "$(whoami):$(whoami)" "${CUTTLEFISH_REPO_NAME}"
-        cd "${CUTTLEFISH_REPO_NAME}" || exit
-        git checkout "${CUTTLEFISH_REVISION}" > /dev/null 2>&1
+    echo -e "${GREEN}Cuttlefish Building from ${CUTTLEFISH_URL} ${CUTTLEFISH_REVISION}.${NC}"; echo
+    echo -e "${GREEN}Cloning into ${CUTTLEFISH_REPO_NAME} (from URL host path; see cf_environment.sh).${NC}"
+    if ! git clone "${CUTTLEFISH_REPO_URL}" "${CUTTLEFISH_REPO_NAME}"; then
+        echo -e "${RED}git clone failed. Check HTTPS access to the repo from this VM, TLS trust, and for private Gerrit/Git HTTPS that REPO_USERNAME and REPO_PASSWORD are set in the Jenkins job.${NC}"
+        exit 1
+    fi
+    chown -R "$(whoami):$(whoami)" "${CUTTLEFISH_REPO_NAME}"
+    cd "${CUTTLEFISH_REPO_NAME}" || exit
+    if ! git checkout "${CUTTLEFISH_REVISION}"; then
+        echo -e "${RED}git checkout ${CUTTLEFISH_REVISION} failed (branch/tag missing or fetch incomplete).${NC}"
+        cuttlefish_cleanup
+        exit 1
+    fi
 
-        # Fake config ahead of post command
-        git config --global user.email "android@example.com"
-        git config --global user.name "Android Cuttlefish"
+    # Fake config ahead of post command
+    git config --global user.email "android@example.com"
+    git config --global user.name "Android Cuttlefish"
 
-        # Store the sha1 and last commit to file for future reference (branches move).
-        echo -e "${GREEN}android-cuttlefish:${CUTTLEFISH_REVISION} sha1:${NC}"
-        { echo "android-cuttlefish:${CUTTLEFISH_REVISION} sha1:"; echo; } | tee "${sha1File}"
-        git log -1 | tee -a "${sha1File}"
+    # Store the sha1 and last commit to file for future reference (branches move).
+    echo -e "${GREEN}android-cuttlefish:${CUTTLEFISH_REVISION} sha1:${NC}"
+    { echo "android-cuttlefish:${CUTTLEFISH_REVISION} sha1:"; echo; } | tee "${sha1File}"
+    git log -1 | tee -a "${sha1File}"
 
-        if [ -n "${CUTTLEFISH_POST_COMMAND}" ]; then
-            CMD="${CUTTLEFISH_POST_COMMAND};"
-            echo -e "${ORANGE}Running ${CMD} in ${CUTTLEFISH_REPO_NAME}${NC}"
-            if ! eval "${CMD}"
-            then
-                echo -e "${RED}Error: ${CUTTLEFISH_POST_COMMAND} failed,${NC}"
-                cuttlefish_cleanup
-                exit 1
-            else
-                echo -e "${GREEN}SUCCESS: ${CUTTLEFISH_POST_COMMAND}${NC}"
-                echo -e "${GREEN}android-cuttlefish:${CUTTLEFISH_REVISION} sha1:${NC}"
-                { echo ; echo "Post ${CUTTLEFISH_POST_COMMAND}"; echo; } |  tee -a "${sha1File}"
-                git log -1 | tee -a "${sha1File}"
-
-                if ! git diff --quiet; then
-                    echo -e "${GREEN}android-cuttlefish diffs:${NC}"
-                    { echo; echo; echo "android-cuttlefish diffs:"; echo; } | tee -a "${sha1File}"
-                    git diff | tee -a "${sha1File}"
-                fi
-            fi
-        fi
-
-        declare -r BUILD_SCRIPT=./tools/buildutils/build_packages.sh
-
-        # Build and install the cuttlefish packages
-        if ! [ -f "${BUILD_SCRIPT}" ]; then
-            echo -e "${RED}Error: ${CUTTLEFISH_REVISION} does not support ${BUILD_SCRIPT}${NC}"
-            echo -e "${RED}       Please choose a compatible version.${NC}"
+    if [ -n "${CUTTLEFISH_POST_COMMAND}" ]; then
+        CMD="${CUTTLEFISH_POST_COMMAND};"
+        echo -e "${ORANGE}Running ${CMD} in ${CUTTLEFISH_REPO_NAME}${NC}"
+        if ! eval "${CMD}"
+        then
+            echo -e "${RED}Error: ${CUTTLEFISH_POST_COMMAND} failed,${NC}"
             cuttlefish_cleanup
             exit 1
         else
-            echo -e "${GREEN}Cuttlefish build script: ${BUILD_SCRIPT}${NC}"
-            # Build cuttlefish packages
-            if ! yes Y | "${BUILD_SCRIPT}"; then
-                echo -e "${RED}Error: ${CUTTLEFISH_REVISION} failed on: ${BUILD_SCRIPT}${NC}"
-                cuttlefish_cleanup
-                exit 1
-            fi
+            echo -e "${GREEN}SUCCESS: ${CUTTLEFISH_POST_COMMAND}${NC}"
+            echo -e "${GREEN}android-cuttlefish:${CUTTLEFISH_REVISION} sha1:${NC}"
+            { echo ; echo "Post ${CUTTLEFISH_POST_COMMAND}"; echo; } |  tee -a "${sha1File}"
+            git log -1 | tee -a "${sha1File}"
 
-            # Install the cuttlefish packages
-            if ! sudo apt install -y ./cuttlefish-base_*.deb ./cuttlefish-user_*.deb ./cuttlefish-orchestration*.deb; then
-                echo -e "${RED}Error: ${CUTTLEFISH_REVISION} failed to install packages.${NC}"
-                cuttlefish_cleanup
-                exit 1
+            if ! git diff --quiet; then
+                echo -e "${GREEN}android-cuttlefish diffs:${NC}"
+                { echo; echo; echo "android-cuttlefish diffs:"; echo; } | tee -a "${sha1File}"
+                git diff | tee -a "${sha1File}"
             fi
+        fi
+    fi
 
-            # Clean up
+    declare -r BUILD_SCRIPT=./tools/buildutils/build_packages.sh
+
+    # Build and install the cuttlefish packages
+    if ! [ -f "${BUILD_SCRIPT}" ]; then
+        echo -e "${RED}Error: ${CUTTLEFISH_REVISION} does not support ${BUILD_SCRIPT}${NC}"
+        echo -e "${RED}       Please choose a compatible version.${NC}"
+        cuttlefish_cleanup
+        exit 1
+    else
+        echo -e "${GREEN}Cuttlefish build script: ${BUILD_SCRIPT}${NC}"
+        # Build cuttlefish packages
+        if ! yes Y | "${BUILD_SCRIPT}"; then
+            echo -e "${RED}Error: ${CUTTLEFISH_REVISION} failed on: ${BUILD_SCRIPT}${NC}"
             cuttlefish_cleanup
+            exit 1
         fi
 
-        # Add groups to the user and also root.
-        declare -a cf_ids=("$(whoami)" "${JENKINS_USER}" "root")
-        for username in "${cf_ids[@]}"; do
-            cuttlefish_user_groups "${username}"
-        done
+        # Install the cuttlefish packages
+        if ! sudo env DEBIAN_FRONTEND=noninteractive apt install -y ./cuttlefish-base_*.deb ./cuttlefish-user_*.deb ./cuttlefish-orchestration*.deb; then
+            echo -e "${RED}Error: ${CUTTLEFISH_REVISION} failed to install packages.${NC}"
+            cuttlefish_cleanup
+            exit 1
+        fi
 
-        echo -e "${GREEN}Cuttlefish Build process complete.${NC}"
+        # Clean up
+        cuttlefish_cleanup
     fi
+
+    # Add groups to the user and also root.
+    declare -a cf_ids=("$(whoami)" "${DEFAULT_USER}" "root")
+    for username in "${cf_ids[@]}"; do
+        cuttlefish_user_groups "${username}"
+    done
+
+    echo -e "${GREEN}Cuttlefish Build process complete.${NC}"
 }
 
 # Install the Cuttlefish packages.
@@ -335,8 +374,8 @@ function cuttlefish_install() {
     # Install additional packages
     cuttlefish_install_additional_packages
 
-    # Add jenkins user
-    cuttlefish_jenkins_user
+    # Add default user
+    cuttlefish_default_user
 
     # Build cuttlefish
     cuttlefish_build
@@ -367,8 +406,8 @@ function cuttlefish_initialise() {
             echo -e "${ORANGE}Cuttlefish upgrade required.${NC}"
             # Remove and purge previous install.
             # Note: base will remove user, but remove just in case
-            sudo apt remove -y cuttlefish-* > /dev/null 2>&1
-            sudo apt autoremove -y > /dev/null 2>&1
+            sudo env DEBIAN_FRONTEND=noninteractive apt remove -y cuttlefish-* > /dev/null 2>&1
+            sudo env DEBIAN_FRONTEND=noninteractive apt autoremove -y > /dev/null 2>&1
             sudo dpkg --purge cuttlefish-base cuttlefish-user cuttlefish-orchestration > /dev/null 2>&1
             cuttlefish_install
         fi

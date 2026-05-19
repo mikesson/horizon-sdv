@@ -1,4 +1,4 @@
-// Copyright (c) 2025 Accenture, All Rights Reserved.
+// Copyright (c) 2025-2026 Accenture, All Rights Reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -28,8 +28,8 @@ def replacements = [
  ['${CLOUD_PROJECT}', "${CLOUD_PROJECT}"],
  ['${HEADER_STYLE}', "${HEADER_STYLE}"],
  ['${HORIZON_DOMAIN}', "${HORIZON_DOMAIN}"],
- ['${HORIZON_GIT_URL}', "${HORIZON_GIT_URL}"],
- ['${HORIZON_GIT_BRANCH}', "${HORIZON_GIT_BRANCH}"],
+ ['${HORIZON_SCM_URL}', "${HORIZON_SCM_URL}"],
+ ['${HORIZON_SCM_BRANCH}', "${HORIZON_SCM_BRANCH}"],
  ['${SEPARATOR_STYLE}', "${SEPARATOR_STYLE}"],
  ['${CLOUD_BACKEND_BUCKET}', "${CLOUD_BACKEND_BUCKET}"]]
 
@@ -44,13 +44,14 @@ pipeline {
 
   parameters {
     choice(name: 'SEED_WORKLOAD',
-           choices: ['none', 'all', 'android', 'openbsw', 'utilities', 'cloud-workstations'],
+           choices: ['none', 'all', 'android', 'openbsw', 'sample', 'utilities', 'cloud-workstations'],
            description: '''<p>Workload to seed:</p>
              <ul>
              <li>none: seed nothing, derisk triggering by accident.</li>
              <li>all: seed all workloads.</li>
              <li>android: seed the Android workload.</li>
              <li>openbsw: seed the OpenBSW workload.</li>
+             <li>sample: seed Sample pipelines (Horizon API demo).</li>
              <li>utilities: seed the Utilities jobs.</li>
              <li>cloud-workstations: seed the Cloud Workstations workload.</li>
            </ul>''')
@@ -98,10 +99,10 @@ pipeline {
            trim: true)
 
     string(name: 'CUTTLEFISH_GCE_CLOUD_LABEL',
-           defaultValue: 'cuttlefish-vm-v1350',
+           defaultValue: 'cuttlefish-vm-v1410',
            description: '''<p>The Jenkins GCE Clouds label for jobs dependent on the Cuttlefish instance template, e.g.<br/></p>
                         <ul>
-                          <li>cuttlefish-vm-v1350</li>
+                          <li>cuttlefish-vm-v1410</li>
                           <li>cuttlefish-vm-main</li>
                         </ul>''',
            trim: true)
@@ -135,7 +136,7 @@ pipeline {
 
     string(name: 'ABFS_VERSION',
            defaultValue: "0.0.33-2-ge59ffbc",
-           description: '''<p>ABFS version, e.g. 0.0.33-2-ge59ffbc</p>''',
+           description: '''<p>ABFS version, e.g. 0.0.33-2-ge59ffbc, 0.1.2-15-gfaf00af1</p>''',
            trim: true)
 
     string(name: 'ABFS_CASFS_VERSION',
@@ -144,7 +145,7 @@ pipeline {
            trim: true)
 
     string(name: 'ABFS_COS_IMAGE_REF',
-           defaultValue: "projects/cos-cloud/global/images/family/cos-113-lts",
+           defaultValue: "projects/cos-cloud/global/images/family/cos-125-lts",
            description: '''<p>ABFS Containerized OS images used on server and uploader instances.</p>''',
            trim: true)
 
@@ -166,7 +167,7 @@ pipeline {
     )
 
     string(name: 'OPENBSW_IMAGE_TAG',
-           defaultValue: 'latest-ubuntu.22.04',
+           defaultValue: 'ubuntu.noble-20251001',
            description: '''<p>Name of the build image tag used for OpenBSW pipelines.</p>
              <p>Note: tag may only contain 'abcdefghijklmnopqrstuvwxyz0123456789_-./'</p>''',
            trim: true)
@@ -182,6 +183,23 @@ pipeline {
            trim: true)
 
     separator(
+      name: "Sample Workload",
+      sectionHeader: "Sample Parameters (Horizon API)",
+      separatorStyle: "${SEPARATOR_STYLE}",
+      sectionHeaderStyle: "${HEADER_STYLE}"
+    )
+
+    string(name: 'SAMPLE_IMAGE_TAG',
+           defaultValue: 'latest',
+           description: '''<p>Default image tag for Sample/Environment Docker Image Template and Sample/Tests Horizon API Workflow jobs.</p>''',
+           trim: true)
+
+    string(name: 'SAMPLE_BUILD_DOCKER_ARTIFACT_PATH_NAME',
+           defaultValue: 'horizon-sdv/sample-horizon-api',
+           description: '''<p>Artifact Registry path segment (repository/image) for the Sample Horizon Jenkins agent image.</p>''',
+           trim: true)
+
+    separator(
       name: "Common Parameters",
       sectionHeader: "Common Parameters",
       separatorStyle: "${SEPARATOR_STYLE}",
@@ -193,6 +211,38 @@ pipeline {
            description: '''<p>NodeJS version.<br/>
              This is installed using <i>nvm</i> on the instance template to be compatible with other tooling.<br/><br>
              <b>Reference:</b> <a href="https://nodejs.org/en/about/previous-releases" target="_blank<NodeJS Releases</a></p>''',
+           trim: true)
+
+    separator(
+      name: 'Agentic AI: Configuration (Experimental)',
+      sectionHeader: 'Agentic AI: Configuration (Experimental)',
+      separatorStyle: "${SEPARATOR_STYLE}",
+      sectionHeaderStyle: "${HEADER_STYLE}"
+    )
+
+    booleanParam(name: 'ENABLE_GEMINI_AI_ASSISTANT',
+                 defaultValue: true,
+                 description: '''<p>Enable Gemini AI to support in diagnosis of build and test failures.</p>''')
+
+    booleanParam(name: 'GEMINI_PREVIEW_FEATURES',
+                 defaultValue: true,
+                 description: '''<p>Toggle preview features to experiment with alternative model versions in preview.</p''')
+
+    booleanParam(name: 'GEMINI_LOCATION_GLOBAL',
+                 defaultValue: true,
+                 description: '''<p>When enabled, use the global endpoint. When disabled, the project-specific <code>GOOGLE_CLOUD_LOCATION</code> is used.</p''')
+
+    string(name: 'GEMINI_MODEL',
+           defaultValue: 'gemini-2.5-pro',
+           description: '''<p>For available models see <a href="https://ai.google.dev/gemini-api/docs/models" target="_blank">Gemini models</a>. Leave blank to use the default.<br/>
+             <b>Note:</b> For preview models, ensure <code>GEMINI_PREVIEW_FEATURES</code> and <code>GEMINI_LOCATION_GLOBAL</code> are set correctly to access the model.</p>''',
+           trim: true)
+
+    string(name: 'GEMINI_CLI_VERSION',
+           defaultValue: 'latest',
+           description: '''<p>The version of gemini-cli to be installed.<br/>
+             <b>Default</b>: Latest available version.<br/>
+             <b>Reference</b>: Run <code>npm view @google/gemini-cli versions</code> for a full list of valid versions.</p>''',
            trim: true)
   }
 
@@ -237,7 +287,12 @@ pipeline {
                   ['${MIRROR_PRESET_FILESTORE_PVC_MOUNT_PATH_IN_CONTAINER}', "${MIRROR_PRESET_FILESTORE_PVC_MOUNT_PATH_IN_CONTAINER}"],
                   ['${MIRROR_PRESET_MIRROR_ROOT_SUBDIR_NAME}', "${MIRROR_PRESET_MIRROR_ROOT_SUBDIR_NAME}"],
                   ['${MIRROR_PRESET_NETWORK_NAME}', "${MIRROR_PRESET_NETWORK_NAME}"],
-                  ['${MIRROR_PRESET_SUBNETWORK_NAME}', "${MIRROR_PRESET_SUBNETWORK_NAME}"]
+                  ['${MIRROR_PRESET_SUBNETWORK_NAME}', "${MIRROR_PRESET_SUBNETWORK_NAME}"],
+                  ['${ENABLE_GEMINI_AI_ASSISTANT}', "${ENABLE_GEMINI_AI_ASSISTANT}"],
+                  ['${GEMINI_CLI_VERSION}', "${GEMINI_CLI_VERSION}"],
+                  ['${GEMINI_PREVIEW_FEATURES}', "${GEMINI_PREVIEW_FEATURES}"],
+                  ['${GEMINI_LOCATION_GLOBAL}', "${GEMINI_LOCATION_GLOBAL}"],
+                  ['${GEMINI_MODEL}', "${GEMINI_MODEL}"]
                  ]
 
                 def files = sh(returnStdout: true, script: "find workloads/android -name '*.groovy'").trim().split('\n')
@@ -296,7 +351,12 @@ pipeline {
                   ['${OPENBSW_GIT_BRANCH}', "${OPENBSW_GIT_BRANCH}"],
                   ['${NODEJS_VERSION}', "${NODEJS_VERSION}"],
                   ['${BUILDKIT_RELEASE_TAG}', "${BUILDKIT_RELEASE_TAG}"],
-                  ['${DOCKER_CREDENTIALS_URL}', "${DOCKER_CREDENTIALS_URL}"]
+                  ['${DOCKER_CREDENTIALS_URL}', "${DOCKER_CREDENTIALS_URL}"],
+                  ['${ENABLE_GEMINI_AI_ASSISTANT}', "${ENABLE_GEMINI_AI_ASSISTANT}"],
+                  ['${GEMINI_CLI_VERSION}', "${GEMINI_CLI_VERSION}"],
+                  ['${GEMINI_PREVIEW_FEATURES}', "${GEMINI_PREVIEW_FEATURES}"],
+                  ['${GEMINI_LOCATION_GLOBAL}', "${GEMINI_LOCATION_GLOBAL}"],
+                  ['${GEMINI_MODEL}', "${GEMINI_MODEL}"]
                 ]
 
                 def files = sh(returnStdout: true, script: "find workloads/openbsw -name '*.groovy'").trim().split('\n')
@@ -330,6 +390,65 @@ pipeline {
       }
     }
 
+    stage ('Workload: Seed Sample') {
+      when {
+        anyOf {
+          expression { env.SEED_WORKLOAD == 'sample' }
+          expression { env.SEED_WORKLOAD == 'all' }
+        }
+      }
+
+      stages {
+        stage ("Prepare Groovy files") {
+          steps {
+            catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
+              script {
+                currentBuild.description = "$BUILD_USER" + "<br>" + "${SEED_WORKLOAD}"
+
+                replacements += [
+                  ['${SAMPLE_BUILD_DOCKER_ARTIFACT_PATH_NAME}', "${SAMPLE_BUILD_DOCKER_ARTIFACT_PATH_NAME}"],
+                  ['${SAMPLE_IMAGE_TAG}', "${SAMPLE_IMAGE_TAG}"],
+                  ['${BUILDKIT_RELEASE_TAG}', "${BUILDKIT_RELEASE_TAG}"],
+                  ['${DOCKER_CREDENTIALS_URL}', "${DOCKER_CREDENTIALS_URL}"],
+                  ['${HEADER_STYLE}', "${HEADER_STYLE}"],
+                  ['${SEPARATOR_STYLE}', "${SEPARATOR_STYLE}"],
+                  ['${HORIZON_SCM_URL}', "${HORIZON_SCM_URL}"],
+                  ['${HORIZON_SCM_BRANCH}', "${HORIZON_SCM_BRANCH}"],
+                  ['${CLOUD_REGION}', "${CLOUD_REGION}"],
+                  ['${CLOUD_PROJECT}', "${CLOUD_PROJECT}"]
+                ]
+
+                def files = sh(returnStdout: true, script: "find workloads/sample -name '*.groovy'").trim().split('\n')
+
+                files.each { file ->
+                  replacements.each { replacement ->
+                    def escapedValue = replacement[1].replace('/', '\\/')
+                    sh "sed -i 's/${replacement[0]}/${escapedValue}/g' ${file}"
+                  }
+                }
+              }
+            }
+          }
+        }
+
+        stage ("Seed folders") {
+          steps {
+            catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
+              jobDsl targets: 'workloads/sample/pipelines/groovy/folders.groovy', sandbox: true
+            }
+          }
+        }
+
+        stage ("Seed jobs") {
+          steps {
+            catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
+              jobDsl targets: 'workloads/sample/pipelines/**/groovy/*.groovy', sandbox: true
+            }
+          }
+        }
+      }
+    }
+
     stage ('Workload: Seed Utilities') {
       when {
         anyOf {
@@ -343,12 +462,21 @@ pipeline {
           steps {
             catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
               script {
+                currentBuild.description = "$BUILD_USER" + "<br>" + "${SEED_WORKLOAD}"
+
                 replacements += [
+                  ['${ANDROID_BUILD_BUCKET_ROOT_NAME}', "${ANDROID_BUILD_BUCKET_ROOT_NAME}"],
                   ['${BUILDKIT_RELEASE_TAG}', "${BUILDKIT_RELEASE_TAG}"],
                   ['${GCLOUD_CLI_VERSION}', "${GCLOUD_CLI_VERSION}"],
                   ['${KUBECTL_VERSION}', "${KUBECTL_VERSION}"],
                   ['${DOCKER_CREDENTIALS_URL}', "${DOCKER_CREDENTIALS_URL}"],
-                  ['${UTILITIES_DOCKER_ARTIFACT_PATH_NAME}', "${UTILITIES_DOCKER_ARTIFACT_PATH_NAME}"]
+                  ['${UTILITIES_DOCKER_ARTIFACT_PATH_NAME}', "${UTILITIES_DOCKER_ARTIFACT_PATH_NAME}"],
+                  ['${NODEJS_VERSION}', "${NODEJS_VERSION}"],
+                  ['${ENABLE_GEMINI_AI_ASSISTANT}', "${ENABLE_GEMINI_AI_ASSISTANT}"],
+                  ['${GEMINI_CLI_VERSION}', "${GEMINI_CLI_VERSION}"],
+                  ['${GEMINI_PREVIEW_FEATURES}', "${GEMINI_PREVIEW_FEATURES}"],
+                  ['${GEMINI_LOCATION_GLOBAL}', "${GEMINI_LOCATION_GLOBAL}"],
+                  ['${GEMINI_MODEL}', "${GEMINI_MODEL}"]
                 ]
 
                 def files = sh(returnStdout: true, script: "find workloads/utilities -name '*.groovy'").trim().split('\n')

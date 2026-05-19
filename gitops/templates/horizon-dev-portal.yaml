@@ -1,0 +1,70 @@
+# Copyright (c) 2024-2026 Accenture, All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#         http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: {{ .Values.config.namespacePrefix }}horizon-dev-portal
+  namespace: {{ .Values.config.namespacePrefix }}argocd
+  annotations:
+    # After keycloak-post-horizon-api (wave 5) — that job creates horizon-dev-portal-secrets with CI client secret.
+    argocd.argoproj.io/sync-wave: "6"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+
+spec:
+  project: {{ .Values.config.namespacePrefix }}horizon-sdv
+
+  source:
+    repoURL: {{ .Values.spec.source.repoURL }}
+    targetRevision: {{ .Values.spec.source.targetRevision }}
+
+    helm:
+      values: |
+        config:
+          namespacePrefix: {{ .Values.config.namespacePrefix | quote }}
+          gitops:
+            horizonDevPortal: {{ .Values.config.containerImages.horizondevelopmentportal | quote }}
+          domain: {{ .Values.config.domain | quote }}
+          publicPath: {{ .Values.config.horizonDevelopmentPortal.publicPath | quote }}
+          publicBaseUrl: "https://{{ .Values.config.domain }}"
+          keycloakRealm: {{ .Values.config.horizonDevelopmentPortal.keycloakRealm | quote }}
+          keycloakHttpPathPrefix: {{ .Values.config.horizonDevelopmentPortal.keycloakHttpPathPrefix | quote }}
+          oidcIssuerUrl: "https://{{ .Values.config.domain }}{{ .Values.config.horizonDevelopmentPortal.keycloakHttpPathPrefix }}/realms/{{ .Values.config.horizonDevelopmentPortal.keycloakRealm }}"
+          keycloakTokenUrl: "https://{{ .Values.config.domain }}{{ .Values.config.horizonDevelopmentPortal.keycloakHttpPathPrefix }}/realms/{{ .Values.config.horizonDevelopmentPortal.keycloakRealm }}/protocol/openid-connect/token"
+          keycloakTokenPath: "{{ .Values.config.horizonDevelopmentPortal.keycloakHttpPathPrefix }}/realms/{{ .Values.config.horizonDevelopmentPortal.keycloakRealm }}/protocol/openid-connect/token"
+          keycloakClientId: {{ .Values.config.horizonDevelopmentPortal.keycloakClientId | quote }}
+          horizonApiCiClientId: {{ .Values.config.horizonDevelopmentPortal.horizonApiCiClientId | quote }}
+          horizonApiBaseUrl: {{ if .Values.config.horizonDevelopmentPortal.horizonApiInternalBaseUrl }}{{ .Values.config.horizonDevelopmentPortal.horizonApiInternalBaseUrl | quote }}{{ else }}"http://horizon-api.{{ .Values.config.namespacePrefix }}horizon-api.svc.cluster.local"{{ end }}
+          moduleManagerBaseUrl: {{ if .Values.config.horizonDevelopmentPortal.moduleManagerInternalBaseUrl }}{{ .Values.config.horizonDevelopmentPortal.moduleManagerInternalBaseUrl | quote }}{{ else }}"http://module-manager.{{ .Values.config.namespacePrefix }}module-manager.svc.cluster.local:8082"{{ end }}
+        secret:
+          horizonApiCiClientSecret: ""
+        spec:
+          source:
+            repoURL: {{ .Values.spec.source.repoURL | quote }}
+            targetRevision: {{ .Values.spec.source.targetRevision | quote }}
+    path: gitops/apps/horizon-dev-portal
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: {{ .Values.config.namespacePrefix }}horizon-dev-portal
+
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+    automated: {}
+
+  ignoreDifferences:
+    - kind: ConfigMap
+      name: {{ .Values.config.namespacePrefix }}horizon-dev-portal-config
+      namespace: {{ .Values.config.namespacePrefix }}horizon-dev-portal

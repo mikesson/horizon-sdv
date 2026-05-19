@@ -22,4 +22,9 @@
 // cloud costs.
 @Library('cvd-pipeline-shared-library') _
 
-cvdPipeline()
+// AI Review: preset cvd (Cuttlefish/host artifacts only; prompts in cvd_launcher/prompt/sequenced).
+cvdPipeline(
+  aiReview: [
+    preset: 'cvd'
+  ]
+)

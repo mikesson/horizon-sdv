@@ -36,8 +36,8 @@ source "$(dirname "${BASH_SOURCE[0]}")"/bsw_environment.sh "$0"
 # Function to build the POSIX target
 function build_posix_target() {
     echo "Building POSIX target"
-    if ! eval "${POSIX_BUILD_CMDLINE}"
-    then
+    eval "${POSIX_BUILD_CMDLINE}" | tee -a "${BUILD_LOG_FILE}"
+    if [ "${PIPESTATUS[0]}" -ne 0 ]; then
         echo "ERROR: ${POSIX_BUILD_CMDLINE} failed"
         exit 1
     fi
@@ -49,16 +49,15 @@ function run_pytest_posix_target() {
     eval "${POSIX_PYTEST_CMDLINE}" | tee -a "${PYTEST_RESULTS_FILE}"
     if [ "${PIPESTATUS[0]}" -ne 0 ]; then
         echo "ERROR: ${POSIX_PYTEST_CMDLINE} failed"
-        # Don't exit, allow tests and storage to complete.
-        exit 0
+        exit 1
     fi
 }
 
 # Function to build unit tests
 function build_unit_tests() {
     echo "Building unit tests"
-    if ! eval "${UNIT_TESTS_CMDLINE}"
-    then
+    eval "${UNIT_TESTS_CMDLINE}" | tee -a "${BUILD_LOG_FILE}"
+    if [ "${PIPESTATUS[0]}" -ne 0 ]; then
         echo "ERROR: ${UNIT_TESTS_CMDLINE} failed"
         exit 1
     fi
@@ -76,9 +75,9 @@ function list_unit_tests() {
 
 # Function to generate documentation
 function build_documentation() {
-    echo "Building unit tests"
-    if ! eval "${BUILD_DOCUMENTATION_CMDLINE}"
-    then
+    echo "Building Documentation"
+    eval "${BUILD_DOCUMENTATION_CMDLINE}" | tee -a "${BUILD_LOG_FILE}"
+    if [ "${PIPESTATUS[0]}" -ne 0 ]; then
         echo "ERROR: ${BUILD_DOCUMENTATION_CMDLINE} failed"
         exit 1
     fi
@@ -97,8 +96,12 @@ function run_unit_tests() {
 # Function to build the NXP S32K148 target
 function build_nxp_target() {
     echo "Building NXP S32K148 target"
-    if ! eval "${NXP_S32K148_BUILD_CMDLINE}"
-    then
+
+    # Override CC/CXX
+    export CC="${NXP_CC}"
+    export CXX="${NXP_CXX}"
+    eval "${NXP_S32K148_BUILD_CMDLINE}" | tee -a "${BUILD_LOG_FILE}"
+    if [ "${PIPESTATUS[0]}" -ne 0 ]; then
         echo "ERROR: ${NXP_S32K148_BUILD_CMDLINE} failed"
         exit 1
     fi

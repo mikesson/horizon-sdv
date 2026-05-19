@@ -1,0 +1,134 @@
+# Copyright (c) 2024-2026 Accenture, All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#         http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: modulecatalogs.horizon-sdv.io
+  annotations:
+    helm.sh/hook: crd-install
+    helm.sh/hook-weight: "-5"
+spec:
+  group: horizon-sdv.io
+  names:
+    kind: ModuleCatalog
+    listKind: ModuleCatalogList
+    plural: modulecatalogs
+    singular: modulecatalog
+    shortNames:
+      - mcatalog
+  scope: Namespaced
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          required:
+            - spec
+          properties:
+            spec:
+              type: object
+              properties:
+                modules:
+                  type: array
+                  description: List of known modules (name and repo path).
+                  items:
+                    type: object
+                    required:
+                      - name
+                      - path
+                    properties:
+                      name:
+                        type: string
+                        description: Logical module name (e.g. sample-module).
+                      path:
+                        type: string
+                        description: Path to the module chart in the repo (e.g. gitops/modules/sample-module).
+                      overviewPath:
+                        type: string
+                        description: >-
+                          Path to a self-contained HTML file under the module directory (relative to path),
+                          e.g. portal/overview.html, used when packaging the module Helm chart (e.g. Files.Get).
+                          Not used at runtime by Module Manager to fetch overview HTML.
+                      overviewService:
+                        type: string
+                        description: >-
+                          Kubernetes Service name in overviewServiceNamespace that serves the module overview HTML over HTTP on port 80 at path /.
+                          When unset (or overviewServiceNamespace unset), GET /modules/{name}/overview returns 404.
+                      overviewServiceNamespace:
+                        type: string
+                        description: >-
+                          Namespace where overviewService runs. Must match the namespace where the module chart deploys
+                          the overview workload (often the hello-world namespace or prefixed workflows namespace).
+                          Module Manager always uses port 80 and path /.
+                      hardDependencies:
+                        type: array
+                        description: Module names that must be enabled before this module.
+                        items:
+                          type: string
+                      softDependencies:
+                        type: array
+                        description: Optional modules; when enabled, dependents may be reconfigured.
+                        items:
+                          type: string
+                      applications:
+                        type: array
+                        description: >-
+                          Module-deployed applications exposed in the Developer Portal (URLs may be
+                          site-relative paths starting with / or absolute https URLs).
+                        items:
+                          type: object
+                          required:
+                            - id
+                            - url
+                          properties:
+                            id:
+                              type: string
+                              description: Stable id for the application (e.g. hello-world).
+                            title:
+                              type: string
+                              description: Human-readable label for UIs.
+                            url:
+                              type: string
+                              description: >-
+                                Public URL or path. If it starts with /, clients resolve it against
+                                the portal origin; otherwise treated as an absolute URL.
+                      softFeaturesPropagation:
+                        type: string
+                        enum:
+                          - HelmValues
+                          - ConfigMap
+                          - HelmValuesAndConfigMap
+                        description: >-
+                          How Module Manager propagates soft-dependency flags. HelmValues (default): merge
+                          softFeaturesEnabled into the parent Argo CD Application helm values (pod rollout on
+                          toggle). ConfigMap: upsert a ConfigMap only; omit Helm merge for live flags.
+                          HelmValuesAndConfigMap: both (mixed workloads).
+                      softFeaturesConfigMapNamespaces:
+                        type: array
+                        description: >-
+                          Namespaces where Module Manager writes the soft-features ConfigMap when
+                          softFeaturesPropagation is ConfigMap or HelmValuesAndConfigMap.
+                        items:
+                          type: string
+                      autoDisableWhenUnused:
+                        type: boolean
+                        description: >-
+                          When true, Module Manager may automatically disable this module once both
+                          hard and soft dependent counts transition from greater than zero to zero.
+            status:
+              type: object
+              x-kubernetes-preserve-unknown-fields: true

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# Copyright (c) 2024-2025 Accenture, All Rights Reserved.
+# Copyright (c) 2024-2026 Accenture, All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -20,8 +20,11 @@
 #
 # If the bucket does not exist, it is created.
 #
+# Enable nullglob to handle non-matching globs gracefully
+shopt -s nullglob
+
 # Convert string back to a list.
-read -r -a ARTIFACT_LIST <<< "${ARTIFACT_LIST}"
+readarray -t ARTIFACT_LIST <<< "$ARTIFACT_LIST"
 IFS=$'\n' read -r -d '' -a POST_CLEANUP_COMMANDS <<< "$POST_CLEANUP_STRING"
 
 # shellcheck disable=SC2329
@@ -54,24 +57,53 @@ function gcs_bucket() {
     # Copy artifacts to Google Cloud Storage bucket
     echo "Storing artifacts to bucket."
     for artifact in "${ARTIFACT_LIST[@]}"; do
-        for file in ${artifact}; do
-            # Look for wildcard files.
-            if [ -e "${file}" ]; then
-                [ -d "${file}" ] && copycmd="cp -r" || copycmd="cp"
+        # Check for wildcards (* or ?)
+        if [[ "$artifact" == *[*?]* ]]; then
+            # Expand wildcards using find (handles spaces safely)
+            base=$(dirname "$artifact")
+            pattern=$(basename "$artifact")
+            files=()
+            while IFS= read -r -d '' f; do
+                files+=("$f")
+            done < <(find "$base" -maxdepth 1 -name "$pattern" -print0 2>/dev/null)
+            if [ ${#files[@]} -eq 0 ]; then
+                files=("$artifact")  # Fallback if no matches
+            fi
+        else
+            # No wildcards: treat as literal path
+            files=("$artifact")
+        fi
+
+        for file in "${files[@]}"; do
+            if [ -f "$file" ] || [ -d "$file" ]; then
+                # Check whether we have created a contents from a directory.
+                # Remove 0-byte (empty) files so they are not uploaded
+                if [ -f "$file" ] && [ ! -s "$file" ]; then
+                    rm -f "$file" && echo "Removed empty artifact (not uploaded): $file"
+                    continue
+                fi
+                if [ -d "${file}" ]; then
+                    copycmd="cp -r"
+                    directory=$(basename "$file")
+                    gcloud storage ls "${STORAGE_BUCKET_DESTINATION}/${directory}" 2>/dev/null | grep -q "/$"
+                    if [ "${PIPESTATUS[0]}" -eq 0 ]; then
+                        echo "Folder ${STORAGE_BUCKET_DESTINATION}/${directory} exists and is not empty, skip."
+                        continue;
+                    fi
+                else
+                    copycmd="cp"
+                fi
+
                 # Copy the artifact to the bucket (do not use quotes for cp!)
                 # shellcheck disable=SC2086
                 gcloud storage ${copycmd} "${file}" "${STORAGE_BUCKET_DESTINATION}"/ || true
-                echo "Copied ${file} to ${STORAGE_BUCKET_DESTINATION}"
-                # shellcheck disable=SC2086
-                filename=$(echo ${file} | awk -F / '{print $NF}')
-                echo "    gcloud storage ${copycmd} ${STORAGE_BUCKET_DESTINATION}/${filename} ." | tee -a "${ARTIFACT_SUMMARY}"
-            else
-                echo "WARNING: File $file ignored!"
+                if [ "${PIPESTATUS[0]}" -eq 0 ]; then
+                    echo "Copied ${file} to ${STORAGE_BUCKET_DESTINATION}"
+                    echo "    gcloud storage ${copycmd} ${STORAGE_BUCKET_DESTINATION}/$(basename "$file") ." | tee -a "${ARTIFACT_SUMMARY}"
+                fi
             fi
         done
     done
-    echo "Artifacts summary:"
-    cat "${ARTIFACT_SUMMARY}"
 }
 
 #
@@ -115,12 +147,32 @@ else
     noop
 fi
 
+RESULT=0
+
 # Post storage commands.
 echo "Post storage commands:"
 for command in "${POST_CLEANUP_COMMANDS[@]}"; do
     echo "${command}"
     eval "${command}"
+    RESULT="$?"
 done
 
+if [ -f "${ARTIFACT_SUMMARY}" ]; then
+    echo
+    echo
+    printf '%b\n' '\033[1;36m*** Build artifacts are ready — see below for location and access ***\033[0m'
+    echo
+    printf '%b\n' '\033[1;34m================================================================================\033[0m'
+    printf '%b\n' '\033[1;34m                             ARTIFACT SUMMARY\033[0m'
+    printf '%b\n' '\033[1;34m================================================================================\033[0m'
+    echo
+    while IFS= read -r line; do
+        printf '%b%s%b\n' '\033[1;32m' "$line" '\033[0m'
+    done < "${ARTIFACT_SUMMARY}"
+    echo
+    printf '%b\n' '\033[1;34m================================================================================\033[0m'
+    echo
+    echo
+fi
 # Return result
-exit $?
+exit "${RESULT}"

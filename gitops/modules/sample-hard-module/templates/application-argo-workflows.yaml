@@ -12,32 +12,32 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# Child Application: sample-hard-module argo-workflows (templates/workflowtemplates.yaml + templates/sensors.yaml; not Horizon-exposed).
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: {{ .Values.config.namespacePrefix }}workloads-android
-  namespace: {{ .Values.config.namespacePrefix }}argocd
-  annotations:
-    argocd.argoproj.io/sync-wave: "2"
+  name: mod-{{ .Values.moduleName }}-argo-workflows
+  namespace: {{ .Values.argocd.namespace }}
+  labels:
+    app.kubernetes.io/name: {{ .Values.moduleName }}
+    horizon-sdv.io/module: {{ .Values.moduleName }}
+    horizon-sdv.io/app-role: child
+    horizon-sdv.io/module-manager-managed: "true"
   finalizers:
     - resources-finalizer.argocd.argoproj.io
 spec:
-  project: {{ .Values.config.namespacePrefix }}horizon-sdv
+  project: {{ .Values.argocd.project }}
   source:
-    repoURL: {{ .Values.spec.source.repoURL }}
-    targetRevision: {{ .Values.spec.source.targetRevision }}
+    repoURL: {{ .Values.repo.url | quote }}
+    targetRevision: {{ .Values.repo.revision | quote }}
+    path: gitops/modules/sample-hard-module/argo-workflows
     helm:
       values: |
-        config:
-          namespacePrefix: {{ .Values.config.namespacePrefix }}
-        spec:
-          source:
-            repoURL: {{ .Values.spec.source.repoURL }}
-            targetRevision: {{ .Values.spec.source.targetRevision }}
-    path: gitops/workloads/android
+        workflowNamespace: {{ .Values.config.namespacePrefix }}workflows
+        eventsNamespace: {{ .Values.config.namespacePrefix }}argo-events
   destination:
     server: https://kubernetes.default.svc
-    namespace: {{ .Values.config.namespacePrefix }}dynpvc
+    namespace: {{ .Values.config.namespacePrefix }}workflows
   syncPolicy:
     syncOptions:
       - CreateNamespace=true

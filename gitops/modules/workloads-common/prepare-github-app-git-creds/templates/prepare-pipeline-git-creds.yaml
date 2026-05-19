@@ -1,0 +1,87 @@
+# Copyright (c) 2026 Accenture, All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#         http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# Umbrella ClusterWorkflowTemplate: single templateRef for workloads-android pipelines.
+# - scmAuthMethod == app: delegates to prepare-github-app-git-creds (installation token).
+# - scmAuthMethod == userpass: copies username/password from a static Secret into
+#   workflow UID + "-pipeline-git-creds" so git artifacts use the same per-run Secret shape as app.
+#
+# Callers must pass workflow parameters scmAuthMethod and pipelineStaticGitSecretName (default in CWT).
+apiVersion: argoproj.io/v1alpha1
+kind: ClusterWorkflowTemplate
+metadata:
+  name: prepare-pipeline-git-creds
+  labels:
+    horizon-sdv.io/expose: "false"
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  archiveLogs: true
+  arguments:
+    parameters:
+      - name: scmAuthMethod
+      - name: pipelineStaticGitSecretName
+        value: workflow-pipeline-git-creds
+      - name: horizonSubmittedFrom
+        value: ""
+  templates:
+    - name: prepare-pipeline-git-creds
+      steps:
+        - - name: github-app
+            when: "{{ "{{" }}workflow.parameters.scmAuthMethod{{ "}}" }} == app"
+            templateRef:
+              name: prepare-github-app-git-creds
+              template: prepare-github-app-git-creds
+              clusterScope: true
+            arguments:
+              parameters:
+                - name: horizonSubmittedFrom
+                  value: "{{ "{{" }}workflow.parameters.horizonSubmittedFrom{{ "}}" }}"
+        - - name: userpass-copy
+            when: "{{ "{{" }}workflow.parameters.scmAuthMethod{{ "}}" }} == userpass"
+            template: copy-static-pipeline-git-creds
+            arguments:
+              parameters:
+                - name: sourceSecretName
+                  value: "{{ "{{" }}workflow.parameters.pipelineStaticGitSecretName{{ "}}" }}"
+    - name: copy-static-pipeline-git-creds
+      inputs:
+        parameters:
+          - name: sourceSecretName
+      container:
+        # registry.k8s.io/kubectl and rancher/kubectl are kubectl-only (no shell). Bitnami legacy images are Debian-based (sh + kubectl); use full semver tags — docker.io/bitnami/kubectl:1.31 is not published.
+        image: docker.io/bitnamilegacy/kubectl:1.31.4
+        command: [sh, -ec]
+        args:
+          - |
+            # dash (/bin/sh on Debian) does not support `set -o pipefail`; keep POSIX-only for portable images.
+            set -eu
+            NS="${POD_NAMESPACE}"
+            DEST="${WORKFLOW_UID}-pipeline-git-creds"
+            SRC="{{ "{{" }}inputs.parameters.sourceSecretName{{ "}}" }}"
+            kubectl delete secret "$DEST" --ignore-not-found=true -n "$NS"
+            u_b64="$(kubectl get secret "$SRC" -n "$NS" -o jsonpath='{.data.username}')"
+            p_b64="$(kubectl get secret "$SRC" -n "$NS" -o jsonpath='{.data.password}')"
+            user="$(printf '%s' "$u_b64" | base64 -d)"
+            pass="$(printf '%s' "$p_b64" | base64 -d)"
+            kubectl create secret generic "$DEST" -n "$NS" \
+              --from-literal=username="$user" \
+              --from-literal=password="$pass"
+        env:
+          - name: POD_NAMESPACE
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.namespace
+          - name: WORKFLOW_UID
+            value: "{{ "{{" }}workflow.uid{{ "}}" }}"

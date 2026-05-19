@@ -11,7 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+# Only deploy external-dns when not using static A records (zone delegation flow).
+{{- if not (index .Values.config "useStaticDnsARecords" | default false) }}
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -52,7 +53,10 @@ spec:
         # Apex TXT prefix so ExternalDNS can own and update the apex A record
         # (e.g. <env_name>.horizon-sdv.com). Without this, the apex gets no valid
         # ownership TXT and is not updated when the LB IP changes.
-        txtPrefix: "%{record_type}-."
+        #
+        # Must be a valid DNS label. The previous value ("%{record_type}-.") expands
+        # to labels like "a-" which are rejected by IDNA and cause record churn.
+        txtPrefix: "txt-%{record_type}."
   destination:
     server: https://kubernetes.default.svc
     namespace: {{ .Values.config.namespacePrefix }}external-dns
@@ -62,3 +66,4 @@ spec:
       selfHeal: true
     syncOptions:
       - CreateNamespace=true
+{{- end }}

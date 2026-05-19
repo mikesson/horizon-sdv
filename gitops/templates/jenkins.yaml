@@ -29,9 +29,16 @@ spec:
       targetRevision: {{ .Values.config.workloads.android.helm.version }}
       helm:
         values: |
-          git:
-              repoOwner: {{ .Values.git.repoOwner }}
-              repoName: {{ .Values.git.repoName }}
+          scm:
+            type: {{ .Values.scm.type }}
+            authMethod: {{ .Values.scm.authMethod }}
+            username: {{ .Values.scm.username }}
+            repoUrl: {{ .Values.scm.repoUrl }}
+            branch: {{ .Values.scm.branch }}
+            {{- if eq .Values.scm.type "github" }}
+            repoOwner: {{ .Values.scm.repoOwner }}
+            repoName: {{ .Values.scm.repoName }}
+            {{- end }}
           config:
             projectID: {{ .Values.config.projectID }}
             region: {{ .Values.config.region }}
@@ -41,8 +48,8 @@ spec:
             namespacePrefix: {{ .Values.config.namespacePrefix }}
             workloads:
               android:
-                url: {{ .Values.config.workloads.android.url }}
-                branch: {{ .Values.config.workloads.android.branch }}
+                url: {{ .Values.scm.repoUrl }}
+                branch: {{ .Values.scm.branch }}
           controller:
             jenkinsUrl: https://{{ .Values.config.domain }}/jenkins
             jenkinsUriPrefix: /jenkins
