@@ -125,11 +125,11 @@ mcp-agents-unrestricted/execute:
 # The names in the list on the right are the names of the permission scopes defined in this file
 # (e.g., 'mcp-registry-admins' from UI-Scopes or 'mcp-servers-unrestricted/read' from MCP SERVER SCOPES).
 group_mappings:
-  horizon-mcp-gateway-registry-admins:
+  administrators:
   - mcp-registry-admin # UI scope
   - mcp-servers-unrestricted/execute # can manage all servers; note: app allows modify_service only when this exact scope name or `/execute` is present in scope name
   - mcp-agents-unrestricted/execute # can manage all agents
-  horizon-mcp-gateway-registry-users:
+  viewers:
   - mcp-registry-user # UI scope
   - mcp-servers-unrestricted/read # can view and operate all servers
   - mcp-agents-unrestricted/read # can view all agents

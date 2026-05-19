@@ -12,7 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM --platform=linux/amd64 python:3.9-slim-bookworm
+# requests>=2.33.0 requires Python >=3.10 (see PyPI Requires-Python).
+FROM --platform=linux/amd64 python:3.12-slim-bookworm
 
 # Add security repository and upgrade all packages to fix CVEs
 RUN echo "deb http://security.debian.org/debian-security bookworm-security main" > /etc/apt/sources.list.d/security.list && \
@@ -20,13 +21,15 @@ RUN echo "deb http://security.debian.org/debian-security bookworm-security main"
     apt clean && rm -rf /var/lib/apt/lists/*
 
 RUN pip install --upgrade pip
-RUN useradd -m appuser
-USER appuser
 
 WORKDIR /app
 
-COPY --chown=appuser:appuser requirements.txt /app/
+# Install dependencies as root (system site-packages is not writable for non-root).
+COPY requirements.txt /app/
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY --chown=appuser:appuser configure-key.py /app/
+COPY configure-key.py /app/
+
+RUN useradd -m appuser && chown -R appuser:appuser /app
+USER appuser
 ENTRYPOINT ["python", "/app/configure-key.py"]

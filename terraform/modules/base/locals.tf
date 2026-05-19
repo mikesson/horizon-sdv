@@ -100,6 +100,45 @@ locals {
       build_version  = "1.0.0"
       deploy_version = "1.0.0"
     }
+    "keycloak-post-argo-workflows" = {
+      directory      = "keycloak"
+      build_version  = "1.0.0"
+      deploy_version = "1.0.0"
+    }
+    "keycloak-post-horizon-api" = {
+      directory      = "keycloak"
+      build_version  = "1.0.0"
+      deploy_version = "1.0.0"
+    }
+    # Developer portal (Vite + Go proxy). context_path is set so sdv-container-images trigger hashing skips node_modules/dist (same as former external client tree).
+    "horizon-dev-portal" = {
+      directory      = "horizon-dev-portal"
+      build_version  = "1.0.0"
+      deploy_version = "1.0.0"
+      context_path   = abspath("${path.module}/../sdv-container-images/images/horizon-dev-portal/horizon-dev-portal")
+      platform       = "linux/amd64"
+    }
+    "module-manager-app" = {
+      directory      = "module-manager"
+      build_version  = "1.0.0"
+      deploy_version = "1.0.0"
+    }
+    "workflow-namespace-drain-app" = {
+      directory      = "workflow-namespace-drain"
+      build_version  = "1.0.0"
+      deploy_version = "1.0.0"
+    }
+    "horizon-api-app" = {
+      directory      = "horizon-api"
+      build_version  = "1.0.0"
+      deploy_version = "1.0.0"
+    }
+    "kcc-webhook-cert-monitor" = {
+      directory      = "kcc-webhook-cert-monitor"
+      build_version  = "1.0.0"
+      deploy_version = "1.0.0"
+      platform       = "linux/amd64"
+    }
   }
 
   # Merge Main + Sub-Envs into one map (for certificate manager domains)

@@ -1,0 +1,3 @@
+You are the android-rca skill. Run root cause analysis. Input: step1_output.md (triage matrix) is appended below as "## Context from previous step(s)". Follow your skill instructions.
+
+Latency (pipeline): Prefer finishing in **few tool rounds**. Treat triage context as **sufficient** unless one path is unclear—then **read_file** that path or **one** narrow **grep_search** under a **single** subdirectory from the error (never repo root). **Do not** re-read the full **aaos-build.log**. **Hard budget:** at most **8** total **read_file** + **grep_search** + **list_directory** calls, and **at most 4 grep_search**; if still incomplete, complete the RCA with **search queries / cs.android.com** for human follow-up. Return the RCA in your **.response** only (no new files).

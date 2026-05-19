@@ -1,4 +1,4 @@
-# Copyright (c) 2024-2025 Accenture, All Rights Reserved.
+# Copyright (c) 2024-2026 Accenture, All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -71,6 +71,7 @@ metadata:
 spec:
   backoffLimit: 0
   ttlSecondsAfterFinished: 120
+  activeDeadlineSeconds: 600
   template:
     spec:
       serviceAccountName: keycloak-writer-sa
@@ -105,6 +106,7 @@ metadata:
 spec:
   backoffLimit: 0
   ttlSecondsAfterFinished: 120
+  activeDeadlineSeconds: 600
   template:
     spec:
       serviceAccountName: keycloak-writer-sa
@@ -149,6 +151,7 @@ metadata:
 spec:
   backoffLimit: 0
   ttlSecondsAfterFinished: 120
+  activeDeadlineSeconds: 600
   template:
     spec:
       serviceAccountName: keycloak-writer-sa
@@ -183,6 +186,7 @@ metadata:
 spec:
   backoffLimit: 0
   ttlSecondsAfterFinished: 120
+  activeDeadlineSeconds: 600
   template:
     spec:
       serviceAccountName: keycloak-writer-sa
@@ -202,6 +206,16 @@ spec:
                 secretKeyRef:
                   name: keycloak-initial-creds
                   key: password
+            - name: ARGOCD_ADMIN_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: keycloak-argocd-admin
+                  key: username
+            - name: ARGOCD_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: keycloak-argocd-admin
+                  key: password
           image: {{ .Values.config.postjobs.keycloakargocd }}
           imagePullPolicy: Always
       restartPolicy: Never
@@ -217,6 +231,7 @@ metadata:
 spec:
   backoffLimit: 0
   ttlSecondsAfterFinished: 120
+  activeDeadlineSeconds: 600
   template:
     spec:
       serviceAccountName: keycloak-writer-sa
@@ -261,6 +276,7 @@ metadata:
 spec:
   backoffLimit: 0
   ttlSecondsAfterFinished: 120
+  activeDeadlineSeconds: 600
   template:
     spec:
       serviceAccountName: keycloak-writer-sa
@@ -305,6 +321,7 @@ metadata:
 spec:
   backoffLimit: 0
   ttlSecondsAfterFinished: 120
+  activeDeadlineSeconds: 600
   template:
     spec:
       serviceAccountName: keycloak-writer-sa
@@ -335,5 +352,75 @@ spec:
                   name: keycloak-mcp-gateway-registry-admin
                   key: password
           image: {{ .Values.config.postjobs.keycloakMcpGatewayRegistry }}
+          imagePullPolicy: Always
+      restartPolicy: Never
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ .Values.config.namespacePrefix }}keycloak-post-argo-workflows-job
+  namespace: {{ .Values.config.namespacePrefix }}keycloak
+  annotations:
+    argocd.argoproj.io/sync-wave: "5"
+    argocd.argoproj.io/hook: Sync
+spec:
+  backoffLimit: 5
+  ttlSecondsAfterFinished: 3600
+  activeDeadlineSeconds: 600
+  template:
+    spec:
+      serviceAccountName: keycloak-writer-sa
+      containers:
+        - name: keycloak-post-argo-workflows-container
+          env:
+            - name: NAMESPACE_PREFIX
+              value: {{ .Values.config.namespacePrefix }}
+            - name: PLATFORM_URL
+              value: http://{{ .Values.config.namespacePrefix }}keycloak-keycloakx-http:8080
+            - name: DOMAIN
+              value: https://{{ .Values.config.domain }}
+            - name: KEYCLOAK_USERNAME
+              value: "admin"
+            - name: KEYCLOAK_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: keycloak-initial-creds
+                  key: password
+          image: {{ .Values.config.postjobs.keycloakArgoWorkflows }}
+          imagePullPolicy: Always
+      restartPolicy: Never
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ .Values.config.namespacePrefix }}keycloak-post-horizon-api-job
+  namespace: {{ .Values.config.namespacePrefix }}keycloak
+  annotations:
+    argocd.argoproj.io/sync-wave: "5"
+    argocd.argoproj.io/hook: Sync
+spec:
+  backoffLimit: 0
+  ttlSecondsAfterFinished: 120
+  activeDeadlineSeconds: 600
+  template:
+    spec:
+      serviceAccountName: keycloak-writer-sa
+      containers:
+        - name: keycloak-post-horizon-api-container
+          env:
+            - name: NAMESPACE_PREFIX
+              value: {{ .Values.config.namespacePrefix }}
+            - name: PLATFORM_URL
+              value: http://{{ .Values.config.namespacePrefix }}keycloak-keycloakx-http:8080
+            - name: DOMAIN
+              value: https://{{ .Values.config.domain }}
+            - name: KEYCLOAK_USERNAME
+              value: "admin"
+            - name: KEYCLOAK_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: keycloak-initial-creds
+                  key: password
+          image: {{ .Values.config.postjobs.keycloakhorizonapi }}
           imagePullPolicy: Always
       restartPolicy: Never

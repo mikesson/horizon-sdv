@@ -1,0 +1,208 @@
+# Copyright (c) 2026 Accenture, All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#         http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# Description:
+# ClusterWorkflowTemplate for shared docker image builds.
+# Argo Events: Sensor webhook-common-docker-image-build (templates/sensors.yaml). Horizon: horizon-sdv.io/expose / module labels on metadata.
+apiVersion: argoproj.io/v1alpha1
+kind: ClusterWorkflowTemplate
+metadata:
+  name: {{ .Values.clusterWorkflowTemplateName | quote }}
+  labels:
+    horizon-sdv.io/expose: "false"
+  annotations:
+    argocd.argoproj.io/sync-wave: "7"
+spec:
+  archiveLogs: true
+  templates:
+    - name: build
+      inputs:
+{{- if not (or .Values.localRepoHostPath .Values.localRepoPvcName) }}
+        artifacts:
+          - name: source
+            path: /workspace
+            optional: true
+{{- end }}
+        parameters:
+          - name: horizonSubmittedFrom
+          - name: cloudProject
+          - name: cloudRegion
+          - name: dockerArtifactPathName
+          - name: imageTag
+            value: ""
+          - name: dryRun
+            value: "false"
+          - name: dockerCredentialsUrl
+            value: {{ default .Values.defaults.dockerCredentialsUrl .Values.spec.dockerCredentialsUrl | quote }}
+          - name: buildkitReleaseTag
+            value: v0.24.0
+          - name: dockerfileDir
+            value: .
+          - name: buildArgs
+            value: ""
+          - name: platform
+            value: linux/amd64
+          - name: registryAuthInsecure
+            value: "true"
+      # moby/buildkit defaults start buildkitd as the main process; this template overrides the primary
+      # container command for credentials + buildctl, so buildkitd runs in a sidecar with the image default
+      # and shares /run/buildkit via emptyDir (no inline buildkitd start or socket polling in the script).
+      sidecars:
+        - name: buildkitd
+          image: "moby/buildkit:{{ "{{" }}inputs.parameters.buildkitReleaseTag{{ "}}" }}"
+          # When the main container exits after a successful buildctl, kube SIGTERM's this sidecar;
+          # buildkitd often returns non-zero on shutdown and Argo marks the step Failed anyway (#7164).
+          # Run buildkitd as a child (no exec) so the shell trap can exit 0 on TERM after stopping the daemon.
+          command: [sh, -c]
+          args:
+            - |
+              bkpid=""
+              trap 'kill -TERM $bkpid 2>/dev/null; exit 0' TERM INT
+              buildkitd &
+              bkpid=$!
+              wait $bkpid
+          securityContext:
+            privileged: true
+          resources:
+            limits:
+              memory: 4Gi
+            requests:
+              memory: 4Gi
+          volumeMounts:
+            - name: buildkit-run
+              mountPath: /run/buildkit
+      container:
+        image: "moby/buildkit:{{ "{{" }}inputs.parameters.buildkitReleaseTag{{ "}}" }}"
+        workingDir: /tmp
+        command: [sh, -eu, -c]
+        env:
+          - name: CLOUD_PROJECT
+            value: "{{ "{{" }}inputs.parameters.cloudProject{{ "}}" }}"
+          - name: CLOUD_REGION
+            value: "{{ "{{" }}inputs.parameters.cloudRegion{{ "}}" }}"
+          - name: DOCKER_ARTIFACT_PATH_NAME
+            value: "{{ "{{" }}inputs.parameters.dockerArtifactPathName{{ "}}" }}"
+          - name: IMAGE_TAG
+            value: "{{ "{{" }}inputs.parameters.imageTag{{ "}}" }}"
+          - name: NO_PUSH
+            value: "{{ "{{" }}inputs.parameters.dryRun{{ "}}" }}"
+          - name: DOCKER_CREDENTIALS_URL
+            value: "{{ "{{" }}inputs.parameters.dockerCredentialsUrl{{ "}}" }}"
+          - name: DOCKERFILE_DIR
+            value: "{{ "{{" }}inputs.parameters.dockerfileDir{{ "}}" }}"
+          - name: BUILD_ARGS
+            value: "{{ "{{" }}inputs.parameters.buildArgs{{ "}}" }}"
+          - name: PLATFORM
+            value: "{{ "{{" }}inputs.parameters.platform{{ "}}" }}"
+          - name: REGISTRY_AUTH_INSECURE
+            value: "{{ "{{" }}inputs.parameters.registryAuthInsecure{{ "}}" }}"
+          - name: BUILDKIT_HOST
+            value: unix:///run/buildkit/buildkitd.sock
+        resources:
+          limits:
+            memory: 2Gi
+          requests:
+            memory: 2Gi
+{{- if or .Values.localRepoHostPath .Values.localRepoPvcName }}
+        volumeMounts:
+          - name: buildkit-run
+            mountPath: /run/buildkit
+          - name: local-repo
+            mountPath: {{ .Values.localRepoMountPath | quote }}
+            readOnly: true
+{{- else }}
+        volumeMounts:
+          - name: buildkit-run
+            mountPath: /run/buildkit
+{{- end }}
+        args:
+          - |
+            REGISTRY="${CLOUD_REGION}-docker.pkg.dev"
+            DESTINATION="${REGISTRY}/${CLOUD_PROJECT}/${DOCKER_ARTIFACT_PATH_NAME}"
+            PUSH="true"
+            if [ "${NO_PUSH}" = "true" ]; then
+              PUSH="false"
+            fi
+            if [ -z "${DOCKER_CREDENTIALS_URL}" ]; then
+              DOCKER_CREDENTIALS_URL="{{ default .Values.defaults.dockerCredentialsUrl .Values.spec.dockerCredentialsUrl }}"
+            fi
+            if [ "${DOCKER_CREDENTIALS_URL#file://}" != "${DOCKER_CREDENTIALS_URL}" ]; then
+              CRED_PATH="${DOCKER_CREDENTIALS_URL#file://}"
+              if [ ! -f "${CRED_PATH}" ]; then
+                echo "docker-credential-gcr not found at ${CRED_PATH}"
+                exit 1
+              fi
+              cp "${CRED_PATH}" /usr/bin/docker-credential-gcr
+            elif [ "${DOCKER_CREDENTIALS_URL#/}" != "${DOCKER_CREDENTIALS_URL}" ]; then
+              if [ ! -f "${DOCKER_CREDENTIALS_URL}" ]; then
+                echo "docker-credential-gcr not found at ${DOCKER_CREDENTIALS_URL}"
+                exit 1
+              fi
+              cp "${DOCKER_CREDENTIALS_URL}" /usr/bin/docker-credential-gcr
+            else
+              wget -nv -O /tmp/docker-credential-gcr.tgz "${DOCKER_CREDENTIALS_URL}"
+              tar -zxf /tmp/docker-credential-gcr.tgz -C /tmp
+              chmod +x /tmp/docker-credential-gcr && mv /tmp/docker-credential-gcr /usr/bin/
+              rm -f /tmp/docker-credential-gcr*.tar.gz
+            fi
+            chmod +x /usr/bin/docker-credential-gcr
+            docker-credential-gcr configure-docker --registries="${REGISTRY}"
+            if [ -z "${IMAGE_TAG}" ]; then
+              echo "IMAGE_TAG not set, skipping build."
+              exit 0
+            fi
+            CONTEXT_DIR="${DOCKERFILE_DIR}"
+            CONTEXT_ROOT="/workspace/${CONTEXT_DIR}"
+            DOCKERFILE_ROOT="/workspace/${DOCKERFILE_DIR}"
+            if [ "${CONTEXT_DIR#/}" != "${CONTEXT_DIR}" ]; then
+              CONTEXT_ROOT="${CONTEXT_DIR}"
+            fi
+            if [ "${DOCKERFILE_DIR#/}" != "${DOCKERFILE_DIR}" ]; then
+              DOCKERFILE_ROOT="${DOCKERFILE_DIR}"
+            fi
+            if [ ! -d "${CONTEXT_ROOT}" ]; then
+              echo "ERROR: Directory not found: ${CONTEXT_ROOT}"
+              echo "The git artifact may not have been cloned to /workspace. Check the artifact fetch step and pipelineRepoUrl/pipelineRepoRevision (or use a local repo PVC)."
+              exit 1
+            fi
+            cd "${CONTEXT_ROOT}"
+            formatted_build_args=""
+            formatted_build_args=$(printf "%b" "${BUILD_ARGS}" | while IFS= read -r line; do
+              if [ -n "$(echo "$line" | tr -d '[:space:]')" ]; then
+                printf " --opt build-arg:%s" "$line"
+              fi
+            done)
+            buildctl build \
+              --frontend=dockerfile.v0 \
+              --local=dockerfile="${DOCKERFILE_ROOT}" \
+              --local context="${CONTEXT_ROOT}" \
+              ${formatted_build_args} \
+              --opt platform="${PLATFORM}" \
+              --registry-auth-tlscontext host="${REGISTRY}",insecure="${REGISTRY_AUTH_INSECURE}" \
+              --output="type=image,name=${DESTINATION}:${IMAGE_TAG},push=${PUSH}"
+      volumes:
+        - name: buildkit-run
+          emptyDir: {}
+      {{- if or .Values.localRepoHostPath .Values.localRepoPvcName }}
+      {{- if .Values.localRepoHostPath }}
+        - name: local-repo
+          hostPath:
+            path: {{ .Values.localRepoHostPath | quote }}
+            type: Directory
+      {{- else if .Values.localRepoPvcName }}
+        - name: local-repo
+          persistentVolumeClaim:
+            claimName: {{ .Values.localRepoPvcName | quote }}
+      {{- end }}
+      {{- end }}

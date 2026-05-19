@@ -31,6 +31,7 @@
 #  - MTK_CONNECT_HOST_ONLY: if true, then only HOST will be supported.
 #  - MTK_CONNECT_DEVICE_PREFIX: prefix for device name.
 #    and access only to the host machine will be allowed.
+#  - MTK_CONNECT_TUNNEL_PORT: ADB tunnel caller port in create-testbench (default 8555).
 #
 # Example Usage:
 # sudo \
@@ -56,6 +57,7 @@ MTK_CONNECT_DELETE_OFFLINE_TESTBENCHES=${MTK_CONNECT_DELETE_OFFLINE_TESTBENCHES:
 MTK_CONNECT_CONTAINER_ONLY=${MTK_CONNECT_CONTAINER_ONLY:-false}
 MTK_CONNECT_HOST_ONLY=${MTK_CONNECT_HOST_ONLY:-false}
 MTK_CONNECT_DEVICE_PREFIX=${MTK_CONNECT_DEVICE_PREFIX:-AAOS}
+MTK_CONNECT_TUNNEL_PORT=${MTK_CONNECT_TUNNEL_PORT:-8555}
 NODEJS_VERSION=${NODEJS_VERSION-20.9.0}
 
 declare -r scripts_path="/usr/src/scripts"
@@ -76,11 +78,14 @@ fi
 MTK_CONNECT_HOST_LIST=${MTK_CONNECT_HOST_LIST:-$(hostname -I | sed 's/ .*//')}
 MTK_CONNECT_HOST_PORT_LIST=${MTK_CONNECT_HOST_PORT_LIST:-6520}
 
+# Print installed npm package version from node_modules (cwd must be scripts_path after npm install).
+function mtkc_print_npm_pkg_version() {
+    local -r pkg_name="$1"
+    echo "  ${pkg_name}: $(node -p "require('${pkg_name}/package.json').version" 2>/dev/null || echo "unknown")"
+}
+
 # Start MTK Connect agent and create testbench.
 function mtkc_start() {
-
-    # Install the required packages.
-    npm install -g wait-on pm2 >/dev/null 2>&1
 
     # Create the environment.
     mkdir -p "${app_path}" "${config_path}" "${scripts_path}" "${mtkc_config_path}"
@@ -98,6 +103,7 @@ function mtkc_start() {
         echo "MTK_CONNECT_LAUNCH_APPLICATION_NAME=${MTK_CONNECT_LAUNCH_APPLICATION_NAME}"
         echo "MTK_CONNECT_HOST_ONLY=${MTK_CONNECT_HOST_ONLY}"
         echo "MTK_CONNECT_DEVICE_PREFIX=${MTK_CONNECT_DEVICE_PREFIX}"
+        echo "MTK_CONNECT_TUNNEL_PORT=${MTK_CONNECT_TUNNEL_PORT}"
     } >> "${scripts_path}"/.env
 
     {
@@ -116,9 +122,16 @@ function mtkc_start() {
         cp -f "${MTK_CONNECT_FILE_PATH}"/"${file}" "${scripts_path}"
     done
 
-    # Required for dotenv.
+    # Install from package.json
     cd "${scripts_path}" || exit # If fails, exit, don't continue!
     npm install
+
+    echo "MTK Connect dependency versions:"
+    mtkc_print_npm_pkg_version axios
+    mtkc_print_npm_pkg_version bluebird
+    mtkc_print_npm_pkg_version lodash
+    mtkc_print_npm_pkg_version dotenv
+    mtkc_print_npm_pkg_version wait-on
 
     if [ "${MTK_CONNECT_CONTAINER_ONLY}" == "false" ]; then
          # Local Linux host install.
@@ -147,7 +160,7 @@ function mtkc_start() {
     fi
 
     echo "Waiting on ${config_path}/registration.name complete."
-    wait-on "${config_path}"/registration.name
+    npx --no-install wait-on "${config_path}"/registration.name
 
 }
 
@@ -198,6 +211,7 @@ Environment:
     MTK_CONNECT_CONTAINER_ONLY=${MTK_CONNECT_CONTAINER_ONLY}
     MTK_CONNECT_HOST_ONLY=${MTK_CONNECT_HOST_ONLY}
     MTK_CONNECT_DEVICE_PREFIX=${MTK_CONNECT_DEVICE_PREFIX}
+    MTK_CONNECT_TUNNEL_PORT=${MTK_CONNECT_TUNNEL_PORT}
    "
 echo "${VARIABLES}"
 

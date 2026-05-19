@@ -1,0 +1,45 @@
+# Copyright (c) 2026 Accenture, All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#         http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# Dedicated platform Application for EventBus and EventSource resources.
+# Keep this wave after argo-events (wave 4) so CRDs exist before these CRs apply.
+# During platform teardown, delete this Application before argo-events when possible so
+# the controller is still present while EventBus/EventSource finalizers are reconciled.
+
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: {{ .Values.config.namespacePrefix }}argo-events-resources
+  namespace: {{ .Values.config.namespacePrefix }}argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "5"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: {{ .Values.config.namespacePrefix }}horizon-sdv
+  source:
+    repoURL: {{ .Values.spec.source.repoURL }}
+    targetRevision: {{ .Values.spec.source.targetRevision }}
+    path: gitops/apps/argo-events-resources
+    helm:
+      values: |
+        config:
+          namespacePrefix: {{ .Values.config.namespacePrefix | quote }}
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: {{ .Values.config.namespacePrefix }}argo-events
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+    automated: {}

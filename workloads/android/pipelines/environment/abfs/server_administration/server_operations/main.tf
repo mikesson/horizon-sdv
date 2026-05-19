@@ -21,7 +21,7 @@ data "google_project" "project" {
 }
 
 module "abfs-server" {
-  source                                = "git::https://github.com/terraform-google-modules/terraform-google-abfs.git//modules/server?ref=961f5aa3c3be87a242597cbd4bc08821f28a7085"
+  source                                = "git::https://github.com/terraform-google-modules/terraform-google-abfs.git//modules/server?ref=v0.10.0"
   project_id                            = var.project_id
   zone                                  = var.zone
   service_account_email                 = "abfs-server@${var.project_id}.iam.gserviceaccount.com"
@@ -29,11 +29,17 @@ module "abfs-server" {
   abfs_bucket_location                  = var.region
   abfs_spanner_instance_config          = "regional-${var.region}"
   abfs_docker_image_uri                 = var.abfs_docker_image_uri
+  abfs_extra_params                     = var.abfs_extra_params
+  existing_bucket_name                  = var.existing_bucket_name
   abfs_license                          = var.abfs_license
   abfs_server_machine_type              = var.abfs_server_machine_type
   abfs_server_name                      = "abfs-server"
   abfs_server_allow_stopping_for_update = true
   abfs_server_cos_image_ref             = var.abfs_server_cos_image_ref
+  abfs_spanner_instance_min_nodes       = var.abfs_spanner_instance_min_nodes
+  abfs_spanner_instance_max_nodes       = var.abfs_spanner_instance_max_nodes
+  abfs_spanner_database_create_tables   = var.abfs_spanner_database_create_tables
+  abfs_spanner_database_schema_version  = var.abfs_spanner_database_schema_version
 }
 
 resource "google_compute_firewall" "abfs-server-allow-all-from-internal" {

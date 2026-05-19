@@ -32,7 +32,7 @@ spec:
         config:
           namespacePrefix: {{ .Values.config.namespacePrefix }}
           gitops:
-            gerritMcpServer: {{ .Values.config.apps.gerritMcpServer }}
+            gerritMcpServer: {{ .Values.config.containerImages.gerritMcpServer | quote }}
             domain: {{ .Values.config.domain }}
         spec:
           source:

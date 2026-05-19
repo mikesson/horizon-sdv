@@ -64,8 +64,6 @@ pipeline {
                 '''
               }
               archiveArtifacts artifacts: '*status*.txt', followSymlinks: false, onlyIfSuccessful: false, allowEmptyArchive: true
-              archiveArtifacts artifacts: '*cloud-init*.log', followSymlinks: false, onlyIfSuccessful: false, allowEmptyArchive: true
-              archiveArtifacts artifacts: '*journal*.log', followSymlinks: false, onlyIfSuccessful: false, allowEmptyArchive: true
             }
           }
         }

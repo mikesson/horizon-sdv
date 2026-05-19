@@ -456,8 +456,23 @@ function gerrit-setup-all-projects() {
   else
     echo "Verified label is already added"
   fi
+  if ! grep -q "label-Ready-for-Build" ./project.config; then
+    echo "Adding Ready-for-Build label"
+    sed -i '/label-Verified = -1..+1 group Registered Users/a\        label-Ready-for-Build = -1..+1 group Administrators\n\        label-Ready-for-Build = -1..+1 group Project Owners\n\        label-Ready-for-Build = -1..+1 group Registered Users' ./project.config
+    sed -i '/copyCondition = changekind:NO_CODE_CHANGE/a\[label "Ready-for-Build"]\n\        function = NoBlock\n\        defaultValue = 0\n\        value = -1 Do not build\n\        value = 0 No score\n\        value = +1 Ready to build\n\        copyCondition = changekind:NO_CODE_CHANGE' ./project.config
+    printf '%s\n' '/\[access "refs\/meta\/config"\]/,/^\[/{' '/label-Code-Review = -2\.\.+2 group Project Owners/a\' '        label-Ready-for-Build = -1..+1 group Administrators\' '        label-Ready-for-Build = -1..+1 group Project Owners' '}' | sed -i -f - ./project.config
+    cat <<'EOF' >> ./project.config
+[submit-requirement "Ready-for-Build"]
+	description = Requires Ready-for-Build +1
+	applicableIf = is:open
+	submittableIf = label:Ready-for-Build=+1
+	canOverrideInChildProjects = false
+EOF
+  else
+    echo "Ready-for-Build label is already added"
+  fi
   git add .
-  git commit -m "Disable anonymous access, add Verified label"
+  git commit -m "Disable anonymous access, add labels"
   git push origin HEAD:refs/meta/config
 
   cd /root

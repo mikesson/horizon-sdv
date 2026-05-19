@@ -1,0 +1,149 @@
+# Copyright (c) 2026 Accenture, All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#         http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+# Argo Events Sensors for module sample-hard (pair with workflowtemplates.yaml).
+apiVersion: argoproj.io/v1alpha1
+kind: Sensor
+metadata:
+  name: webhook-sample-hard-smoke-test
+  namespace: {{ .Values.eventsNamespace }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "8"
+spec:
+  eventBusName: default
+  template:
+    serviceAccountName: sensor-submit-workflow
+  dependencies:
+    - name: webhook-dep
+      eventSourceName: webhook
+      eventName: workflow-dispatch
+      filters:
+        data:
+          - path: body.workflowTemplateName
+            type: string
+            value:
+              - "sample-hard-smoke-test"
+  triggers:
+    - template:
+        name: submit-smoke-test
+        argoWorkflow:
+          operation: submit
+          source:
+            resource:
+              apiVersion: argoproj.io/v1alpha1
+              kind: Workflow
+              metadata:
+                generateName: webhook-smoke-
+                namespace: {{ .Values.workflowNamespace }}
+              spec:
+                workflowTemplateRef:
+                  name: sample-hard-smoke-test
+                arguments:
+                  parameters:
+                    - name: horizonSubmittedFrom
+                    - name: sampleEnv
+                    - name: sampleBuildId
+                    - name: sampleNote
+          parameters:
+            - src:
+                dependencyName: webhook-dep
+                dataKey: body.horizonSubmittedBy
+              dest: metadata.annotations.horizon-sdv\.io/submitted-by
+            - src:
+                dependencyName: webhook-dep
+                dataKey: body.horizonSubmittedFrom
+              dest: metadata.labels.horizon-sdv\.io/submitted-from
+            - src:
+                dependencyName: webhook-dep
+                dataKey: body.horizonSubmittedFrom
+              dest: spec.arguments.parameters.0.value
+            - src:
+                dependencyName: webhook-dep
+                dataKey: body.sampleEnv
+              dest: spec.arguments.parameters.1.value
+            - src:
+                dependencyName: webhook-dep
+                dataKey: body.sampleBuildId
+              dest: spec.arguments.parameters.2.value
+            - src:
+                dependencyName: webhook-dep
+                dataKey: body.sampleNote
+              dest: spec.arguments.parameters.3.value
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Sensor
+metadata:
+  name: webhook-sample-hard-smoke-test-alt
+  namespace: {{ .Values.eventsNamespace }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "8"
+spec:
+  eventBusName: default
+  template:
+    serviceAccountName: sensor-submit-workflow
+  dependencies:
+    - name: webhook-dep
+      eventSourceName: webhook
+      eventName: workflow-dispatch
+      filters:
+        data:
+          - path: body.workflowTemplateName
+            type: string
+            value:
+              - "sample-hard-smoke-test-alt"
+  triggers:
+    - template:
+        name: submit-smoke-test-alt
+        argoWorkflow:
+          operation: submit
+          source:
+            resource:
+              apiVersion: argoproj.io/v1alpha1
+              kind: Workflow
+              metadata:
+                generateName: webhook-smoke-alt-
+                namespace: {{ .Values.workflowNamespace }}
+              spec:
+                workflowTemplateRef:
+                  name: sample-hard-smoke-test-alt
+                arguments:
+                  parameters:
+                    - name: horizonSubmittedFrom
+                    - name: releaseChannel
+                    - name: ticketId
+                    - name: owner
+          parameters:
+            - src:
+                dependencyName: webhook-dep
+                dataKey: body.horizonSubmittedBy
+              dest: metadata.annotations.horizon-sdv\.io/submitted-by
+            - src:
+                dependencyName: webhook-dep
+                dataKey: body.horizonSubmittedFrom
+              dest: metadata.labels.horizon-sdv\.io/submitted-from
+            - src:
+                dependencyName: webhook-dep
+                dataKey: body.horizonSubmittedFrom
+              dest: spec.arguments.parameters.0.value
+            - src:
+                dependencyName: webhook-dep
+                dataKey: body.releaseChannel
+              dest: spec.arguments.parameters.1.value
+            - src:
+                dependencyName: webhook-dep
+                dataKey: body.ticketId
+              dest: spec.arguments.parameters.2.value
+            - src:
+                dependencyName: webhook-dep
+                dataKey: body.owner
+              dest: spec.arguments.parameters.3.value

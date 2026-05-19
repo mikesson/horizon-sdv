@@ -13,10 +13,12 @@
 # limitations under the License.
 #
 # Description:
-# Storage classes used for Jenkins build caches.
+# Storage classes used for Jenkins build caches and Argo workflow volumes.
 # Prefix reclaimable-storage-class is referenced in System Variables so
 # jobs may choose the correct storage class based on Android version and
 # target.
+# pipeline-workspace-delete: single Delete reclaim class for aaos-builder shared monorepo PVC (any Android
+# lunch/revision); disk removed when PVC is deleted. aaos-cache keeps per-version reclaimable Retain classes.
 
 kind: StorageClass
 apiVersion: storage.k8s.io/v1
@@ -27,6 +29,19 @@ metadata:
     argocd.argoproj.io/sync-wave: "3"
 provisioner: pd.csi.storage.gke.io
 reclaimPolicy: Retain
+volumeBindingMode: Immediate
+parameters:
+  type: pd-balanced
+  csi.storage.k8s.io/fstype: ext4
+---
+kind: StorageClass
+apiVersion: storage.k8s.io/v1
+metadata:
+  name: {{ .Values.config.namespacePrefix }}pipeline-workspace-delete
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+provisioner: pd.csi.storage.gke.io
+reclaimPolicy: Delete
 volumeBindingMode: Immediate
 parameters:
   type: pd-balanced

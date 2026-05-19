@@ -1,6 +1,6 @@
 /*
  #############################################################################
- # Copyright (c) 2024-2025 Accenture, All Rights Reserved.
+ # Copyright (c) 2024-2026 Accenture, All Rights Reserved.
  #
  # Licensed under the Apache License, Version 2.0 (the "License");
  # you may not use this file except in compliance with the License.
@@ -52,6 +52,13 @@ const _ = require("lodash");
  */
 const { MTK_CONNECT_DOMAIN, MTK_CONNECT_USERNAME, MTK_CONNECT_PASSWORD, MTK_CONNECT_REGISTRATION, MTK_CONNECT_TESTBENCH, MTK_CONNECT_TESTBENCH_USER, MTK_CONNECT_DEVICES, MTK_CONNECT_HOST_LIST, MTK_CONNECT_LAUNCH_APPLICATION_NAME, MTK_CONNECT_HOST_ONLY, MTK_CONNECT_DEVICE_PREFIX, MTK_CONNECT_HOST_PORT_LIST} = process.env;
 const registration = MTK_CONNECT_REGISTRATION || fs.readFileSync('/usr/src/config/registration.name', 'utf-8');
+
+/** Tunnel caller port (ADB); env MTK_CONNECT_TUNNEL_PORT from Jenkins/shell, default 8555 */
+const mtkTunnelPort = (() => {
+  const raw = process.env.MTK_CONNECT_TUNNEL_PORT;
+  const n = parseInt(raw != null && raw !== '' ? raw : '8555', 10);
+  return Number.isFinite(n) && n > 0 && n <= 65535 ? n : 8555;
+})();
 
 axios.defaults.baseURL = `https://${MTK_CONNECT_DOMAIN}/mtk-connect`;
 axios.defaults.auth = {
@@ -140,6 +147,7 @@ async function configureDevice(i) {
   console.log(adbHosts);
   console.log(+adbPorts[index - 1]);
   console.log(adbHosts[index - 1]);
+  console.log(`tunnel caller.port=${mtkTunnelPort} (MTK_CONNECT_TUNNEL_PORT)`);
 
   if (MTK_CONNECT_HOST_ONLY == 'false') {
     const data = {
@@ -207,7 +215,8 @@ async function configureDevice(i) {
           'types': [
             {
               'name': 'adb',
-              'driver': 'adb'
+              'driver': 'adb',
+              'caller': { 'port': mtkTunnelPort }
             }
           ]
         }
@@ -240,7 +249,7 @@ async function configureDevice(i) {
     }
 
     if (MTK_CONNECT_LAUNCH_APPLICATION_NAME) {
-      console.log('openbsw app name');
+      console.log(`Launch application: ${MTK_CONNECT_LAUNCH_APPLICATION_NAME}`);
       data.interface.terminal.types[0].args = ['-c', 'cd /home/builder; su builder -c "eval ${MTK_CONNECT_LAUNCH_APPLICATION_NAME}"', ''];
     }
     await axios.patch(`/api/v1/agents/${agent.id}/devices/${index}`, data);

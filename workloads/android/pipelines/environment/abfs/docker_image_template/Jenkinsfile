@@ -1,4 +1,4 @@
-// Copyright (c) 2025 Accenture, All Rights Reserved.
+// Copyright (c) 2025-2026 Accenture, All Rights Reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -92,6 +92,8 @@ pipeline {
                    --opt build-arg:ABFS_DISTRIBUTION_REGISTRY="${ABFS_DISTRIBUTION_REGISTRY}" \
                    --opt build-arg:GCLOUD_CLI_VERSION="${GCLOUD_CLI_VERSION}" \
                    --opt build-arg:KUBECTL_VERSION="${KUBECTL_VERSION}" \
+                   --opt build-arg:ENABLE_GEMINI_AI_ASSISTANT="${ENABLE_GEMINI_AI_ASSISTANT}" \
+                   --opt build-arg:GEMINI_CLI_VERSION="${GEMINI_CLI_VERSION}" \
                    --opt platform=linux/amd64 \
                    --registry-auth-tlscontext host=${REGISTRY},insecure=true \
                    --output=type=image,name=${DESTINATION}:${IMAGE_TAG},push=${PUSH}

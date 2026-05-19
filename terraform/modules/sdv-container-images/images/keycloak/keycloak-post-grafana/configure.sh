@@ -20,7 +20,7 @@ NAMESPACE=$(cat ${SERVICEACCOUNT}/namespace)
 TOKEN=$(cat ${SERVICEACCOUNT}/token)
 CACERT=${SERVICEACCOUNT}/ca.crt
 
-npm install
+npm install --ignore-scripts
 node keycloak.mjs
 SECRET=$(cat client-grafana.json | jq -r ".secret")
 sed -i "s/##SECRET##/${SECRET}/g" ./secret.json

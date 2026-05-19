@@ -72,11 +72,7 @@ const config = {
       firstName: 'MCP Gateway Registry',
       lastName: 'MCP Gateway Registry',
       email: 'mcp-gateway-registry@mcp-gateway-registry'
-    },
-    realmGroups: [
-      'horizon-mcp-gateway-registry-admins', // admin group
-      'horizon-mcp-gateway-registry-users'
-    ]
+    }
   }
 };
 
@@ -170,7 +166,8 @@ async function createAdminUserIfRequired()  {
       realm: config.keycloak.realm.realm,
       firstName: config.keycloak.adminUser.firstName,
       lastName: config.keycloak.adminUser.lastName,
-      email: config.keycloak.adminUser.email
+      email: config.keycloak.adminUser.email,
+      emailVerified: true
     });
 
     await keycloakAdmin.users.resetPassword({
@@ -195,7 +192,7 @@ async function addAdminUsertoAdminGroupIfRequired(groupName) {
     }
 
     const groups = await keycloakAdmin.groups.find({ search: groupName });
-    const group = groups[0];
+    const group = groups.find(g => g.name === groupName);
 
     if (!group) {
       console.error(`group "${groupName}" does not exist.`);
@@ -240,26 +237,6 @@ async function generateSecretFiles()  {
   }
 }
 
-async function createRealmGroupsIfRequired() {
-  const realmGroupNames = config.keycloak.realmGroups || [];
-
-  for (const realmGroupName of realmGroupNames) {
-    try {
-      const existingGroups = await keycloakAdmin.groups.find({ search: realmGroupName });
-      const matchedGroup = existingGroups.find(group => group.name === realmGroupName);
-
-      if (matchedGroup) {
-        console.info(`group "${realmGroupName}" already exists.`);
-      } else {
-        console.log(`creating group "${realmGroupName}".`);
-        await keycloakAdmin.groups.create({ name: realmGroupName });
-      }
-    } catch (err) {
-      throw err;
-    }
-  }
-}
-
 async function createProtocolMappersForClientIfRequired(clientId) {
   try {
     const allClients = await keycloakAdmin.clients.find();
@@ -299,9 +276,8 @@ async function configureKeycloak()  {
     await getRealm();
     await createOrUpdateClients();
     await createAdminUserIfRequired();
-    await addAdminUsertoAdminGroupIfRequired(config.keycloak.realmGroups[0]);
+    await addAdminUsertoAdminGroupIfRequired('administrators');
     await generateSecretFiles();
-    await createRealmGroupsIfRequired();
     await createProtocolMappersForClients();
   } catch (err) {
     throw err

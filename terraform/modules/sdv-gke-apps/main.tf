@@ -21,7 +21,7 @@ locals {
         subdomain        = var.subdomain_name
         is_main          = true
         env_name         = "main"
-        branch           = var.git_repo_branch
+        branch           = var.scm_repo_branch
       }
     },
     {
@@ -31,7 +31,7 @@ locals {
         subdomain        = "${env}.${var.subdomain_name}"
         is_main          = false
         env_name         = env
-        branch           = lookup(var.sub_env_branches, env, var.git_repo_branch)
+        branch           = lookup(var.sub_env_branches, env, var.scm_repo_branch)
       }
     }
   )
@@ -113,12 +113,12 @@ resource "kubernetes_service_account" "argocd_sa" {
   ]
 }
 
-# Create empty Git creds secret for each environment
-resource "kubernetes_secret" "argocd_git_creds" {
+# Create the SCM credentials secret for each environment
+resource "kubernetes_secret" "argocd_scm_creds" {
   for_each = local.all_environments
 
   metadata {
-    name      = "argocd-git-creds"
+    name      = "argocd-scm-creds"
     namespace = kubernetes_namespace.argocd[each.key].metadata[0].name
     labels = {
       "argocd.argoproj.io/secret-type" = "repository"
@@ -126,9 +126,9 @@ resource "kubernetes_secret" "argocd_git_creds" {
   }
 
   data = {
-    "url"      = var.git_repo_url
+    "url"      = var.scm_repo_url
     "type"     = "git"
-    "username" = var.git_auth_method == "pat" ? "git" : null
+    "username" = var.scm_auth_method == "userpass" ? var.scm_username : null
   }
 
   depends_on = [
@@ -185,7 +185,7 @@ resource "helm_release" "argocd_main" {
   depends_on = [
     helm_release.external_secrets,
     kubernetes_service_account.argocd_sa,
-    kubernetes_secret.argocd_git_creds,
+    kubernetes_secret.argocd_scm_creds,
     kubernetes_secret.argocd_secret
   ]
 }
@@ -224,8 +224,34 @@ resource "helm_release" "argocd_subenvs" {
   depends_on = [
     helm_release.argocd_main,
     kubernetes_service_account.argocd_sa,
-    kubernetes_secret.argocd_git_creds,
+    kubernetes_secret.argocd_scm_creds,
     kubernetes_secret.argocd_secret
+  ]
+}
+
+# Deploy workflow namespace drain outside the ArgoCD cascade so it survives platform destroy.
+resource "helm_release" "workflow_namespace_drain" {
+  for_each = local.all_environments
+
+  name             = "${each.value.namespace_prefix}workflow-namespace-drain"
+  chart            = "${path.module}/../../../gitops/apps/workflow-namespace-drain"
+  namespace        = "${each.value.namespace_prefix}workflow-namespace-drain"
+  create_namespace = true
+  wait             = true
+
+  values = [
+    yamlencode({
+      image              = "${var.gcp_cloud_region}-docker.pkg.dev/${var.gcp_project_id}/${var.gcp_registry_id}/workflow-namespace-drain-app:${var.images["workflow-namespace-drain-app"].version}"
+      namespace          = "${each.value.namespace_prefix}workflow-namespace-drain"
+      argocd             = { namespace = each.value.argocd_namespace }
+      workflowsNamespace = "${each.value.namespace_prefix}workflows"
+      gitopsRootAppName  = "${each.value.namespace_prefix}${var.argocd_application_name}"
+    })
+  ]
+
+  depends_on = [
+    helm_release.argocd_main,
+    helm_release.argocd_subenvs
   ]
 }
 
@@ -262,8 +288,8 @@ resource "kubectl_manifest" "argocd_secret_store" {
 }
 
 # Create ExternalSecret for Git creds for each environment
-resource "kubectl_manifest" "es_git_creds" {
-  for_each = local.all_environments
+resource "kubectl_manifest" "es_scm_creds" {
+  for_each = var.scm_auth_method != "none" ? local.all_environments : {}
 
   validate_schema = false
 
@@ -271,7 +297,7 @@ resource "kubectl_manifest" "es_git_creds" {
     apiVersion: external-secrets.io/v1beta1
     kind: ExternalSecret
     metadata:
-      name: argocd-git-creds
+      name: argocd-scm-creds
       namespace: ${kubernetes_namespace.argocd[each.key].metadata[0].name}
     spec:
       refreshInterval: 10s
@@ -279,10 +305,10 @@ resource "kubectl_manifest" "es_git_creds" {
         kind: SecretStore
         name: argocd-secret-store
       target:
-        name: ${kubernetes_secret.argocd_git_creds[each.key].metadata[0].name}
+        name: ${kubernetes_secret.argocd_scm_creds[each.key].metadata[0].name}
         creationPolicy: Merge
       data:
-      %{if var.git_auth_method == "app"}
+      %{if var.scm_auth_method == "app"}
       - secretKey: githubAppID
         remoteRef:
           key: ${each.value.namespace_prefix}github-app-id-b64
@@ -298,14 +324,14 @@ resource "kubectl_manifest" "es_git_creds" {
       %{else}
       - secretKey: password
         remoteRef:
-          key: ${each.value.namespace_prefix}git-pat-b64
+          key: ${each.value.namespace_prefix}scm-password-b64
           decodingStrategy: Base64
       %{endif}
   EOT
 
   depends_on = [
     kubectl_manifest.argocd_secret_store,
-    kubernetes_secret.argocd_git_creds
+    kubernetes_secret.argocd_scm_creds
   ]
 }
 
@@ -382,6 +408,9 @@ resource "kubectl_manifest" "argocd_application" {
 
   validate_schema = false
   wait            = true
+  # Avoid "metadata.resourceVersion: Invalid value: 0x0: must be specified for an update" on
+  # Application CRD updates (e.g. after out-of-band kubectl apply) by using server-side apply.
+  server_side_apply = true
 
   yaml_body = <<-EOT
     apiVersion: argoproj.io/v1alpha1
@@ -391,19 +420,25 @@ resource "kubectl_manifest" "argocd_application" {
       namespace: ${kubernetes_namespace.argocd[each.key].metadata[0].name}
       finalizers:
         - resources-finalizer.argocd.argoproj.io
+        - horizon-sdv.io/module-manager-platform-drain
+        - horizon-sdv.io/workflow-namespace-drain
     spec:
       project: "${each.value.namespace_prefix}${var.argocd_application_name}"
       source:
-        repoURL: ${var.git_repo_url}
+        repoURL: ${var.scm_repo_url}
         path: gitops
         targetRevision: ${each.value.branch}
         helm:
           values: |
-            git:
-              authMethod: ${var.git_auth_method}
-              username: "git"
-              repoOwner: ${var.git_repo_owner}
-              repoName: ${var.git_repo_name}
+            scm:
+              type: ${var.scm_type}
+              authMethod: ${var.scm_auth_method}
+              username: ${var.scm_username}
+              repoUrl: ${var.scm_repo_url}
+              branch: ${var.scm_repo_branch}
+              %{if var.scm_type == "github"}repoOwner: ${var.scm_repo_owner}
+              repoName: ${var.scm_repo_name}
+              %{endif}
             config:
               domain: ${each.value.subdomain}.${var.domain_name}
               projectID: ${var.gcp_project_id}
@@ -414,9 +449,14 @@ resource "kubectl_manifest" "argocd_application" {
               isSubEnvironment: ${!each.value.is_main}
               environmentName: "${each.value.env_name}"
               enableNetworkPolicies: ${var.enable_network_policies}
-              apps:
+              useStaticDnsARecords: ${var.use_static_dns_a_records}
+              containerImages:
                 landingpage: ${var.gcp_cloud_region}-docker.pkg.dev/${var.gcp_project_id}/${var.gcp_registry_id}/landingpage-app:${var.images["landingpage-app"].version}
+                kccWebhookCertMonitor: ${var.gcp_cloud_region}-docker.pkg.dev/${var.gcp_project_id}/${var.gcp_registry_id}/kcc-webhook-cert-monitor:${var.images["kcc-webhook-cert-monitor"].version}
+                horizondevelopmentportal: ${var.gcp_cloud_region}-docker.pkg.dev/${var.gcp_project_id}/${var.gcp_registry_id}/horizon-dev-portal:${var.images["horizon-dev-portal"].version}
                 gerritMcpServer: ${var.gcp_cloud_region}-docker.pkg.dev/${var.gcp_project_id}/${var.gcp_registry_id}/gerrit-mcp-server-app:${var.images["gerrit-mcp-server-app"].version}
+                moduleManager: ${var.gcp_cloud_region}-docker.pkg.dev/${var.gcp_project_id}/${var.gcp_registry_id}/module-manager-app:${var.images["module-manager-app"].version}
+                horizonApi: ${var.gcp_cloud_region}-docker.pkg.dev/${var.gcp_project_id}/${var.gcp_registry_id}/horizon-api-app:${var.images["horizon-api-app"].version}
               postjobs:
                 keycloak: ${var.gcp_cloud_region}-docker.pkg.dev/${var.gcp_project_id}/${var.gcp_registry_id}/keycloak-post:${var.images["keycloak-post"].version}
                 keycloakmtkconnect: ${var.gcp_cloud_region}-docker.pkg.dev/${var.gcp_project_id}/${var.gcp_registry_id}/keycloak-post-mtk-connect:${var.images["keycloak-post-mtk-connect"].version}
@@ -426,18 +466,20 @@ resource "kubectl_manifest" "argocd_application" {
                 keycloakgerrit: ${var.gcp_cloud_region}-docker.pkg.dev/${var.gcp_project_id}/${var.gcp_registry_id}/keycloak-post-gerrit:${var.images["keycloak-post-gerrit"].version}
                 keycloakgrafana: ${var.gcp_cloud_region}-docker.pkg.dev/${var.gcp_project_id}/${var.gcp_registry_id}/keycloak-post-grafana:${var.images["keycloak-post-grafana"].version}
                 keycloakMcpGatewayRegistry: ${var.gcp_cloud_region}-docker.pkg.dev/${var.gcp_project_id}/${var.gcp_registry_id}/keycloak-post-mcp-gateway-registry:${var.images["keycloak-post-mcp-gateway-registry"].version}
+                keycloakArgoWorkflows: ${var.gcp_cloud_region}-docker.pkg.dev/${var.gcp_project_id}/${var.gcp_registry_id}/keycloak-post-argo-workflows:${var.images["keycloak-post-argo-workflows"].version}
+                keycloakhorizonapi: ${var.gcp_cloud_region}-docker.pkg.dev/${var.gcp_project_id}/${var.gcp_registry_id}/keycloak-post-horizon-api:${var.images["keycloak-post-horizon-api"].version}
                 mtkconnect: ${var.gcp_cloud_region}-docker.pkg.dev/${var.gcp_project_id}/${var.gcp_registry_id}/mtk-connect-post:${var.images["mtk-connect-post"].version}
                 mtkconnectkey: ${var.gcp_cloud_region}-docker.pkg.dev/${var.gcp_project_id}/${var.gcp_registry_id}/mtk-connect-post-key:${var.images["mtk-connect-post-key"].version}
                 grafana: ${var.gcp_cloud_region}-docker.pkg.dev/${var.gcp_project_id}/${var.gcp_registry_id}/grafana-post:${var.images["grafana-post"].version}
                 gerrit: ${var.gcp_cloud_region}-docker.pkg.dev/${var.gcp_project_id}/${var.gcp_registry_id}/gerrit-post:${var.images["gerrit-post"].version}
               workloads:
                 android:
-                  url: ${var.git_repo_url}
-                  branch: ${each.value.branch}
+                  url: ${var.scm_repo_url}
+                  branch: ${var.scm_repo_branch}
             spec:
               source:
-                repoURL: ${var.git_repo_url}
-                targetRevision: ${each.value.branch}
+                repoURL: ${var.scm_repo_url}
+                targetRevision: ${var.scm_repo_branch}
       destination:
         server: https://kubernetes.default.svc
       revisionHistoryLimit: 1
@@ -445,6 +487,7 @@ resource "kubectl_manifest" "argocd_application" {
         syncOptions:
         - CreateNamespace=true
         automated:
+          enabled: true
           prune: true
           selfHeal: false
         retry:
@@ -458,6 +501,7 @@ resource "kubectl_manifest" "argocd_application" {
   depends_on = [
     kubectl_manifest.argocd_appproject,
     helm_release.argocd_main,
-    helm_release.argocd_subenvs
+    helm_release.argocd_subenvs,
+    helm_release.workflow_namespace_drain
   ]
 }

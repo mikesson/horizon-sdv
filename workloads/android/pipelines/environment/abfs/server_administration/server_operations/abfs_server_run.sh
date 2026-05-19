@@ -18,7 +18,7 @@ set -euo pipefail
 function abfs_override_tf() {
   cat >main_override.tf <<EOL
 module "abfs-server" {
-  source = "git::${TERRAFORM_GIT_URL}//modules/server?ref=${TERRAFORM_GIT_VERSION}"
+  source = "git::${GOOGLE_ABFS_TERRAFORM_GIT_URL}//modules/server?ref=${GOOGLE_ABFS_TERRAFORM_VERSION}"
 }
 EOL
 }
@@ -34,6 +34,8 @@ function abfs_clean_ssh_keys() {
 
 function abfs_server_run() {
   echo "ABFS Server Run"
+  local restore_server_running_state="false"
+  local apply_exit_code=0
 
   export TF_VAR_project_id="${CLOUD_PROJECT}"
   export TF_VAR_region="${CLOUD_REGION}"
@@ -41,15 +43,62 @@ function abfs_server_run() {
   export TF_VAR_sdv_network="sdv-network"
   export TF_VAR_abfs_server_machine_type="${SERVER_MACHINE_TYPE}"
   export TF_VAR_abfs_docker_image_uri="${DOCKER_REGISTRY_NAME}"
+  export TF_VAR_abfs_extra_params="${ABFS_EXTRA_PARAMS:-[]}"
+  export TF_VAR_existing_bucket_name="${EXISTING_BUCKET_NAME:-}"
   export TF_VAR_abfs_server_cos_image_ref="${ABFS_COS_IMAGE_REF}"
+  export TF_VAR_abfs_spanner_instance_min_nodes="${ABFS_SPANNER_INSTANCE_MIN_NODES:-1}"
+  export TF_VAR_abfs_spanner_instance_max_nodes="${ABFS_SPANNER_INSTANCE_MAX_NODES:-10}"
+  export TF_VAR_abfs_spanner_database_create_tables="${ABFS_SPANNER_DATABASE_CREATE_TABLES:-false}"
+  export TF_VAR_abfs_spanner_database_schema_version="${ABFS_SPANNER_DATABASE_SCHEMA_VERSION:-0.0.31}"
   export TF_VAR_abfs_license
   TF_VAR_abfs_license="$(echo "${ABFS_LICENSE_B64}" | base64 -d)"
+
+  if [ "${ABFS_TERRAFORM_ACTION}" = "APPLY" ] && [ "${ABFS_SPANNER_DATABASE_CREATE_TABLES:-false}" = "true" ]; then
+    if gcloud --project "${CLOUD_PROJECT}" spanner databases describe abfs --instance=abfs >/dev/null 2>&1; then
+      echo "ABFS Spanner database 'abfs' already exists. Set ABFS_SPANNER_DATABASE_CREATE_TABLES=false for upgrades/legacy DBs."
+      exit 1
+    fi
+  fi
+
+  if [ "${ABFS_TERRAFORM_ACTION}" = "APPLY" ]; then
+    # Boot disk replacements (for example COS image changes) require TERMINATED state.
+    if gcloud compute instances describe abfs-server --zone="${CLOUD_ZONE}" >/dev/null 2>&1; then
+      VM_STATUS=$(gcloud compute instances describe abfs-server --zone="${CLOUD_ZONE}" --format='get(status)')
+      if [ "${VM_STATUS}" = "RUNNING" ]; then
+        echo "abfs-server is RUNNING; stopping instance before APPLY to allow boot disk updates."
+        gcloud compute instances stop abfs-server --zone="${CLOUD_ZONE}"
+        restore_server_running_state="true"
+      fi
+    fi
+  fi
 
   terraform init -backend-config bucket="${CLOUD_BACKEND_BUCKET}" -upgrade
 
   if [ "${ABFS_TERRAFORM_ACTION}" = "APPLY" ]; then
+    set +e
     terraform plan
-    terraform apply -auto-approve
+    apply_exit_code=$?
+    if [ "${apply_exit_code}" -eq 0 ]; then
+      terraform apply -auto-approve
+      apply_exit_code=$?
+    fi
+    set -e
+
+    if [ "${restore_server_running_state}" = "true" ]; then
+      if gcloud compute instances describe abfs-server --zone="${CLOUD_ZONE}" >/dev/null 2>&1; then
+        VM_STATUS=$(gcloud compute instances describe abfs-server --zone="${CLOUD_ZONE}" --format='get(status)')
+        if [ "${VM_STATUS}" != "RUNNING" ]; then
+          echo "abfs-server was RUNNING before APPLY; restoring original state by starting instance."
+          gcloud compute instances start abfs-server --zone="${CLOUD_ZONE}"
+        fi
+      else
+        echo "abfs-server does not exist after APPLY; skipping state restore."
+      fi
+    fi
+
+    if [ "${apply_exit_code}" -ne 0 ]; then
+      exit "${apply_exit_code}"
+    fi
   elif [ "${ABFS_TERRAFORM_ACTION}" = "DESTROY" ]; then
     terraform plan -destroy
     terraform destroy --auto-approve
@@ -64,24 +113,6 @@ function abfs_server_run() {
   fi
 }
 
-function abfs_server_update_schema() {
-  git clone "${TERRAFORM_GIT_URL}"
-  REPO_DIRECTORY=$(basename "${TERRAFORM_GIT_URL}" .git)
-  cd "${REPO_DIRECTORY}" || exit
-  git checkout "${TERRAFORM_GIT_VERSION}"
-  if [ -z "$(gcloud --project "${CLOUD_PROJECT}" spanner databases ddl describe --instance abfs abfs)" ]; then
-    gcloud --project "${CLOUD_PROJECT}" spanner databases ddl update --instance abfs abfs --ddl-file "${SPANNER_DDL_FILE}"
-  else
-    if [ "${ABFS_TERRAFORM_ACTION}" = "DESTROY" ]; then
-      # Remove Spanner DB.
-      yes Y | gcloud --project "${CLOUD_PROJECT}" spanner databases delete abfs --instance=abfs || true
-    fi
-  fi
-  cd - || true
-  rm -rf "${REPO_DIRECTORY}"
-}
-
 abfs_clean_ssh_keys
 abfs_override_tf
 abfs_server_run
-abfs_server_update_schema

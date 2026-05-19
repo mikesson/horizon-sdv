@@ -51,7 +51,7 @@ spec:
     - ReadWriteOnce
   resources:
     requests:
-      storage: 32Gi
+      storage: 64Gi
   storageClassName: {{ .Values.config.namespacePrefix }}jenkins-rwo
   volumeMode: Filesystem
 ---
@@ -178,22 +178,22 @@ stringData:
 apiVersion: v1
 kind: Secret
 metadata:
-  name: jenkins-git-creds
+  name: jenkins-scm-creds
   namespace: {{ .Values.config.namespacePrefix }}jenkins
   labels:
-    {{- if eq .Values.git.authMethod "app" }}
+    {{- if eq .Values.scm.authMethod "app" }}
     "jenkins.io/credentials-type": "gitHubApp"
     {{- else }}
     "jenkins.io/credentials-type": "usernamePassword"
     {{- end }}
   annotations:
-    "jenkins.io/credentials-description": "Git"
+    "jenkins.io/credentials-description": "SCM Credentials"
     argocd.argoproj.io/sync-wave: "1"
 type: Opaque
 stringData:
-  id: "git-creds"
-  {{- if eq .Values.git.authMethod "pat" }}
-  username: {{ .Values.git.username }}
+  id: "jenkins-scm-creds"
+  {{- if ne .Values.scm.authMethod "app" }}
+  username: {{ .Values.scm.username }}
   {{- end }}
 ---
 apiVersion: v1
@@ -264,10 +264,11 @@ spec:
         key: {{ .Values.config.namespacePrefix }}jenkins-admin-password-b64
         decodingStrategy: Base64
 ---
+{{- if ne .Values.scm.authMethod "none" }}
 apiVersion: external-secrets.io/v1beta1
 kind: ExternalSecret
 metadata:
-  name: jenkins-git-creds-secret
+  name: jenkins-scm-creds-secret
   namespace: {{ .Values.config.namespacePrefix }}jenkins
   annotations:
     argocd.argoproj.io/sync-wave: "1"
@@ -277,10 +278,10 @@ spec:
     kind: SecretStore
     name: jenkins-secret-store
   target:
-    name: jenkins-git-creds
+    name: jenkins-scm-creds
     creationPolicy: Merge
   data:
-    {{- if eq .Values.git.authMethod "app" }}
+    {{- if eq .Values.scm.authMethod "app" }}
     - secretKey: appID
       remoteRef:
         key: {{ .Values.config.namespacePrefix }}github-app-id-b64
@@ -292,9 +293,10 @@ spec:
     {{- else }}
     - secretKey: password
       remoteRef:
-        key: {{ .Values.config.namespacePrefix }}git-pat-b64
+        key: {{ .Values.config.namespacePrefix }}scm-password-b64
         decodingStrategy: Base64
     {{- end }}
+{{- end }}
 ---
 apiVersion: external-secrets.io/v1beta1
 kind: ExternalSecret

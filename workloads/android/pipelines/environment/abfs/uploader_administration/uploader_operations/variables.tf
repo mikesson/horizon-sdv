@@ -76,7 +76,7 @@ variable "abfs_manifest_file" {
 variable "abfs_uploader_cos_image_ref" {
   type        = string
   description = "Reference to the COS boot image to use for the ABFS uploader"
-  default     = "projects/cos-cloud/global/images/family/cos-113-lts"
+  default     = "projects/cos-cloud/global/images/family/cos-125-lts"
 }
 
 variable "abfs_gerrit_uploader_manifest_server" {
@@ -85,9 +85,39 @@ variable "abfs_gerrit_uploader_manifest_server" {
   default     = "android.googlesource.com"
 }
 
+variable "abfs_gerrit_uploader_manifest_scheme" {
+  type        = string
+  description = "The manifest scheme to assume"
+  default     = "https"
+}
+
 variable "abfs_license" {
   type        = string
   description = "ABFS license (JSON)"
+}
+
+variable "abfs_extra_params" {
+  type        = list(string)
+  description = "Extra parameters appended to the abfs command"
+  default     = []
+}
+
+variable "abfs_gerrit_uploader_extra_params" {
+  type        = list(string)
+  description = "Extra parameters appended to gerrit upload-daemon"
+  default     = []
+}
+
+variable "abfs_enable_git_lfs" {
+  type        = bool
+  description = "Enable Git LFS support"
+  default     = false
+}
+
+variable "pre_start_hooks" {
+  type        = string
+  description = "Absolute local path to pre-start hook scripts"
+  default     = null
 }
 
 variable "abfs_gerrit_uploader_allow_stopping_for_update" {

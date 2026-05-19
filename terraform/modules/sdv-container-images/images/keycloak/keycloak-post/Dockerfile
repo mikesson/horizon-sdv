@@ -18,5 +18,5 @@ RUN chown node:node ./
 USER node
 COPY --chown=node:node package.json ./
 COPY --chown=node:node keycloak.mjs ./
-RUN npm install
+RUN npm install --ignore-scripts
 CMD ["node", "./keycloak.mjs"]

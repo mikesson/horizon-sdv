@@ -13,6 +13,11 @@
 # limitations under the License.
 
 locals {
+  # Parse repo URL to extract owner/name
+  scm_repo_url_without_protocol = replace(var.scm_repo_url, "https://", "")
+  scm_repo_parts                = split("/", local.scm_repo_url_without_protocol)
+  scm_repo_owner                = var.scm_type == "github" ? local.scm_repo_parts[1] : ""
+  scm_repo_name                 = length(local.scm_repo_parts) > 2 ? replace(local.scm_repo_parts[2], ".git", "") : ""
 
   # Password policies per secret (adjust lengths/policy per need)
   secret_password_specs = {
@@ -211,6 +216,47 @@ EOT
         "roles/iam.serviceAccountTokenCreator",
       ])
     }
+    argo_workflows = {
+      name         = "argo-workflows"
+      prefix_style = "gke"
+      gke_sas = [
+        { ns = "argo-workflows", sa = "argo-workflows-server" },
+        { ns = "workflows", sa = "workflow-executor" },
+        # Horizon API signs artifact download URLs using this GSA.
+        { ns = "horizon-api", sa = "horizon-api" }
+      ]
+      roles = toset([
+        "roles/storage.objectUser",
+        "roles/secretmanager.secretAccessor",
+        "roles/artifactregistry.reader",
+        "roles/artifactregistry.writer",
+        "roles/iam.serviceAccountTokenCreator",
+      ])
+    }
+    argo_workflows_elevated = {
+      name         = "argo-workflows-elevated"
+      prefix_style = "gke"
+      gke_sas = [
+        { ns = "workflows", sa = "workflow-executor-elevated" }
+      ]
+      roles = toset([
+        "roles/storage.objectUser",
+        "roles/artifactregistry.writer",
+        "roles/secretmanager.secretAccessor",
+        "roles/iam.serviceAccountTokenCreator",
+        "roles/container.admin",
+        "roles/iap.tunnelResourceAccessor",
+        "roles/iam.serviceAccountUser",
+        "roles/compute.instanceAdmin.v1",
+        "roles/workstations.admin",
+        "roles/storage.bucketViewer",
+        "roles/spanner.admin",
+        "roles/logging.admin",
+        "roles/editor",
+        "roles/iam.serviceAccountAdmin",
+        "roles/resourcemanager.projectIamAdmin"
+      ])
+    }
   }
 
   # When no sub-envs are defined, avoid merge([]) which is invalid in Terraform
@@ -283,14 +329,15 @@ EOT
 
   sub_env_git_secrets = length(var.sdv_sub_env_configs) == 0 ? {} : merge([
     for env in keys(var.sdv_sub_env_configs) :
-    var.git_auth_method == "app" ? {
+    var.scm_auth_method == "app" ? {
       "s_${env}_git_app_id" = {
         secret_id   = "${env}-github-app-id-b64"
         value       = base64encode(var.sdv_github_app_id)
         apply_value = true
         gke_access = [
           { ns = "${env}-argocd", sa = "argocd-sa" },
-          { ns = "${env}-jenkins", sa = "jenkins-sa" }
+          { ns = "${env}-jenkins", sa = "jenkins-sa" },
+          { ns = "${env}-workflows", sa = "workflow-executor" }
         ]
       }
       "s_${env}_github_app_install" = {
@@ -299,7 +346,8 @@ EOT
         apply_value = true
         gke_access = [
           { ns = "${env}-argocd", sa = "argocd-sa" },
-          { ns = "${env}-jenkins", sa = "jenkins-sa" }
+          { ns = "${env}-jenkins", sa = "jenkins-sa" },
+          { ns = "${env}-workflows", sa = "workflow-executor" }
         ]
       }
       "s_${env}_github_app_key" = {
@@ -308,7 +356,8 @@ EOT
         apply_value = true
         gke_access = [
           { ns = "${env}-argocd", sa = "argocd-sa" },
-          { ns = "${env}-jenkins", sa = "jenkins-sa" }
+          { ns = "${env}-jenkins", sa = "jenkins-sa" },
+          { ns = "${env}-workflows", sa = "workflow-executor" }
         ]
       }
       "s_${env}_github_app_pkcs8" = {
@@ -316,17 +365,19 @@ EOT
         value       = base64encode(data.external.pkcs8_converter.result.result)
         apply_value = true
         gke_access = [
-          { ns = "${env}-jenkins", sa = "jenkins" }
+          { ns = "${env}-jenkins", sa = "jenkins-sa" },
+          { ns = "${env}-workflows", sa = "workflow-executor" }
         ]
       }
       } : {
       "s_${env}_git_pat" = {
-        secret_id   = "${env}-git-pat-b64"
-        value       = base64encode(var.sdv_git_pat)
+        secret_id   = "${env}-scm-password-b64"
+        value       = base64encode(var.scm_password)
         apply_value = true
         gke_access = [
           { ns = "${env}-jenkins", sa = "jenkins-sa" },
-          { ns = "${env}-argocd", sa = "argocd-sa" }
+          { ns = "${env}-argocd", sa = "argocd-sa" },
+          { ns = "${env}-workflows", sa = "workflow-executor" }
         ]
       }
     }
@@ -477,6 +528,10 @@ EOT
         {
           ns = "jenkins"
           sa = "jenkins-sa"
+        },
+        {
+          ns = "workflows"
+          sa = "workflow-executor"
         }
       ]
     }
@@ -492,6 +547,10 @@ EOT
         {
           ns = "jenkins"
           sa = "jenkins-sa"
+        },
+        {
+          ns = "workflows"
+          sa = "workflow-executor"
         }
       ]
     }
@@ -512,20 +571,25 @@ EOT
     }
     s8 = {
       secret_id   = "github-app-private-key-pkcs8-b64"
-      value       = base64encode(data.external.pkcs8_converter.result.result)
+      value       = var.scm_auth_method == "app" ? base64encode(data.external.pkcs8_converter.result.result) : ""
       apply_value = true
       gke_access = [
         {
           ns = "jenkins"
           sa = "jenkins"
+        },
+        {
+          ns = "workflows"
+          sa = "workflow-executor"
         }
       ]
     }
   }
-  sdv_gcp_git_pat_secrets_map = {
-    s16 = {
-      secret_id   = "git-pat-b64"
-      value       = base64encode(var.sdv_git_pat)
+  # Username/password secrets (for generic Git auth)
+  sdv_gcp_userpass_secrets_map = {
+    s18 = {
+      secret_id   = "scm-username-b64"
+      value       = base64encode(var.scm_username)
       apply_value = true
       gke_access = [
         {
@@ -538,5 +602,45 @@ EOT
         }
       ]
     }
+    s19 = {
+      secret_id   = "scm-password-b64"
+      value       = base64encode(var.scm_password)
+      apply_value = true
+      gke_access = [
+        {
+          ns = "jenkins"
+          sa = "jenkins-sa"
+        },
+        {
+          ns = "argocd"
+          sa = "argocd-sa"
+        },
+        {
+          ns = "workflows"
+          sa = "workflow-executor"
+        }
+      ]
+    }
   }
+
+  # Conditionally select SCM secrets based on auth method
+  #sdv_gcp_scm_secrets_map = (
+  #  var.scm_auth_method == "app" ? local.sdv_gcp_github_app_secrets_map :
+  #  var.scm_auth_method == "userpass" ? local.sdv_gcp_userpass_secrets_map :
+  #  {} # Empty map for "none" - no secrets needed for public repos
+  #)
+
+  # Merge all secrets
+  #sdv_gcp_secrets_map = merge(
+  #  local.sdv_gcp_common_secrets_map,
+  #  local.sdv_gcp_scm_secrets_map
+  #)
+
+  # Merge all secrets
+  #sdv_gcp_secrets_map = merge(
+  #  local.sdv_gcp_common_secrets_map,
+  #  local.sdv_gcp_scm_secrets_map,
+  #  local.sub_env_secrets,
+  #  local.sub_env_git_secrets
+  #)
 }

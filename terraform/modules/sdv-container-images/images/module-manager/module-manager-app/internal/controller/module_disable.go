@@ -1,0 +1,96 @@
+// Copyright (c) 2024-2026 Accenture, All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//	http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package controller
+
+import (
+	"context"
+	"fmt"
+
+	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/log"
+)
+
+// PerformModuleDisable deletes the Argo CD Application and updates ModuleManagerState to
+// reflect a disabled module. It does not refresh dependents or resync soft features;
+// callers should invoke RunAutoDisableSweep and ResyncSoftFeaturesForParentsOfSoftDep
+// after disable side effects as appropriate.
+//
+// When enforceNoHardDependents is true, ListHardDependents must be empty or the call fails.
+// REST disable sets this to true. Auto-disable sets it to false because eligibility is
+// determined by hard- and soft-dependent checks before this runs.
+func PerformModuleDisable(ctx context.Context, c client.Client, stateStore StateStoreInterface, catalogStore CatalogStoreInterface, argocdNamespace, mmNamespace string, moduleName, moduleID string, enforceNoHardDependents bool) error {
+	logger := log.FromContext(ctx)
+	if moduleName == "" || moduleID == "" {
+		return fmt.Errorf("perform module disable: module name and module id are required")
+	}
+
+	state, err := stateStore.Get(ctx)
+	if err != nil {
+		return err
+	}
+	if enforceNoHardDependents {
+		deps, err := ListHardDependents(ctx, c, catalogStore, mmNamespace, state, moduleName)
+		if err != nil {
+			return err
+		}
+		if len(deps) > 0 {
+			return fmt.Errorf("perform module disable: module %q still has hard dependents %v", moduleName, deps)
+		}
+	}
+
+	appName := ApplicationName(moduleName)
+	app := &unstructured.Unstructured{}
+	app.SetGroupVersionKind(schema.GroupVersionKind{Group: "argoproj.io", Version: "v1alpha1", Kind: "Application"})
+	app.SetNamespace(argocdNamespace)
+	app.SetName(appName)
+	logger.Info("disabling module", "module", moduleName, "moduleID", moduleID, "application", appName, "enforceNoHardDependents", enforceNoHardDependents)
+	if err := c.Delete(ctx, app); err != nil && !errors.IsNotFound(err) {
+		return err
+	}
+
+	var newEnabled []string
+	for _, id := range state.EnabledModules {
+		if id != moduleID {
+			newEnabled = append(newEnabled, id)
+		}
+	}
+	state.EnabledModules = newEnabled
+	if state.ModuleTargetRevisions != nil {
+		delete(state.ModuleTargetRevisions, moduleName)
+	}
+	if err := stateStore.Update(ctx, state); err != nil {
+		return err
+	}
+	_ = mmNamespace
+	return nil
+}
+
+// DisableModuleAndRefresh performs the shared disable workflow used by the REST API:
+// disable the module, refresh dependents, then resync soft-feature parents.
+func DisableModuleAndRefresh(ctx context.Context, apiReader client.Reader, c client.Client, stateStore StateStoreInterface, catalogStore CatalogStoreInterface, argocdNamespace, mmNamespace, moduleName, moduleID string, enforceNoHardDependents bool) error {
+	if err := PerformModuleDisable(ctx, c, stateStore, catalogStore, argocdNamespace, mmNamespace, moduleName, moduleID, enforceNoHardDependents); err != nil {
+		return err
+	}
+	if err := RunAutoDisableSweep(ctx, apiReader, c, mmNamespace, argocdNamespace, stateStore, catalogStore); err != nil {
+		return fmt.Errorf("refresh dependents after disabling %q: %w", moduleName, err)
+	}
+	if err := ResyncSoftFeaturesForParentsOfSoftDep(ctx, apiReader, c, argocdNamespace, mmNamespace, stateStore, catalogStore, moduleName); err != nil {
+		return fmt.Errorf("resync soft features after disabling %q: %w", moduleName, err)
+	}
+	return nil
+}

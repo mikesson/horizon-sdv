@@ -78,12 +78,15 @@ resource "google_project_iam_member" "sdv_wi_sa_iam_2" {
   ]
 }
 
-resource "google_project_iam_member" "sdv_wi_sa_wi_users_gke_ns_sa" {
+# GKE Workload Identity: the Kubernetes SA must have roles/iam.workloadIdentityUser on the
+# *Google* service account (not project IAM). Otherwise token exchange fails with
+# Permission 'iam.serviceAccounts.getAccessToken' denied (e.g. External Secrets + GSM).
+resource "google_service_account_iam_member" "sdv_wi_sa_workload_identity_user" {
   for_each = local.gke_sas_with_sa_map
 
-  project = data.google_project.project.id
-  role    = "roles/iam.workloadIdentityUser"
-  member  = "serviceAccount:${var.project_id}.svc.id.goog[${each.value.gke_ns}/${each.value.gke_sa}]"
+  service_account_id = google_service_account.sdv_wi_sa[each.value.sa_id].name
+  role               = "roles/iam.workloadIdentityUser"
+  member             = "serviceAccount:${var.project_id}.svc.id.goog[${each.value.gke_ns}/${each.value.gke_sa}]"
 
   depends_on = [
     google_service_account.sdv_wi_sa

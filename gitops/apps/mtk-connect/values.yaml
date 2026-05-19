@@ -13,6 +13,10 @@
 # limitations under the License.
 
 config:
+  # Parent horizon-sdv chart passes chartVersions from root config.chartVersions (required for deploy).
+  chartVersions:
+    mtkconnect:
+      version: "v1.10.0"
   gitops:
     mtkconnect:
       router: harbor.scpmtk.com/mtk-connect/mtk-connect-router:v2.3.1

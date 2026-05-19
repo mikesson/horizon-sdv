@@ -1,4 +1,4 @@
-// Copyright (c) 2025 Accenture, All Rights Reserved.
+// Copyright (c) 2025-2026 Accenture, All Rights Reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -36,7 +36,7 @@ pipeline {
       kind: Pod
       metadata:
         annotations:
-          cluster-autoscaler.kubernetes.io/safe-to-evict: "true"
+          cluster-autoscaler.kubernetes.io/safe-to-evict: "false"
         labels:
           openbsw_pod: "true"
       spec:
@@ -68,7 +68,10 @@ pipeline {
 
   stages {
     stage ('Start instance'){
-      agent { kubernetes { yaml kubernetesPodTemplate } }
+      agent { kubernetes {
+        yamlMergeStrategy merge()
+        yaml kubernetesPodTemplate
+      } }
       stages {
         stage ('Docker Credentials'){
           steps {
@@ -104,20 +107,17 @@ pipeline {
                    --opt build-arg:LINUX_DISTRIBUTION=${LINUX_DISTRIBUTION} \
                    --opt build-arg:NODEJS_VERSION=${NODEJS_VERSION} \
                    --opt build-arg:ARM_TOOLCHAIN_URL=${ARM_TOOLCHAIN_URL} \
-                   --opt build-arg:CLANG_TOOLS_URL=${CLANG_TOOLS_URL} \
-                   --opt build-arg:CMAKE_URL=${CMAKE_URL} \
                    --opt build-arg:GCLOUD_CLI_VERSION="${GCLOUD_CLI_VERSION}" \
                    --opt build-arg:KUBECTL_VERSION="${KUBECTL_VERSION}" \
-                   --opt build-arg:LLVM_PROJECT_URL=${LLVM_PROJECT_URL} \
                    --opt build-arg:LLVM_ARM_TOOLCHAIN_URL=${LLVM_ARM_TOOLCHAIN_URL} \
                    --opt build-arg:OPENBSW_GIT_URL=${OPENBSW_GIT_URL} \
                    --opt build-arg:OPENBSW_GIT_BRANCH=${OPENBSW_GIT_BRANCH} \
                    --opt build-arg:PLANTUML_URL="${PLANTUML_URL}" \
                    --opt build-arg:POST_GIT_CLONE_COMMAND="${POST_GIT_CLONE_COMMAND}" \
-                   --opt build-arg:PYELFTOOLS_VERSION=${PYELFTOOLS_VERSION} \
                    --opt build-arg:PYTHON_VERSION=${PYTHON_VERSION} \
-                   --opt build-arg:SSCACHE_URL=${SSCACHE_URL} \
                    --opt build-arg:TREEFMT_URL=${TREEFMT_URL} \
+                   --opt build-arg:ENABLE_GEMINI_AI_ASSISTANT="${ENABLE_GEMINI_AI_ASSISTANT}" \
+                   --opt build-arg:GEMINI_CLI_VERSION="${GEMINI_CLI_VERSION}" \
                    --opt platform=linux/amd64 \
                    --registry-auth-tlscontext host=${REGISTRY},insecure=true \
                    --output=type=image,name=${DESTINATION}:${IMAGE_TAG},push=${PUSH}

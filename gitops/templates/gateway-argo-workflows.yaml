@@ -1,0 +1,90 @@
+# Copyright (c) 2024-2026 Accenture, All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#         http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+apiVersion: gateway.networking.k8s.io/v1beta1
+kind: HTTPRoute
+metadata:
+  name: argo-workflows-route
+  namespace: {{ .Values.config.namespacePrefix }}argo-workflows
+  labels:
+    gateway: gke-gateway
+  annotations:
+    argocd.argoproj.io/sync-wave: "8"
+spec:
+  parentRefs:
+    - kind: Gateway
+      name: gke-gateway
+      namespace: {{ .Values.config.namespacePrefix }}gke-gateway
+      sectionName: https
+  hostnames:
+    - {{ .Values.config.domain }}
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /workflows
+      filters:
+        - type: URLRewrite
+          urlRewrite:
+            hostname: {{ .Values.config.domain }}
+            path:
+              type: ReplacePrefixMatch
+              replacePrefixMatch: /
+      backendRefs:
+        - name: {{ .Values.config.namespacePrefix }}argo-workflows-server
+          port: 2746
+---
+apiVersion: networking.gke.io/v1
+kind: HealthCheckPolicy
+metadata:
+  name: argo-workflows-healthcheck
+  namespace: {{ .Values.config.namespacePrefix }}argo-workflows
+  annotations:
+    argocd.argoproj.io/sync-wave: "8"
+spec:
+  default:
+    checkIntervalSec: 15
+    timeoutSec: 15
+    healthyThreshold: 1
+    unhealthyThreshold: 2
+    logConfig:
+      enabled: true
+    config:
+      type: HTTP
+      httpHealthCheck:
+        port: 2746
+        requestPath: /
+  targetRef:
+    group: ""
+    kind: Service
+    name: {{ .Values.config.namespacePrefix }}argo-workflows-server
+---
+# Argo Server UI holds long-lived GET streams (api/v1/workflow-events/...) — Kubernetes watch over HTTP/2.
+# Without an extended backend timeout, GKE Gateway / external HTTPS LB defaults (~30s or idle rules) can cut
+# those connections; the SPA reconnects (resourceVersion in URL) and shows "Failed to connect" briefly.
+# Match gateway-mtk-connect websocket backends (86400s) so multi-hour AAOS runs can keep the live list/watch.
+apiVersion: networking.gke.io/v1
+kind: GCPBackendPolicy
+metadata:
+  name: argo-workflows-server-backendpolicy
+  namespace: {{ .Values.config.namespacePrefix }}argo-workflows
+  annotations:
+    argocd.argoproj.io/sync-wave: "8"
+spec:
+  default:
+    timeoutSec: 86400
+  targetRef:
+    group: ""
+    kind: Service
+    name: {{ .Values.config.namespacePrefix }}argo-workflows-server

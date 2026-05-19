@@ -21,3 +21,14 @@ variable "domains" {
   type        = map(string)
   description = "Map of env_name => domain_name"
 }
+
+variable "certificate_authorization_type" {
+  description = "Certificate authorization: 'dns' (CNAME in zone) or 'load_balancer' (no CNAME; A records must point to LB)."
+  type        = string
+  default     = "dns"
+
+  validation {
+    condition     = contains(["dns", "load_balancer"], var.certificate_authorization_type)
+    error_message = "certificate_authorization_type must be 'dns' or 'load_balancer'."
+  }
+}

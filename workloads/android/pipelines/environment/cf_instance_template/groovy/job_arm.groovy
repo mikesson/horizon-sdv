@@ -1,4 +1,4 @@
-// Copyright (c) 2025 Accenture, All Rights Reserved.
+// Copyright (c) 2025-2026 Accenture, All Rights Reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,17 +14,53 @@
 pipelineJob('Android/Environment/CF Instance Template ARM64') {
   description("""
     <br/><h3 style="margin-bottom: 10px;">GCE ARM64 Instance Template Creation Job</h3>
-    <p>This job creates the GCE ARM64 based instance templates used by test pipelines to spin up ARM64 cuttlefish-ready and CTS-ready cloud instances, which are then used to launch <a href="https://source.android.com/docs/devices/cuttlefish" target="_blank" title="Cuttlefish Virtual Device">CVD</a> and run <a href="https://source.android.com/docs/compatibility/cts" target="_blank" title="Compatibility Test Suite">CTS</a> tests. Refer to the README.md in the respective repository for further details.</p>
-    <h4 style="margin-bottom: 10px;">Instance Template Naming</h4>
-    <p>The name for the created instance template can either be auto-generated or user-provided (<code>CUTTLEFISH_INSTANCE_NAME</code>). The resulting artifact will be <code>instance-template-&lt;name&gt;</code>. If a user-defined name is defined, or non-standard revisions are used, the Jenkins CasC (<code>values-jenkins.yaml</code>) must be updated with a new <code>computeEngine</code> entry for the template.</p>
-    <h4 style="margin-bottom: 10px;">Machine Type </h4>
-    <p>Users may choose to create the VM instance template from a standard machine type or define based on custom options.</p>
-    <p>Set <code>MACHINE_TYPE</code> parameter to an empty string and populate the custom options, i.e.:<br/>
-    <ul><li><code>CUSTOM_VM_TYPE</code></li>
-        <li><code>CUSTOM_CPU</code></li>
-        <li><code>CUSTOM_MEMORY</code></li></ul>
-    <h4 style="margin-bottom: 10px;">Updating and Deleting Outdated Instances</h4>
-    <p>This job can also be used to update and replace existing instances or delete outdated instances and associated artifacts.</p>
+    <p>Use this job to build and manage the ARM64 Cuttlefish instance template consumed by test pipelines (CVD Launcher, CTS, Gerrit test stage, etc.).</p>
+
+    <h4 style="margin-bottom: 10px;">How to use this job</h4>
+    <ol>
+      <li><b>Build or update template (normal path)</b>
+        <ul>
+          <li>Set <code>DELETE=false</code></li>
+          <li>Set <code>UPDATE_SSH_AUTHORIZED_KEYS=false</code></li>
+          <li>Provide <code>ANDROID_CUTTLEFISH_REVISION</code> (or a custom <code>CUTTLEFISH_INSTANCE_NAME</code>)</li>
+          <li>Run build (creates/updates image + instance template)</li>
+        </ul>
+      </li>
+      <li><b>Refresh SSH key metadata only (no image rebuild)</b>
+        <ul>
+          <li>Set <code>DELETE=false</code></li>
+          <li>Set <code>UPDATE_SSH_AUTHORIZED_KEYS=true</code></li>
+          <li>Set target using <code>ANDROID_CUTTLEFISH_REVISION</code> or <code>CUTTLEFISH_INSTANCE_NAME</code></li>
+          <li>Run build (republishes template metadata for startup key refresh)</li>
+        </ul>
+      </li>
+      <li><b>Delete artifacts</b>
+        <ul>
+          <li>Set <code>DELETE=true</code></li>
+          <li>Set target via <code>ANDROID_CUTTLEFISH_REVISION</code> or <code>CUTTLEFISH_INSTANCE_NAME</code></li>
+          <li>Run build (deletes template/image/related resources)</li>
+        </ul>
+      </li>
+    </ol>
+
+    <h4 style="margin-bottom: 10px;">Naming and machine type</h4>
+    <p>If <code>CUTTLEFISH_INSTANCE_NAME</code> is empty, name is derived from <code>ANDROID_CUTTLEFISH_REVISION</code>. Name must start with <code>cuttlefish-vm</code>.</p>
+    <p>Use a standard shape via <code>MACHINE_TYPE</code> or leave it empty and set custom values:
+    <code>CUSTOM_VM_TYPE</code>, <code>CUSTOM_CPU</code>, <code>CUSTOM_MEMORY</code>.</p>
+
+    <h4 style="margin-bottom: 10px;">SSH key behavior</h4>
+    <p>The public key is derived from <code>SSH_PRIVATE_KEY_NAME</code> and injected into template metadata.
+    On VM boot, startup script rewrites <code>/home/jenkins/.ssh/authorized_keys</code> from metadata.</p>
+
+    <h4 style="margin-bottom: 10px;">References</h4>
+    <ul>
+      <li><a href="https://source.android.com/docs/devices/cuttlefish" target="_blank" title="Cuttlefish Virtual Device">Cuttlefish Virtual Device (CVD)</a></li>
+      <li><a href="https://github.com/google/android-cuttlefish" target="_blank" title="android-cuttlefish repository">android-cuttlefish repository</a></li>
+      <li><a href="https://source.android.com/docs/compatibility/cts/downloads" target="_blank" title="Compatibility Test Suite downloads">CTS downloads</a></li>
+      <li><a href="https://cloud.google.com/sdk/gcloud/reference/compute/instance-templates/create" target="_blank" title="gcloud compute instance-templates create">GCE instance template creation command</a></li>
+    </ul>
+
+    <p>See docs for full parameter details and examples.</p>
     <br/><div style="border-top: 1px solid #ccc; width: 100%;"></div><br/>""")
 
   parameters {
@@ -50,10 +86,10 @@ the repo credentials, i.e.
       defaultValue('')
       description('''<p>The branch/tag version of Android Cuttlefish to use, e.g.</p>
         <ul>
-          <li>v1.35.0</li>
+          <li>v1.41.0</li>
           <li>main</li>
           <li>horizon/main</li>
-          <li>horizon/v1.35.0</li>
+          <li>horizon/v1.41.0</li>
         </ul>
         <p>Mandatory for instance creation, not applicable for deletion if <code>CUTTLEFISH_INSTANCE_NAME</code> is defined.</p>
         <p>Reference: <a href="https://github.com/google/android-cuttlefish.git" target="_blank">android-cuttlefish.git</a></p>''')
@@ -63,9 +99,9 @@ the repo credentials, i.e.
     stringParam {
       name('CUTTLEFISH_INSTANCE_NAME')
       defaultValue('')
-      description('''<p>Optional parameter to define the unique name used for the instance template, e.g.  <i>cuttlefish-vm-instance-test-v1350-arm64</i><br/>
+      description('''<p>Optional parameter to define the unique name used for the instance template, e.g.  <i>cuttlefish-vm-instance-test-v1410-arm64</i><br/>
         Name must start with <i>cuttlefish-vm</i>, refer to docs for details on regex requirements for name.<br/>
-        Default: The name will be automatically derived from <code>ANDROID_CUTTLEFISH_REVISION</code>, e.g.  <i>cuttlefish-vm-v1350-arm64</i><br/><br/></p>''')
+        Default: The name will be automatically derived from <code>ANDROID_CUTTLEFISH_REVISION</code>, e.g.  <i>cuttlefish-vm-v1410-arm64</i><br/><br/></p>''')
       trim(true)
     }
 
@@ -76,7 +112,17 @@ the repo credentials, i.e.
         Useful for removing old instances to reduce costs.<br/>
         <b>Note:</b>
           <ul><li>Define the <code>CUTTLEFISH_INSTANCE_NAME</code> parameter if non-standard instance is to be deleted</li>
-              <li>Define the <code>ANDROID_CUTTLEFISH_REVISION</code> revision for standard instance deletion.</li></ul></p>''')
+              <li>Define the <code>ANDROID_CUTTLEFISH_REVISION</code> revision for standard instance deletion.</li></ul></p>
+        <br/><div style="border-top: 1px solid #ccc; width: 100%;"></div><br/>''')
+    }
+
+    booleanParam {
+      name('UPDATE_SSH_AUTHORIZED_KEYS')
+      defaultValue(false)
+      description('''<p>Refresh SSH authorized_keys metadata on the existing instance template without rebuilding the Packer image.<br/>
+        Use this after rotating the Jenkins SSH key (<code>SSH_PRIVATE_KEY_NAME</code>).<br/>
+        Keep <code>DELETE=false</code> when using this option.</p>
+        <br/><div style="border-top: 1px solid #ccc; width: 100%;"></div><br/>''')
     }
 
     stringParam {
@@ -98,21 +144,6 @@ the repo credentials, i.e.
         <ul><li>Cherry pick: <code>git cherry-pick b3e4bd9</code></li>
             <li>Checkout commit: <code>git checkout 655de58f</code></li></ul></p>''')
       trim(true)
-    }
-
-    booleanParam {
-      name('ANDROID_CUTTLEFISH_PREBUILT')
-      defaultValue(false)
-      description('''<p>Use Google Cuttlefish prebuilt packages.<br/>
-       <p>Choose whether to download and install Google prebuilt version instead of building from the <code>ANDROID_CUTTLEFISH_REPO_URL</code> repository.</p>
-       <p>If disabled, cuttlefish is built and installed, if enabled and versions exist, then cuttlefish prebuilt packages are installed.</p>
-       <p><b>Note:</b> this is only applicable to <code>ANDROID_CUTTLEFISH_REVISION=main</code>. If packages are not available, cuttlefish will be built from scratch.<br/></p>''')
-    }
-
-    booleanParam {
-      name('VM_INSTANCE_CREATE')
-      defaultValue(false)
-      description('''<p>If enabled, job will create a Cuttlefish VM instance in a stopped state, created from final instance template.<br/></p>''')
     }
 
     separator {
@@ -215,8 +246,8 @@ the repo credentials, i.e.
     stringParam {
       name('JAVA_VERSION')
       defaultValue('openjdk-21-jdk-headless')
-      description('''<p>OpenJDK Java version to install.<br/>
-        Use <code>headless</code> to avoid issues with installing in various operating system versions.</p>''')
+      description('''<p>Apt package for the JDK (ARM64 / Ubuntu). Default <code>openjdk-21-jdk-headless</code>.<br/>
+        Temurin is optional: set <code>temurin-21-jdk</code> if you want Adoptium (script adds Adoptium apt when the name starts with <code>temurin-</code>).</p>''')
       trim(true)
     }
 
@@ -262,31 +293,31 @@ the repo credentials, i.e.
 
     stringParam {
       name('CTS_ANDROID_16_URL')
-      defaultValue("https://dl.google.com/dl/android/cts/android-cts-16_r3-linux_x86-arm.zip")
+      defaultValue("https://dl.google.com/dl/android/cts/android-cts-16_r4-linux_x86-arm.zip")
       description('''<p>Leave blank if the version is not needed, or specify your preferred version.<br/>
       Either download from official site, or from a local bucket if stored locally to improve download times, e.g.
-      <ul><li>Official downloads: <code>https://dl.google.com/dl/android/cts/android-cts-16_r3-linux_x86-arm.zip/code></li>
-          <li>Local GCS bucket download: <code>gs://${ANDROID_BUILD_BUCKET_ROOT_NAME}/Android/CTS/android-cts-16_r3-linux_x86-arm.zip</code></li></ul></p>''')
+      <ul><li>Official downloads: <code>https://dl.google.com/dl/android/cts/android-cts-16_r4-linux_x86-arm.zip/code></li>
+          <li>Local GCS bucket download: <code>gs://${ANDROID_BUILD_BUCKET_ROOT_NAME}/Android/CTS/android-cts-16_r4-linux_x86-arm.zip</code></li></ul></p>''')
       trim(true)
     }
 
     stringParam {
       name('CTS_ANDROID_15_URL')
-      defaultValue("https://dl.google.com/dl/android/cts/android-cts-15_r6-linux_x86-arm.zip")
+      defaultValue("https://dl.google.com/dl/android/cts/android-cts-15_r7-linux_x86-arm.zip")
       description('''<p>Leave blank if the version is not needed, or specify your preferred version.<br/>
       Either download from official site, or from a local bucket if stored locally to improve download times, e.g.
-      <ul><li>Official downloads: <code>https://dl.google.com/dl/android/cts/android-cts-15_r6-linux_x86-arm.zip/code></li>
-          <li>Local GCS bucket download: <code>gs://${ANDROID_BUILD_BUCKET_ROOT_NAME}/Android/CTS/android-cts-15_r6-linux_x86-arm.zip</code></li></ul></p>''')
+      <ul><li>Official downloads: <code>https://dl.google.com/dl/android/cts/android-cts-15_r7-linux_x86-arm.zip/code></li>
+          <li>Local GCS bucket download: <code>gs://${ANDROID_BUILD_BUCKET_ROOT_NAME}/Android/CTS/android-cts-15_r7-linux_x86-arm.zip</code></li></ul></p>''')
       trim(true)
     }
 
     stringParam {
       name('CTS_ANDROID_14_URL')
-      defaultValue("https://dl.google.com/dl/android/cts/android-cts-14_r10-linux_x86-arm.zip")
+      defaultValue("https://dl.google.com/dl/android/cts/android-cts-14_r11-linux_x86-arm.zip")
       description('''<p>Leave blank if the version is not needed, or specify your preferred version.<br/>
       Either download from official site, or from a local bucket if stored locally to improve download times, e.g.
-      <ul><li>Official downloads: <code>https://dl.google.com/dl/android/cts/android-cts-14_r10-linux_x86-arm.zip/code></li>
-          <li>Local GCS bucket download: <code>gs://${ANDROID_BUILD_BUCKET_ROOT_NAME}/Android/CTS/android-cts-14_r10-linux_x86-arm.zip</code></li></ul></p>''')
+      <ul><li>Official downloads: <code>https://dl.google.com/dl/android/cts/android-cts-14_r11-linux_x86-arm.zip/code></li>
+          <li>Local GCS bucket download: <code>gs://${ANDROID_BUILD_BUCKET_ROOT_NAME}/Android/CTS/android-cts-14_r11-linux_x86-arm.zip</code></li></ul></p>''')
       trim(true)
     }
 
@@ -346,10 +377,10 @@ the repo credentials, i.e.
       scm {
         git {
           remote {
-            url("${HORIZON_GIT_URL}")
-            credentials('jenkins-git-creds')
+            url("${HORIZON_SCM_URL}")
+            credentials('jenkins-scm-creds')
           }
-          branch("*/${HORIZON_GIT_BRANCH}")
+          branch("*/${HORIZON_SCM_BRANCH}")
         }
       }
       scriptPath('workloads/android/pipelines/environment/cf_instance_template/Jenkinsfile')

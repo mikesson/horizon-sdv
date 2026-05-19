@@ -84,7 +84,8 @@ fi
 WORKSPACE="${HOME}"/bsw-builds
 
 # Build info file name
-BUILD_INFO_FILE="${WORKSPACE}/build_info.txt"
+BUILD_INFO_FILE="${ORIG_WORKSPACE}/build-info.txt"
+BUILD_LOG_FILE="${ORIG_WORKSPACE}/bsw-build.log"
 
 # Test list and result artifacts.
 UNIT_TESTS_RESULTS_FILE="${WORKSPACE}/unit_test_results.txt"
@@ -118,9 +119,9 @@ UNIT_TESTS_CMDLINE=${UNIT_TESTS_CMDLINE:-cmake --preset tests-posix-debug && cma
 LIST_UNIT_TESTS_CMDLINE=${LIST_UNIT_TESTS_CMDLINE:-cmake --preset tests-posix-debug && cmake --build --preset tests-debug --target help -j${CMAKE_SYNC_JOBS}}
 RUN_UNIT_TESTS_CMDLINE=${RUN_UNIT_TESTS_CMDLINE:-ctest --preset tests-posix-debug --parallel ${CMAKE_SYNC_JOBS}}
 POSIX_BUILD_CMDLINE=${POSIX_BUILD_CMDLINE:-cmake --preset posix-freertos && cmake --build --preset posix-freertos -j${CMAKE_SYNC_JOBS}}
-NXP_S32K148_BUILD_CMDLINE=${NXP_S32K148_BUILD_CMDLINE:-cmake --preset s32k148-gcc-freertos && cmake --build --preset s32k148-gcc-freertos -j${CMAKE_SYNC_JOBS}}
+NXP_S32K148_BUILD_CMDLINE=${NXP_S32K148_BUILD_CMDLINE:-cmake --preset s32k148-freertos-gcc && cmake --build --preset s32k148-freertos-gcc -j${CMAKE_SYNC_JOBS}}
 POSIX_PYTEST_CMDLINE=${POSIX_PYTEST_CMDLINE:-./tools/enet/bring-up-ethernet.sh && ./tools/can/bring-up-vcan0.sh && cd test/pyTest/ && pytest --target=posix --app=freertos}
-BUILD_DOCUMENTATION_CMDLINE=${BUILD_DOCUMENTATION_CMDLINE:-cd doc && doxygen Doxyfile && cd -}
+BUILD_DOCUMENTATION_CMDLINE=${BUILD_DOCUMENTATION_CMDLINE:-cd doc/api && doxygen Doxyfile && cd -}
 
 # Artifacts
 POSIX_ARTIFACT=${POSIX_ARTIFACT:-"build/posix-freertos/executables/referenceApp/application/Release/app.referenceApp.elf"}
@@ -133,7 +134,18 @@ declare -a POST_BUILD_COMMANDS
 # shellcheck disable=SC2034
 declare -a OPENBSW_ARTIFACT_LIST=(
     "${BUILD_INFO_FILE}"
+    "${BUILD_LOG_FILE}"
 )
+
+# Gemini AI assistant: used to determine storage
+ENABLE_GEMINI_AI_ASSISTANT=${ENABLE_GEMINI_AI_ASSISTANT:-false}
+
+if [[ "${ENABLE_GEMINI_AI_ASSISTANT}" == "true" ]]; then
+    OPENBSW_ARTIFACT_LIST+=(
+      "${ORIG_WORKSPACE}/gemini-assist/"
+      "${ORIG_WORKSPACE}/*.json"
+    )
+fi
 
 # Ensure artifacts are accessible for storage and Jenkins workspace
 # has access for those stored with jobs.
@@ -159,15 +171,15 @@ fi
 
 if ${BUILD_DOCUMENTATION}; then
     POST_BUILD_COMMANDS+=(
-        "cd doc && python3 -m coverxygen --format summary --xml-dir doxygenOut/xml/ --src-dir .. --output - | tee ${WORKSPACE}/openbsw-doc-overage.txt && cd -"
-        "cd doc && tar -zcf ${WORKSPACE}/openbsw-documentation.tgz doxygenOut && cd -"
-        "cd doc && cp -rf doxygenOut \"${ORIG_WORKSPACE}\" && cd -"
+        "cd doc/api && python3 -m coverxygen --format summary --xml-dir doxygenOut/xml/ --src-dir ../.. --output - | tee ${WORKSPACE}/openbsw-doc-coverage.txt && cd -"
+        "cd doc/api && tar -zcf ${WORKSPACE}/openbsw-documentation.tgz doxygenOut && cd -"
+        "cd doc/api && cp -rf doxygenOut \"${ORIG_WORKSPACE}\" && cd -"
         "cp -f ${WORKSPACE}/openbsw-documentation.tgz \"${ORIG_WORKSPACE}\""
-        "cp -f ${WORKSPACE}/openbsw-doc-overage.txt \"${ORIG_WORKSPACE}\""
+        "cp -f ${WORKSPACE}/openbsw-doc-coverage.txt \"${ORIG_WORKSPACE}\""
     )
     OPENBSW_ARTIFACT_LIST+=(
         "${WORKSPACE}/openbsw-documentation.tgz"
-        "${WORKSPACE}/openbsw-doc-overage.txt"
+        "${WORKSPACE}/openbsw-doc-coverage.txt"
     )
 fi
 
@@ -192,13 +204,22 @@ if ${BUILD_NXP_S32K148}; then
         "cp -f build/s32k148-freertos-clang/application.map artifacts/s32k148 || true"
         "cp -f build/s32k148-threadx-clang/application.map artifacts/s32k148 || true"
     )
+
+    # Update compiler
+    if [[ "${NXP_S32K148_BUILD_CMDLINE}" =~ "clang" ]]; then
+        export NXP_CC="/opt/llvm-et-arm/bin/clang"
+        export NXP_CXX="/opt/llvm-et-arm/bin/clang++"
+    else
+        export NXP_CC="/opt/arm-gnu-toolchain/bin/arm-none-eabi-gcc"
+        export NXP_CXX="/opt/arm-gnu-toolchain/bin/arm-none-eabi-g++"
+    fi
 fi
 
 # Code coverage metrics.
 if ${CODE_COVERAGE}; then
     POST_BUILD_COMMANDS+=(
-        "lcov --capture --directory . --output-file ${WORKSPACE}/coverage_unfiltered.info"
-        "lcov --remove ${WORKSPACE}/coverage_unfiltered.info '*libs/3rdparty/googletest/*' '*/mock/*' '*/gmock/*' --output-file ${WORKSPACE}/coverage.info"
+        "lcov --capture --directory . --ignore-errors mismatch --output-file - | tee  ${WORKSPACE}/coverage_unfiltered.info"
+        "lcov --remove ${WORKSPACE}/coverage_unfiltered.info '*libs/3rdparty/googletest/*' '*/mock/*' '*/gmock/*' --output-file ${WORKSPACE}/coverage.info --ignore-errors mismatch"
         "genhtml ${WORKSPACE}/coverage.info --output-directory cmake-build-unit-tests/coverage"
         "cd cmake-build-unit-tests && cp -rf coverage ${WORKSPACE} && cd -"
         "cd ${WORKSPACE} && tar -zcf coverage.html.tgz coverage && cd -"
@@ -238,6 +259,9 @@ case "$0" in
         BUILD_NXP_S32K148=${BUILD_NXP_S32K148}
         POSIX_PYTEST=${POSIX_PYTEST}
 
+        BUILD_INFO_FILE=${BUILD_INFO_FILE}
+        BUILD_LOG_FILE=${BUILD_LOG_FILE}
+
         LIST_UNIT_TESTS_CMDLINE=${LIST_UNIT_TESTS_CMDLINE}
         UNIT_TESTS_CMDLINE=${UNIT_TESTS_CMDLINE}
         RUN_UNIT_TESTS_CMDLINE=${RUN_UNIT_TESTS_CMDLINE}
@@ -247,6 +271,9 @@ case "$0" in
 
         UNIT_TESTS_LIST_FILE=${UNIT_TESTS_LIST_FILE}
         UNIT_TESTS_RESULTS_FILE=${UNIT_TESTS_RESULTS_FILE}
+
+        NXP CC=${NXP_CC}
+        NXP CXX=${NXP_CXX}
         "
         ;;
     *storage.sh)
@@ -254,7 +281,12 @@ case "$0" in
         OPENBSW_GIT_DIR=${OPENBSW_GIT_DIR}
         OPENBSW_BUILD_NUMBER=${OPENBSW_BUILD_NUMBER}
         OPENBSW_ARTIFACT_ROOT_NAME=${OPENBSW_ARTIFACT_ROOT_NAME}
-        OPENBSW_ARTIFACT_STORAGE_SOLUTION_FUNCTION=${OPENBSW_ARTIFACT_STORAGE_SOLUTION_FUNCTION}
+        OPENBSW_ARTIFACT_STORAGE_SOLUTION=${OPENBSW_ARTIFACT_STORAGE_SOLUTION}
+
+        BUILD_INFO_FILE=${BUILD_INFO_FILE}
+        BUILD_LOG_FILE=${BUILD_LOG_FILE}
+
+        ENABLE_GEMINI_AI_ASSISTANT=${ENABLE_GEMINI_AI_ASSISTANT}
         "
         ;;
     *)

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# Copyright (c) 2024-2025 Accenture, All Rights Reserved.
+# Copyright (c) 2024-2026 Accenture, All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -63,6 +63,7 @@
 # Include common functions and variables.
 # shellcheck disable=SC1091
 source "$(dirname "${BASH_SOURCE[0]}")"/aaos_environment.sh "$0"
+declare PROJECT_PATH=""
 
 # Initialise the repository
 function initialise_repo() {
@@ -127,6 +128,105 @@ function initialise_repo() {
     echo "SUCCESS: repo sync complete."
 }
 
+# Determine the true project path
+function set_repo_path() {
+    local project=$1
+
+    if [[ "${ABFS_BUILDER}" == "false" ]]; then
+        # Use standard git fetch to retrieve the change.
+        # Find the project name from the manifest.
+        if [[ -n "${GERRIT_TOPIC}" ]]; then
+            PROJECT_PATH=$(repo list -p "${project}")
+        else
+            PROJECT_PATH=$(grep "name=\"${project}\"" .repo/manifests/default.xml | sed -r 's/.*path="([^"]+)".*/\1/')
+        fi
+    else
+
+        # Make this common to topic.
+        # Find the path from manifest
+        mkdir -p "${HOME}"/manifest
+        cd "${HOME}"/manifest || exit
+
+        # FIXME: fix branch (demo only)
+        if [[ "${AAOS_GERRIT_MANIFEST_URL}" =~ "horizon" ]]; then
+            if [[ ! "${AAOS_REVISION}" =~ "horizon" ]]; then
+                AAOS_REVISION=horizon/"${AAOS_REVISION}"
+            fi
+        fi
+
+        # FIXME: will use clone in future but for now this is just convenience for commonality.
+        if ! repo init -u "${AAOS_GERRIT_MANIFEST_URL}" -b "${AAOS_REVISION}" --depth=1
+        then
+            echo -e "\033[1;31mERROR: repo init failed, exit!\033[0m"
+            exit 1
+        fi
+
+        PROJECT_PATH=$(grep "name=\"${project}\"" .repo/manifests/default.xml | sed -r 's/.*path="([^"]+)".*/\1/')
+        rm -rf  "${HOME}"/manifest
+        cd - || exit
+    fi
+
+    echo "Repo path: $PROJECT_PATH"
+}
+
+# Configure Git for more reliable fetches from Gerrit (avoids HTTP/2 INTERNAL_ERROR,
+# early EOF, GnuTLS recv error, unpack-objects failed). Call once before any Gerrit fetch.
+function configure_git_gerrit_fetch() {
+    # Larger buffer for big fetches; reduces "RPC failed" / "body still expected" errors.
+    git config --global http.postBuffer 524288000
+    if [[ -n "${GERRIT_SERVER_URL:-}" ]]; then
+        local host
+        host=$(echo "${GERRIT_SERVER_URL}" | sed -e 's|^https\?://||' -e 's|/.*||')
+        if [[ -n "${host}" ]]; then
+            git config --global "http.https://${host}/.extraHeader" "Connection: keep-alive"
+            # Force HTTP/1.1 for this host to avoid HTTP/2 stream errors (INTERNAL_ERROR, stream not closed cleanly).
+            git config --global "http.https://${host}/.version" "HTTP/1.1"
+            # Force TLS 1.2 for this host to avoid GnuTLS "Error decoding the received TLS packet" (curl 56).
+            git config --global "http.https://${host}/.sslVersion" "tlsv1.2"
+            echo "Git: configured postBuffer, keep-alive, HTTP/1.1 and TLS 1.2 for ${host}"
+        fi
+    fi
+}
+
+# Fetch ref from URL and cherry-pick with retries (transient HTTP/2, GnuTLS, network errors).
+# Uses a timeout so a stuck fetch fails and retries instead of hanging. Set GERRIT_FETCH_TIMEOUT_SEC to override (default 300).
+# Returns 0 on success, 1 after all retries failed.
+function fetch_and_cherry_pick_with_retry() {
+    local project_path="$1"
+    local fetch_url="$2"
+    local ref="$3"
+    local max_attempts=5
+    local retry_delay_sec=20
+    local fetch_timeout_sec="${GERRIT_FETCH_TIMEOUT_SEC:-300}"
+    local attempt=1
+    local saved_pwd
+    saved_pwd=$(pwd)
+
+    while (( attempt <= max_attempts )); do
+        echo "Attempt ${attempt}/${max_attempts}: git fetch ${fetch_url} ${ref} (timeout ${fetch_timeout_sec}s) && git cherry-pick FETCH_HEAD"
+        local fetch_exit=0
+        ( cd "${project_path}" && timeout "${fetch_timeout_sec}" git fetch "${fetch_url}" "${ref}" && git cherry-pick FETCH_HEAD ) || fetch_exit=$?
+        if (( fetch_exit == 0 )); then
+            cd "${saved_pwd}" || true
+            return 0
+        fi
+        if (( fetch_exit == 124 )); then
+            echo "WARNING: git fetch timed out after ${fetch_timeout_sec}s (attempt ${attempt}/${max_attempts})."
+        else
+            echo "WARNING: fetch or cherry-pick failed with exit ${fetch_exit} (attempt ${attempt}/${max_attempts})."
+        fi
+        cd "${saved_pwd}" || true
+        git -C "${project_path}" cherry-pick --abort 2>/dev/null || true
+        git -C "${project_path}" reset --hard HEAD 2>/dev/null || true
+        if (( attempt < max_attempts )); then
+            echo "Retrying in ${retry_delay_sec} seconds..."
+            sleep "${retry_delay_sec}"
+        fi
+        (( attempt++ )) || true
+    done
+    return 1
+}
+
 # Fetch and apply all changes based on GERRIT_TOPIC
 function fetch_from_topic() {
     echo "Fetching ${GERRIT_TOPIC}"
@@ -144,20 +244,30 @@ function fetch_from_topic() {
         echo "Current Revision  | $rev"
 
         # Derive project path from manifest
-        PROJECT_PATH=$(grep "name=\"${project}\"" .repo/manifests/default.xml | sed -r 's/.*path="([^"]+)".*/\1/')
-        # Create the command to apply the patchset from topic.
-        REPO_CMD="cd ${PROJECT_PATH} && git fetch ${url} ${ref} && git cherry-pick FETCH_HEAD && cd -"
-        echo "Running: ${REPO_CMD}"
-        if ! eval "${REPO_CMD}"
-        then
-            echo -e "\033[1;31mERROR: git fetch failed, exit!\033[0m"
-            # Clean up so pv is not left in limbo (and thus removed)
-            git cherry-pick --abort || true  && git reset --hard HEAD || true
-            exit 1
-        else
-            if (( createChangesFile == 1 )); then
-                echo "$rev" | tee -a  "${GERRIT_CHANGES_FILE}"
+        set_repo_path "${project}"
+
+        if [[ "${ABFS_BUILDER}" != "false" ]]; then
+            # ABFS: fetch and cherry-pick with retries (HTTP/2, GnuTLS, network).
+            if ! fetch_and_cherry_pick_with_retry "${PROJECT_PATH}" "${url}" "${ref}"
+            then
+                echo -e "\033[1;31mERROR: git fetch failed after retries, exit!\033[0m"
+                git -C "${PROJECT_PATH}" cherry-pick --abort 2>/dev/null || true
+                git -C "${PROJECT_PATH}" reset --hard HEAD 2>/dev/null || true
+                exit 1
             fi
+        else
+            REPO_CMD="cd ${PROJECT_PATH} && git fetch ${url} ${ref} && git cherry-pick FETCH_HEAD && cd -"
+            echo "Running: ${REPO_CMD}"
+            if ! eval "${REPO_CMD}"
+            then
+                echo -e "\033[1;31mERROR: git fetch failed, exit!\033[0m"
+                git -C "${PROJECT_PATH}" cherry-pick --abort 2>/dev/null || true
+                git -C "${PROJECT_PATH}" reset --hard HEAD 2>/dev/null || true
+                exit 1
+            fi
+        fi
+        if (( createChangesFile == 1 )); then
+            echo "$rev" | tee -a  "${GERRIT_CHANGES_FILE}"
         fi
     done < <(curl -sS -u "${GERRIT_USERNAME}:${GERRIT_PASSWORD}" \
         "${GERRIT_SERVER_URL}/a/changes/?q=topic:${GERRIT_TOPIC}+status:open&o=CURRENT_REVISION" \
@@ -175,36 +285,15 @@ function fetch_from_topic() {
 
 # Pull in change set from Gerrit.
 function fetch_patchset() {
+    # ABFS only: configure Git for Gerrit (postBuffer, HTTP/1.1, TLS 1.2, retry on transient errors).
+    if [[ "${ABFS_BUILDER}" != "false" ]]; then
+        configure_git_gerrit_fetch
+    fi
+
     if [[ -n "${GERRIT_TOPIC}" ]]; then
         fetch_from_topic
     elif [[ -n "${GERRIT_PROJECT}" && -n "${GERRIT_CHANGE_NUMBER}" && -n "${GERRIT_PATCHSET_NUMBER}" ]]; then
-        if [[ "${ABFS_BUILDER}" == "false" ]]; then
-            # Use standard git fetch to retrieve the change.
-            # Find the project name from the manifest.
-            PROJECT_PATH=$(repo list -p "${GERRIT_PROJECT}")
-        else
-            # Find the path from manifest
-            mkdir -p "${HOME}"/manifest
-            cd "${HOME}"/manifest || exit
-
-            # FIXME: fix branch (demo only)
-            if [[ "${AAOS_GERRIT_MANIFEST_URL}" =~ "horizon" ]]; then
-                if [[ ! "${AAOS_REVISION}" =~ "horizon" ]]; then
-                    AAOS_REVISION=horizon/"${AAOS_REVISION}"
-                fi
-            fi
-
-            # FIXME: will use clone in future but for now this is just convenience for commonality.
-            if ! repo init -u "${AAOS_GERRIT_MANIFEST_URL}" -b "${AAOS_REVISION}" --depth=1
-            then
-                echo -e "\033[1;31mERROR: repo init failed, exit!\033[0m"
-                exit 1
-            fi
-
-            PROJECT_PATH=$(grep "name=\"${GERRIT_PROJECT}\"" .repo/manifests/default.xml | sed -r 's/.*path="([^"]+)".*/\1/')
-            rm -rf  "${HOME}"/manifest
-            cd - || exit
-        fi
+        set_repo_path "${GERRIT_PROJECT}"
 
         # Derive the Gerrit URL from the manifest URL.
         #   Horizon SDV uses path based URL whereas Google Android does not.
@@ -226,14 +315,21 @@ function fetch_patchset() {
         fi
 
         FETCHED_REFS="refs/changes/${LAST_TWO_DIGITS}"/"${GERRIT_CHANGE_NUMBER}"/"${GERRIT_PATCHSET_NUMBER}"
-        # shellcheck disable=SC2164
-        REPO_CMD="cd ${PROJECT_PATH} && git fetch ${PROJECT_URL} ${FETCHED_REFS} && git cherry-pick FETCH_HEAD && cd -"
-
-        echo "Running: ${REPO_CMD}"
-        if ! eval "${REPO_CMD}"
-        then
-            echo -e "\033[1;31mERROR: git fetch failed, exit!\033[0m"
-            exit 1
+        if [[ "${ABFS_BUILDER}" != "false" ]]; then
+            echo "Running: cd ${PROJECT_PATH} && git fetch ${PROJECT_URL} ${FETCHED_REFS} && git cherry-pick FETCH_HEAD"
+            if ! fetch_and_cherry_pick_with_retry "${PROJECT_PATH}" "${PROJECT_URL}" "${FETCHED_REFS}"
+            then
+                echo -e "\033[1;31mERROR: git fetch failed after retries, exit!\033[0m"
+                exit 1
+            fi
+        else
+            REPO_CMD="cd ${PROJECT_PATH} && git fetch ${PROJECT_URL} ${FETCHED_REFS} && git cherry-pick FETCH_HEAD && cd -"
+            echo "Running: ${REPO_CMD}"
+            if ! eval "${REPO_CMD}"
+            then
+                echo -e "\033[1;31mERROR: git fetch failed, exit!\033[0m"
+                exit 1
+            fi
         fi
 
         if [ -f "${GERRIT_CHANGES_FILE}" ]; then

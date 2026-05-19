@@ -32,14 +32,15 @@ const config = {
       protocol: 'openid-connect',
       publicClient: false
     },
-    clientScope:{
-      clientScopeName: 'groups'
-    },
-    rolesAndGroups: [
-        'horizon-headlamp-administrators'
+    ClientRoles: [
+      'administrators'
     ]
   }
-}
+};
+
+const clientRoleToGroup = {
+  administrators: ['administrators']
+};
 
 const keycloakAdmin = new KcAdminClient({
   baseUrl: config.keycloak.baseUrl
@@ -77,7 +78,7 @@ async function login()  {
     debugLog(`Keycloak authentication failed!`);
     debugLog(`Error message:`, err.message);
     debugLog(`Stack trace:`, err.stack);
-    throw err;
+    throw err
   }
 }
 
@@ -105,7 +106,7 @@ async function getRealm()  {
     debugLog(`Error while fetching realm "${config.keycloak.realm.realm}!"`);
     debugLog(`Error Message:`, err.message)
     debugLog(`Stack Trace:`, err.stack);
-    throw err;
+    throw err
   }
 }
 
@@ -135,7 +136,7 @@ async function createClientIfRequired()  {
     debugLog(`Error while updataing/creating Client ${config.keycloak.client.clientId}!`);
     debugLog(`Error Message:`, err.message);
     debugLog(`Error Stack:`, err.stack);
-    throw err;
+    throw err
   }
 }
 
@@ -160,14 +161,11 @@ async function generateSecretFiles()  {
   }
 }
 
-async function addGroupsClientScopeToHeadlampClientIfRequired() {
-  debugLog(`Adding "${config.keycloak.clientScope.clientScopeName}" client scope to "${config.keycloak.client.clientId}" client if not existing already...`);
+async function DisableFullScopeIfRequired() {
   const clientId = config.keycloak.client.clientId;
-  const clientScopeName = config.keycloak.clientScope.clientScopeName;
 
   try {
     const clients = await keycloakAdmin.clients.find();
-    debugLog(`Clients fetched: ${clients.map(c => c.clientId).join(', ')}`);
     const headlampClient = clients.find(client => client.clientId === clientId);
 
     if (!headlampClient) {
@@ -175,55 +173,109 @@ async function addGroupsClientScopeToHeadlampClientIfRequired() {
       return;
     }
 
-    const clientScopes = await keycloakAdmin.clientScopes.find();
-    debugLog(`Client scopes fetched: ${clientScopes.map(cs => cs.name).join(', ')}`);
-    const groupsScope = clientScopes.find(scope => scope.name === clientScopeName);
-    
-    if (!groupsScope) {
-      console.error(`client scope "${clientScopeName}" does not exist.`);
-      return;
-    }
-
-    const defaultScopes = await keycloakAdmin.clients.listDefaultClientScopes({ id: headlampClient.id });
-    debugLog(`Existing Client scopes for Client ${clientId}: ${defaultScopes.map(ds => ds.name).join(', ')}`);
-    const isGroupsScopeAssigned = defaultScopes.some(scope => scope.id === groupsScope.id);
-    
-    if (isGroupsScopeAssigned) {
-      console.info(`"${config.keycloak.clientScope.clientScopeName}" client scope already exists in "${config.keycloak.client.clientId}" client.`);
+    if (headlampClient.fullScopeAllowed === false) {
+      console.info(`"Full scope allowed" is already disabled for client "${clientId}".`);
     } else {
-      console.log(`adding "${config.keycloak.clientScope.clientScopeName}" client scope to "${config.keycloak.client.clientId}" client.`);
-      await keycloakAdmin.clients.addDefaultClientScope({id: headlampClient.id, clientScopeId: groupsScope.id,});
-      debugLog(`"${config.keycloak.clientScope.clientScopeName}" client scope successfully added to "${clientId}" client`);
+      console.log(`disabling "Full scope allowed" for client "${clientId}".`);
+      await keycloakAdmin.clients.update(
+        { id: headlampClient.id, realm: config.keycloak.realm.realm },
+        { ...headlampClient, fullScopeAllowed: false }
+      );
     }
   } catch (err) {
-    debugLog(`Error while adding "${config.keycloak.clientScope.clientScopeName}" client scope to "${clientId}" client`);
-    debugLog(`Error Message:`, err.message);
-    debugLog(`Stack Trace:`, err.stack);
     throw err;
   }
 }
 
-async function createHeadlampRealmGroupsIfRequired() {
-  debugLog(`Creating Keycloak realm group "${config.keycloak.rolesAndGroups}" if not existing already...`);
-  const realmGroupNames = config.keycloak.rolesAndGroups;
+async function createHeadlampClientRolesIfRequired() {
+  const clientId = config.keycloak.client.clientId;
+  const clientRoleNames = config.keycloak.ClientRoles;
 
-  for (const realmGroupName of realmGroupNames) {
-    try {
-      const existingGroups = await keycloakAdmin.groups.find({ search: realmGroupName });
-      const matchedGroup = existingGroups.find(group => group.name === realmGroupName);
+  try {
+    const clients = await keycloakAdmin.clients.find();
+    const headlampClient = clients.find(client => client.clientId === clientId);
 
-      if (matchedGroup) {
-        console.info(`group "${realmGroupName}" already exists.`);
-      } else {
-        console.log(`creating group "${realmGroupName}".`);
-        await keycloakAdmin.groups.create({ name: realmGroupName });
-      }
-    } catch (err) {
-      debugLog(`Error while creating group ${config.keycloak.rolesAndGroups}`);
-      debugLog(`Error Message:`, err.message);
-      debugLog(`Stack Trace: `, err.stack);
-      throw err;
+    if (!headlampClient) {
+      console.error(`client "${clientId}" does not exist.`);
+      return;
     }
+
+    const existingRoles = await keycloakAdmin.clients.listRoles({ id: headlampClient.id });
+
+    for (const roleName of clientRoleNames) {
+      const roleExists = existingRoles.some(role => role.name === roleName);
+      if (roleExists) {
+        console.info(`client role "${roleName}" already exists for "${clientId}".`);
+        continue;
+      }
+
+      await keycloakAdmin.clients.createRole({id: headlampClient.id, name: roleName});
+      console.log(`client role "${roleName}" created for client "${clientId}".`);
+    }
+  } catch (err) {
+    throw err;
+  }
+}
+
+async function mapHeadlampClientRolesToGroupsIfRequired() {
+  const clientId = config.keycloak.client.clientId;
+  const clientRoleNames = config.keycloak.ClientRoles;
+
+  try {
+    const clients = await keycloakAdmin.clients.find();
+    const headlampClient = clients.find(client => client.clientId === clientId);
+    
+    if (!headlampClient) {
+      console.error(`client "${clientId}" does not exist.`);
+      return;
+    }
+
+    const allGroups = await keycloakAdmin.groups.find();
+
+    for (const clientRoleName of clientRoleNames) {
+      const clientRole = await keycloakAdmin.clients.findRole({id: headlampClient.id, roleName: clientRoleName});
+
+      if (!clientRole) {
+        console.warn(`client role "${clientRoleName}" does not exist in "${clientId}".`);
+        continue;
+      }
+
+      const groupNames = clientRoleToGroup[clientRoleName];
+      if (!groupNames) {
+        console.warn(`no group mapping defined for client role "${clientRoleName}".`);
+        continue;
+      }
+
+      const names = Array.isArray(groupNames) ? groupNames : [groupNames];
+      for (const groupName of names) {
+        const group = allGroups.find(g => g.name === groupName);
+
+        if (!group) {
+          console.warn(`group "${groupName}" does not exist.`);
+          continue;
+        }
+
+        const mappedRoles = await keycloakAdmin.groups.listClientRoleMappings({id: group.id, clientUniqueId: headlampClient.id});
+        const alreadyMapped = mappedRoles.some(role => role.name === clientRole.name);
+
+        if (alreadyMapped) {
+          console.info(`client role "${clientRoleName}" is already mapped to group "${groupName}".`);
+          continue;
+        }
+
+        await keycloakAdmin.groups.addClientRoleMappings({
+          id: group.id,
+          clientUniqueId: headlampClient.id,
+          roles: [{
+            id: clientRole.id,
+            name: clientRole.name
+          }]
+        });
+        console.log(`client role "${clientRoleName}" mapped to group "${groupName}".`);
+      }
+    }
+  } catch (err) {
+    throw err;
   }
 }
 
@@ -233,8 +285,9 @@ async function configureKeycloak()  {
     await getRealm();
     await createClientIfRequired();
     await generateSecretFiles();
-    await addGroupsClientScopeToHeadlampClientIfRequired();
-    await createHeadlampRealmGroupsIfRequired();
+    await DisableFullScopeIfRequired();
+    await createHeadlampClientRolesIfRequired();
+    await mapHeadlampClientRolesToGroupsIfRequired();
   } catch (err) {
     debugLog(`Keycloak configuration failed.`);
     debugLog(`Error Message:`, err.message);

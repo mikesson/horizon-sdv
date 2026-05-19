@@ -30,6 +30,124 @@ spec:
   hostnames:
     - {{ printf "mcp.%s" .Values.config.domain | quote }}
   rules:
+    # Block doc paths served by the registry pod. GKE requires URLRewrite with
+    # replacePrefixMatch to have exactly one PathPrefix match per rule.
+    # Send blocked paths to auth-server because registry serves SPA index.html
+    # for unknown paths (200), while auth-server returns a real 404.
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /docs
+      filters:
+        - type: URLRewrite
+          urlRewrite:
+            path:
+              type: ReplacePrefixMatch
+              replacePrefixMatch: /__horizon_blocked__
+      backendRefs:
+        - name: auth-server
+          namespace: {{ .Values.config.namespacePrefix }}mcp-gateway-registry
+          port: 8888
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /redoc
+      filters:
+        - type: URLRewrite
+          urlRewrite:
+            path:
+              type: ReplacePrefixMatch
+              replacePrefixMatch: /__horizon_blocked__
+      backendRefs:
+        - name: auth-server
+          namespace: {{ .Values.config.namespacePrefix }}mcp-gateway-registry
+          port: 8888
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /openapi.json
+      filters:
+        - type: URLRewrite
+          urlRewrite:
+            path:
+              type: ReplacePrefixMatch
+              replacePrefixMatch: /__horizon_blocked__
+      backendRefs:
+        - name: auth-server
+          namespace: {{ .Values.config.namespacePrefix }}mcp-gateway-registry
+          port: 8888
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /openapi.yaml
+      filters:
+        - type: URLRewrite
+          urlRewrite:
+            path:
+              type: ReplacePrefixMatch
+              replacePrefixMatch: /__horizon_blocked__
+      backendRefs:
+        - name: auth-server
+          namespace: {{ .Values.config.namespacePrefix }}mcp-gateway-registry
+          port: 8888
+    # Block the same doc paths exposed by the auth-server pod (FastAPI on :8888).
+    # The longer prefix (`/auth-server/docs`) wins over `/auth-server` by specificity.
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /auth-server/docs
+      filters:
+        - type: URLRewrite
+          urlRewrite:
+            path:
+              type: ReplacePrefixMatch
+              replacePrefixMatch: /__horizon_blocked__
+      backendRefs:
+        - name: auth-server
+          namespace: {{ .Values.config.namespacePrefix }}mcp-gateway-registry
+          port: 8888
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /auth-server/redoc
+      filters:
+        - type: URLRewrite
+          urlRewrite:
+            path:
+              type: ReplacePrefixMatch
+              replacePrefixMatch: /__horizon_blocked__
+      backendRefs:
+        - name: auth-server
+          namespace: {{ .Values.config.namespacePrefix }}mcp-gateway-registry
+          port: 8888
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /auth-server/openapi.json
+      filters:
+        - type: URLRewrite
+          urlRewrite:
+            path:
+              type: ReplacePrefixMatch
+              replacePrefixMatch: /__horizon_blocked__
+      backendRefs:
+        - name: auth-server
+          namespace: {{ .Values.config.namespacePrefix }}mcp-gateway-registry
+          port: 8888
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /auth-server/openapi.yaml
+      filters:
+        - type: URLRewrite
+          urlRewrite:
+            path:
+              type: ReplacePrefixMatch
+              replacePrefixMatch: /__horizon_blocked__
+      backendRefs:
+        - name: auth-server
+          namespace: {{ .Values.config.namespacePrefix }}mcp-gateway-registry
+          port: 8888
     # route `mcp.domain` to nginx port inside registry service
     - matches:
         - path:

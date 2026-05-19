@@ -87,6 +87,10 @@ Once Google provide you the ABFS license in JSON form, the license must be suppl
      - Job will report failure if any of the uploader instances have not been provisioned correctly for ABFS.
    - **Note**:
       - There are additional parameters, currently set to defaults, e.g. `UPLOADER_GIT_BRANCH` is set to seed `android-16.0.0_r3`
+      - `GOOGLE_ABFS_TERRAFORM_VERSION` defaults to `v0.10.0` and accepts either a git tag or a specific commit sha1.
+      - Advanced module parameters are exposed in server/uploader operation jobs (extra ABFS args, uploader manifest scheme, spanner node/table options, and optional pre-start hooks).
+      - Server-side Spanner schema control is module-driven. Legacy `SPANNER_DDL_FILE` script path has been removed.
+      - Set `ABFS_SPANNER_DATABASE_CREATE_TABLES=true` only for new ABFS Spanner DB creation; keep `false` for upgrades/legacy DBs.
       - Refer to specific README files and parameter descriptions for additional details.
       - This task can take ~24 hours per branch/tag and the only way of knowing it is complete is to monitor the docker
         logs on the uploader instances to ensure all repositories have been seeded fully. Discuss with Google for details.

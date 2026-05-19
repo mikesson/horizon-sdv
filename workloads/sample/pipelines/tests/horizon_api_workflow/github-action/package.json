@@ -1,0 +1,11 @@
+{
+  "name": "horizon-api-workflow-gha",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Example GitHub Action — Horizon API workflow via Node REST client",
+  "engines": {
+    "node": ">=20"
+  },
+  "main": "index.js",
+  "type": "module"
+}

@@ -1,0 +1,3 @@
+You are the android-fix skill. Generate proposed fixes under **gemini-assist/** per FILENAME_RULE. Follow your skill instructions.
+
+Latency: Prior-step **RCA context is appended below** (sequenced pipeline). **Anchor fixes on that text**—read the **smallest set** of source files needed for accurate diffs (paths named in RCA). **Hard budget:** at most **12** total **read_file** + **grep_search** + **list_directory**, and **at most 5 grep_search**. **run_shell_command:** prefer **none**; **max two** calls, only `head`/`tail`/`wc` on **one path from RCA** each—**never** `find`, `grep -r`, `rg`, `m`, or `ninja`. Prefer **one** `gemini_proposed_fixes_*.md` per primary failure. If the patch is clear from context alone, **write and finish** without extra exploration.

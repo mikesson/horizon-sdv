@@ -1,0 +1,254 @@
+# Copyright (c) 2024-2026 Accenture, All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#         http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# The Config Connector operator (GKE add-on) scans all namespaces that have a
+# ConfigConnectorContext to verify CNRM resource counts. It needs read access
+# to every installed CNRM API group (including edgenetwork) cluster-wide, so a
+# ClusterRole/ClusterRoleBinding is the correct scope rather than per-namespace
+# Roles. Ref: https://cloud.google.com/config-connector/docs/how-to/install-upgrade-uninstall
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: configconnector-operator-cnrm-discovery
+  labels:
+    app.kubernetes.io/name: horizon-sdv
+    app.kubernetes.io/component: config-connector
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+rules:
+  - apiGroups:
+      - edgenetwork.cnrm.cloud.google.com
+    resources:
+      - "*"
+    verbs:
+      - get
+      - list
+      - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: configconnector-operator-cnrm-discovery
+  labels:
+    app.kubernetes.io/name: horizon-sdv
+    app.kubernetes.io/component: config-connector
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: configconnector-operator-cnrm-discovery
+subjects:
+  - kind: ServiceAccount
+    name: configconnector-operator
+    namespace: configconnector-operator-system
+---
+apiVersion: core.cnrm.cloud.google.com/v1beta1
+kind: ConfigConnectorContext
+metadata:
+  name: configconnectorcontext.core.cnrm.cloud.google.com
+  namespace: gcp
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  googleServiceAccount: gke-config-connector-sa@{{ .Values.config.projectID }}.iam.gserviceaccount.com
+---
+# Centralized KCC webhook TLS monitor:
+# periodically verifies that the certificate served by cnrm-validating-webhook
+# chains to the CA bundle configured in ValidatingWebhookConfiguration.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: kcc-webhook-cert-monitor
+  namespace: gcp
+  labels:
+    app.kubernetes.io/name: horizon-sdv
+    app.kubernetes.io/component: config-connector
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: kcc-webhook-cert-monitor
+  labels:
+    app.kubernetes.io/name: horizon-sdv
+    app.kubernetes.io/component: config-connector
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+rules:
+  - apiGroups: ["admissionregistration.k8s.io"]
+    resources: ["validatingwebhookconfigurations"]
+    resourceNames: ["validating-webhook.cnrm.cloud.google.com"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: kcc-webhook-cert-monitor
+  labels:
+    app.kubernetes.io/name: horizon-sdv
+    app.kubernetes.io/component: config-connector
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: kcc-webhook-cert-monitor
+subjects:
+  - kind: ServiceAccount
+    name: kcc-webhook-cert-monitor
+    namespace: gcp
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: kcc-webhook-cert-monitor
+  namespace: cnrm-system
+  labels:
+    app.kubernetes.io/name: horizon-sdv
+    app.kubernetes.io/component: config-connector
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+rules:
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    resourceNames: ["cnrm-webhook-manager"]
+    verbs: ["get", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: kcc-webhook-cert-monitor
+  namespace: cnrm-system
+  labels:
+    app.kubernetes.io/name: horizon-sdv
+    app.kubernetes.io/component: config-connector
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: kcc-webhook-cert-monitor
+subjects:
+  - kind: ServiceAccount
+    name: kcc-webhook-cert-monitor
+    namespace: gcp
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: kcc-webhook-cert-monitor
+  namespace: gcp
+  labels:
+    app.kubernetes.io/name: horizon-sdv
+    app.kubernetes.io/component: config-connector
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  schedule: "*/5 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      ttlSecondsAfterFinished: 600
+      template:
+        spec:
+          serviceAccountName: kcc-webhook-cert-monitor
+          restartPolicy: Never
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65534
+          containers:
+            - name: verify-webhook-tls
+              image: {{ .Values.config.containerImages.kccWebhookCertMonitor | quote }}
+              command: ["/bin/sh", "-c"]
+              args:
+                - |
+                  set -euo pipefail
+                  THRESHOLD_SECONDS={{ int .Values.config.configConnector.webhookMonitor.thresholdSeconds }}
+                  COOLDOWN_SECONDS={{ int .Values.config.configConnector.webhookMonitor.cooldownSeconds }}
+                  API_SERVER="https://kubernetes.default.svc"
+                  TOKEN="$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)"
+                  CA_CERT_PATH="/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
+                  RESTART_KEY="kcc-webhook-cert-monitor/restarted-at"
+                  LAST_RESTART_KEY="kcc-webhook-cert-monitor/last-auto-restart-epoch"
+                  CA="$(curl -fsS \
+                    --cacert "${CA_CERT_PATH}" \
+                    -H "Authorization: Bearer ${TOKEN}" \
+                    "${API_SERVER}/apis/admissionregistration.k8s.io/v1/validatingwebhookconfigurations/validating-webhook.cnrm.cloud.google.com" \
+                    | jq -r '.webhooks[] | select(.name=="deny-unknown-fields.cnrm.cloud.google.com") | .clientConfig.caBundle')"
+                  if [ -z "${CA:-}" ] || [ "$CA" = "null" ]; then
+                    echo "ERROR: missing caBundle for deny-unknown-fields.cnrm.cloud.google.com"
+                    exit 1
+                  fi
+                  printf '%s' "$CA" | base64 -d > /tmp/ca.pem
+                  echo | openssl s_client -connect cnrm-validating-webhook.cnrm-system.svc:443 \
+                    -servername cnrm-validating-webhook.cnrm-system.svc 2>/dev/null \
+                    | openssl x509 -outform PEM > /tmp/leaf.pem
+                  openssl verify -CAfile /tmp/ca.pem /tmp/leaf.pem
+                  echo "OK: cnrm-validating-webhook certificate chains to configured CA bundle"
+
+                  if openssl x509 -in /tmp/leaf.pem -checkend "${THRESHOLD_SECONDS}" -noout; then
+                    echo "OK: webhook certificate is valid for more than ${THRESHOLD_SECONDS}s"
+                    exit 0
+                  fi
+
+                  echo "WARN: webhook certificate expires within ${THRESHOLD_SECONDS}s"
+                  DEPLOYMENT_JSON="$(curl -fsS \
+                    --cacert "${CA_CERT_PATH}" \
+                    -H "Authorization: Bearer ${TOKEN}" \
+                    "${API_SERVER}/apis/apps/v1/namespaces/cnrm-system/deployments/cnrm-webhook-manager")"
+                  NOW_EPOCH="$(date -u +%s)"
+                  NOW_ISO="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+                  LAST_RESTART_EPOCH="$(printf '%s' "${DEPLOYMENT_JSON}" | jq -r --arg key "${LAST_RESTART_KEY}" '.metadata.annotations[$key] // "0"')"
+
+                  case "${LAST_RESTART_EPOCH}" in
+                    ''|*[!0-9]*)
+                      echo "WARN: invalid ${LAST_RESTART_KEY}='${LAST_RESTART_EPOCH}', treating as 0"
+                      LAST_RESTART_EPOCH=0
+                      ;;
+                  esac
+
+                  ELAPSED_SECONDS=$((NOW_EPOCH - LAST_RESTART_EPOCH))
+                  if [ "${ELAPSED_SECONDS}" -lt "${COOLDOWN_SECONDS}" ]; then
+                    echo "INFO: restart skipped due to cooldown (${ELAPSED_SECONDS}s < ${COOLDOWN_SECONDS}s)"
+                    exit 0
+                  fi
+
+                  PATCH_PAYLOAD="$(jq -nc \
+                    --arg nowIso "${NOW_ISO}" \
+                    --arg nowEpoch "${NOW_EPOCH}" \
+                    --arg restartKey "${RESTART_KEY}" \
+                    --arg lastRestartKey "${LAST_RESTART_KEY}" \
+                    '{metadata:{annotations:{($lastRestartKey):$nowEpoch}},spec:{template:{metadata:{annotations:{($restartKey):$nowIso}}}}}')"
+
+                  curl -fsS -X PATCH \
+                    --cacert "${CA_CERT_PATH}" \
+                    -H "Authorization: Bearer ${TOKEN}" \
+                    -H "Content-Type: application/merge-patch+json" \
+                    "${API_SERVER}/apis/apps/v1/namespaces/cnrm-system/deployments/cnrm-webhook-manager" \
+                    -d "${PATCH_PAYLOAD}" >/dev/null
+
+                  echo "INFO: auto-restart triggered for cnrm-webhook-manager at ${NOW_ISO}"
+              resources:
+                requests:
+                  cpu: 10m
+                  memory: 32Mi
+                limits:
+                  memory: 128Mi

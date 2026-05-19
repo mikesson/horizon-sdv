@@ -1,4 +1,4 @@
-# Copyright (c) 2024-2025 Accenture, All Rights Reserved.
+# Copyright (c) 2024-2026 Accenture, All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -94,6 +94,109 @@ spec:
       port: 443    # HTTPS
     - protocol: TCP
       port: 80     # HTTP
+{{- end }}
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ .Values.config.namespacePrefix }}horizon-api
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ .Values.config.namespacePrefix }}horizon-dev-portal
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+---
+# Horizon Developer Portal — default deny
+{{- if .Values.config.enableNetworkPolicies }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-all
+  namespace: {{ .Values.config.namespacePrefix }}horizon-dev-portal
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  podSelector: {}
+  policyTypes:
+  - Ingress
+  - Egress
+{{- end }}
+---
+# Allow DNS for horizon-dev-portal namespace
+{{- if .Values.config.enableNetworkPolicies }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-dns
+  namespace: {{ .Values.config.namespacePrefix }}horizon-dev-portal
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  podSelector: {}
+  policyTypes:
+  - Egress
+  egress:
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: kube-system
+    - podSelector:
+        matchLabels:
+          k8s-app: kube-dns
+    ports:
+    - protocol: UDP
+      port: 53
+    - protocol: TCP
+      port: 53
+{{- end }}
+---
+# Allow Horizon Developer Portal egress (OIDC/JWKS + Module Manager + Horizon API)
+{{- if .Values.config.enableNetworkPolicies }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-horizon-dev-portal-egress
+  namespace: {{ .Values.config.namespacePrefix }}horizon-dev-portal
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: horizon-dev-portal
+  policyTypes:
+  - Egress
+  egress:
+  - to:
+    - ipBlock:
+        cidr: 0.0.0.0/0
+        except:
+        - 169.254.169.254/32
+    ports:
+    - protocol: TCP
+      port: 443
+    - protocol: TCP
+      port: 80
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: module-manager
+    ports:
+    - protocol: TCP
+      port: 8082
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: {{ .Values.config.namespacePrefix }}horizon-api
+    ports:
+    # Service port 80 maps to containerPort 8082; on GKE Dataplane V2 egress matches the pod destination port.
+    - protocol: TCP
+      port: 80
+    - protocol: TCP
+      port: 8082
 {{- end }}
 ---
 apiVersion: v1
@@ -922,6 +1025,39 @@ spec:
       port: 80     # HTTP
 {{- end }}
 ---
+# GKE Managed Service for Prometheus query frontend: Workload Identity uses the
+# instance metadata service (169.254.169.254:80) to obtain tokens for
+# monitoring.googleapis.com. allow-prometheus-egress-to-internet excludes
+# 169.254.169.254/32 from 0.0.0.0/0, so that component cannot reach the GKE
+# metadata proxy; queries then return 500. Allow both well-known link-local
+# metadata addresses (see allow-workflows-to-metadata-server in argo-workflows).
+{{- if .Values.config.enableNetworkPolicies }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-prometheus-egress-to-gke-metadata
+  namespace: {{ .Values.config.namespacePrefix }}monitoring
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: prometheus
+  policyTypes:
+  - Egress
+  egress:
+  - to:
+    - ipBlock:
+        cidr: 169.254.169.254/32
+    - ipBlock:
+        cidr: 169.254.169.252/32
+    ports:
+    - protocol: TCP
+      port: 80
+    - protocol: TCP
+      port: 988
+{{- end }}
+---
 # Allow Grafana internet egress (for OS updates)
 {{- if .Values.config.enableNetworkPolicies }}
 apiVersion: networking.k8s.io/v1
@@ -1029,6 +1165,136 @@ spec:
       port: 80     # HTTP
 {{- end }}
 ---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ .Values.config.namespacePrefix }}argo-events
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+---
+# Default Deny All Traffic - Argo Events Namespace
+{{- if .Values.config.enableNetworkPolicies }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-all
+  namespace: {{ .Values.config.namespacePrefix }}argo-events
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  podSelector: {}
+  policyTypes:
+  - Ingress
+  - Egress
+{{- end }}
+---
+# Allow DNS for argo-events namespace
+{{- if .Values.config.enableNetworkPolicies }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-dns
+  namespace: {{ .Values.config.namespacePrefix }}argo-events
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  podSelector: {}
+  policyTypes:
+  - Egress
+  egress:
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: kube-system
+    - podSelector:
+        matchLabels:
+          k8s-app: kube-dns
+    ports:
+    - protocol: UDP
+      port: 53
+    - protocol: TCP
+      port: 53
+{{- end }}
+---
+# Allow any pod in argo-events to reach EventBus (NATS) in same namespace (EventSource/Sensor pods)
+{{- if .Values.config.enableNetworkPolicies }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-argo-events-to-eventbus
+  namespace: {{ .Values.config.namespacePrefix }}argo-events
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  podSelector: {}
+  policyTypes:
+  - Egress
+  egress:
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: {{ .Values.config.namespacePrefix }}argo-events
+    ports:
+    - protocol: TCP
+      port: 4222   # NATS client
+    - protocol: TCP
+      port: 6222   # NATS cluster
+    - protocol: TCP
+      port: 8222   # NATS monitoring
+{{- end }}
+---
+# Allow pods in argo-events to receive NATS traffic from same namespace (EventBus accepts from EventSource/Sensor)
+{{- if .Values.config.enableNetworkPolicies }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-argo-events-ingress-to-eventbus
+  namespace: {{ .Values.config.namespacePrefix }}argo-events
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  podSelector: {}
+  policyTypes:
+  - Ingress
+  ingress:
+  - from:
+    - podSelector: {}
+    ports:
+    - protocol: TCP
+      port: 4222   # NATS client
+    - protocol: TCP
+      port: 6222   # NATS cluster
+    - protocol: TCP
+      port: 8222   # NATS monitoring
+{{- end }}
+---
+# Allow all pods in argo-events to reach Kubernetes API (10.x.x.x:443) and internet (80/443)
+# Required for Sensor k8s triggers (create Pod via API) and controller-created pods without part-of label
+{{- if .Values.config.enableNetworkPolicies }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-argo-events-egress-to-internet
+  namespace: {{ .Values.config.namespacePrefix }}argo-events
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  podSelector: {}
+  policyTypes:
+  - Egress
+  egress:
+  - to:
+    - ipBlock:
+        cidr: 0.0.0.0/0
+        except:
+        - 169.254.169.254/32
+    ports:
+    - protocol: TCP
+      port: 443    # HTTPS + Kubernetes API
+    - protocol: TCP
+      port: 80     # HTTP
+{{- end }}
+---
 # Default Deny All Traffic - ArgoCD Namespace
 {{- if .Values.config.enableNetworkPolicies }}
 apiVersion: networking.k8s.io/v1
@@ -1086,6 +1352,201 @@ spec:
   podSelector:
     matchLabels:
       app.kubernetes.io/part-of: argocd
+  policyTypes:
+  - Egress
+  egress:
+  - to:
+    - ipBlock:
+        cidr: 0.0.0.0/0
+        except:
+        - 169.254.169.254/32
+    ports:
+    - protocol: TCP
+      port: 443    # HTTPS
+    - protocol: TCP
+      port: 80     # HTTP
+{{- end }}
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: gcp 
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+    cnrm.cloud.google.com/project-id: {{ .Values.config.projectID }}
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ .Values.config.namespacePrefix }}argo-workflows
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+---
+# Default Deny All Traffic - Argo Workflows Namespace
+{{- if .Values.config.enableNetworkPolicies }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-all
+  namespace: {{ .Values.config.namespacePrefix }}argo-workflows
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  podSelector: {}
+  policyTypes:
+  - Ingress
+  - Egress
+{{- end }}
+---
+# Allow DNS for argo-workflows namespace
+{{- if .Values.config.enableNetworkPolicies }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-dns
+  namespace: {{ .Values.config.namespacePrefix }}argo-workflows
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  podSelector: {}
+  policyTypes:
+  - Egress
+  egress:
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: kube-system
+    - podSelector:
+        matchLabels:
+          k8s-app: kube-dns
+    ports:
+    - protocol: UDP
+      port: 53
+    - protocol: TCP
+      port: 53
+{{- end }}
+---
+# Allow Argo Workflows Server internet egress
+{{- if .Values.config.enableNetworkPolicies }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-argo-workflows-server-egress-to-internet
+  namespace: {{ .Values.config.namespacePrefix }}argo-workflows
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: argo-workflows-server
+  policyTypes:
+  - Egress
+  egress:
+  - to:
+    - ipBlock:
+        cidr: 0.0.0.0/0
+        except:
+        - 169.254.169.254/32
+    ports:
+    - protocol: TCP
+      port: 443    # HTTPS
+    - protocol: TCP
+      port: 80     # HTTP
+{{- end }}
+---
+# Allow Workflow Controller internet egress
+{{- if .Values.config.enableNetworkPolicies }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-workflow-controller-egress-to-internet
+  namespace: {{ .Values.config.namespacePrefix }}argo-workflows
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: argo-workflows-workflow-controller
+  policyTypes:
+  - Egress
+  egress:
+  - to:
+    - ipBlock:
+        cidr: 0.0.0.0/0
+        except:
+        - 169.254.169.254/32
+    ports:
+    - protocol: TCP
+      port: 443    # HTTPS
+    - protocol: TCP
+      port: 80     # HTTP
+{{- end }}
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ .Values.config.namespacePrefix }}workflows
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+---
+# Default Deny All Traffic - Workflows Namespace
+{{- if .Values.config.enableNetworkPolicies }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-all
+  namespace: {{ .Values.config.namespacePrefix }}workflows
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  podSelector: {}
+  policyTypes:
+  - Ingress
+  - Egress
+{{- end }}
+---
+# Allow DNS for workflows namespace
+{{- if .Values.config.enableNetworkPolicies }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-dns
+  namespace: {{ .Values.config.namespacePrefix }}workflows
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  podSelector: {}
+  policyTypes:
+  - Egress
+  egress:
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: kube-system
+    - podSelector:
+        matchLabels:
+          k8s-app: kube-dns
+    ports:
+    - protocol: UDP
+      port: 53
+    - protocol: TCP
+      port: 53
+{{- end }}
+---
+# Allow Workflow pods internet egress
+{{- if .Values.config.enableNetworkPolicies }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-workflow-pods-egress-to-internet
+  namespace: {{ .Values.config.namespacePrefix }}workflows
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  podSelector:
+    matchExpressions:
+      - key: workflows.argoproj.io/workflow
+        operator: Exists
   policyTypes:
   - Egress
   egress:

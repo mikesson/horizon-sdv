@@ -1,0 +1,71 @@
+# Copyright (c) 2024-2026 Accenture, All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#         http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: modulemanagerstates.horizon-sdv.io
+  annotations:
+    helm.sh/hook: crd-install
+    helm.sh/hook-weight: "-5"
+spec:
+  group: horizon-sdv.io
+  names:
+    kind: ModuleManagerState
+    listKind: ModuleManagerStateList
+    plural: modulemanagerstates
+    singular: modulemanagerstate
+    shortNames:
+      - mmstate
+  scope: Namespaced
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              description: Reserved for future use (e.g. desired state).
+            status:
+              type: object
+              properties:
+                enabledModules:
+                  type: array
+                  items:
+                    type: string
+                  description: List of module IDs that are currently enabled.
+                moduleIds:
+                  type: object
+                  additionalProperties:
+                    type: string
+                  description: Map of module name to assigned stable ID.
+                moduleTargetRevisions:
+                  type: object
+                  additionalProperties:
+                    type: string
+                  description: Map of module name to Git ref (branch, tag, SHA) for the module Argo CD Application.
+                workflowsVisibility:
+                  type: object
+                  description: Developer Portal workflow list visibility (optional).
+                  properties:
+                    allowedSubmittedFrom:
+                      type: array
+                      description: Allowed horizon-sdv.io/submitted-from label values; empty array hides all.
+                      items:
+                        type: string
+      subresources:
+        status: {}

@@ -47,7 +47,7 @@ pipeline {
       kind: Pod
       metadata:
         annotations:
-          cluster-autoscaler.kubernetes.io/safe-to-evict: "true"
+          cluster-autoscaler.kubernetes.io/safe-to-evict: "false"
         labels:
           aaos_pod: "true"
       spec:
@@ -109,7 +109,7 @@ pipeline {
       kind: Pod
       metadata:
         annotations:
-          cluster-autoscaler.kubernetes.io/safe-to-evict: "true"
+          cluster-autoscaler.kubernetes.io/safe-to-evict: "false"
         labels:
           aaos_pod: "true"
       spec:
@@ -174,7 +174,10 @@ pipeline {
 
   stages {
     stage ('Start Build VM Instance') {
-      agent { kubernetes { yaml "${POD_TEMPLATE}" } }
+      agent { kubernetes {
+        yamlMergeStrategy merge()
+        yaml "${POD_TEMPLATE}"
+      } }
       stages {
         stage ('Initialise') {
           when {
@@ -194,6 +197,7 @@ pipeline {
                   // Required for CTS
                   env.ANDROID_VERSION=14
                   if ( "${env.GERRIT_BRANCH}" =~ "android-14.0.0_r30" ) env.ANDROID_BUILD_ID="ap1a-"
+                  if ( "${env.GERRIT_BRANCH}" =~ "android-14.0.0_r74" ) env.ANDROID_BUILD_ID="ap2a-"
                   if ( "${env.GERRIT_BRANCH}" =~ "android-15.0.0_r36" ) env.ANDROID_BUILD_ID="bp1a-"
                   if ( "${env.GERRIT_BRANCH}" =~ "android-16.0.0_r3" ) env.ANDROID_BUILD_ID="bp3a-"
                   if ( "${env.GERRIT_BRANCH}" =~ "android-16.0.0_r4" ) env.ANDROID_BUILD_ID="bp4a-"
@@ -516,16 +520,4 @@ pipeline {
     }
   }
 
-  post {
-    unstable {
-      gerritReview labels: [Verified: 0], message: 'Build is unstable.'
-    }
-    failure {
-      gerritReview labels: [Verified: -1], message: 'Build has failed.'
-    }
-    success {
-      gerritReview labels: [Verified: 1], message: 'Build successful.'
-    }
-  }
 }
-

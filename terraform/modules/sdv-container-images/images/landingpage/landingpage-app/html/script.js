@@ -33,4 +33,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const isDark = body.classList.contains('dark');
         icon.className = isDark ? 'bx bx-sun' : 'bx bx-moon';
     }
+
+    const mcpGatewayLink = document.getElementById('mcp-gateway-link');
+    if (mcpGatewayLink) {
+        mcpGatewayLink.href = location.protocol + '//mcp.' + location.hostname;
+    }
 });

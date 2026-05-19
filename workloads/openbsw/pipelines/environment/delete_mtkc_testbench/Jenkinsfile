@@ -21,18 +21,20 @@ pipeline {
 
   agent {
     kubernetes {
+      // merge() + safe-to-evict false: align with android delete_mtkc_testbench / cvdPipeline (avoid CA eviction mid-job).
+      yamlMergeStrategy merge()
       yaml """\
         apiVersion: v1
         kind: Pod
         metadata:
           annotations:
-            cluster-autoscaler.kubernetes.io/safe-to-evict: "true"
+            cluster-autoscaler.kubernetes.io/safe-to-evict: "false"
         spec:
           serviceAccountName: ${JENKINS_SERVICE_ACCOUNT}
           containers:
           - name: builder
             image: ${CLOUD_REGION}-docker.pkg.dev/${CLOUD_PROJECT}/${OPENBSW_BUILD_DOCKER_ARTIFACT_PATH_NAME}:${IMAGE_TAG}
-            imagePullPolicy: IfNotPresent
+            imagePullPolicy: Always
             command:
             - sleep
             args:

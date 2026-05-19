@@ -27,6 +27,7 @@
 # shellcheck disable=SC1091
 source "$(dirname "${BASH_SOURCE[0]}")"/bsw_environment.sh "$0"
 
+RESULT=0
 # Format STORAGE_PATH as a zero-padded two-digit string (e.g. 7/aaa -> 07/aaa, 7 -> 07)
 # shellcheck disable=SC2329
 function pad_first_number_if_numeric() {
@@ -49,22 +50,28 @@ export STORAGE_BUCKET_DESTINATION=${STORAGE_BUCKET_DESTINATION:-gs://${OPENBSW_A
 export BUCKET_RELATIVE_DESTINATION="${STORAGE_BUCKET_DESTINATION#gs://}"
 export STORAGE_CLOUD_URL=${STORAGE_CLOUD_URL:-https://console.cloud.google.com/storage/browser/${BUCKET_RELATIVE_DESTINATION}}
 
-export ARTIFACT_LIST="${OPENBSW_ARTIFACT_LIST[*]}"
+ARTIFACT_LIST=$(printf '%s\n' "${OPENBSW_ARTIFACT_LIST[@]}")
+export ARTIFACT_LIST
 export ARTIFACT_SUMMARY="${ORIG_WORKSPACE}/openbsw-${OPENBSW_BUILD_NUMBER}-artifacts.txt"
 export ARTIFACT_STORAGE_SOLUTION="${OPENBSW_ARTIFACT_STORAGE_SOLUTION}"
-export ARTIFACT_STORAGE_SOLUTION_FUNCTION="${OPENBSW_ARTIFACT_STORAGE_SOLUTION_FUNCTION}"
 export WORKSPACE="${ORIG_WORKSPACE}"
 "${WORKSPACE}"/workloads/common/storage/storage.sh
+RESULT="$?"
 
 export STORAGE_LABELS="${STORAGE_LABELS}"
-case "${ARTIFACT_STORAGE_SOLUTION}" in
-    GCS_BUCKET)
-        export URL_PATH="${STORAGE_BUCKET_DESTINATION}/"
-        export KEYVALUE_PAIRS="${STORAGE_LABELS}"
-        "${ORIG_WORKSPACE}"/workloads/common/storage/gcs_utilities.sh ADD_OBJECT_METADATA || true
-        ;;
-    *)
-        echo "Utility to add metadata using $ARTIFACT_STORAGE_SOLUTION not available"
-        ;;
-esac
-exit "$?"
+if [ -n "${STORAGE_LABELS}" ]; then
+    case "${ARTIFACT_STORAGE_SOLUTION}" in
+        GCS_BUCKET)
+            export URL_PATH="${STORAGE_BUCKET_DESTINATION}/"
+            export KEYVALUE_PAIRS="${STORAGE_LABELS}"
+            "${ORIG_WORKSPACE}"/workloads/common/storage/gcs_utilities.sh ADD_OBJECT_METADATA || true
+            RESULT="$?"
+            ;;
+        *)
+            echo "Utility to add metadata using $ARTIFACT_STORAGE_SOLUTION not available"
+            ;;
+    esac
+else
+    echo "STORAGE_LABELS empty, ignoring"
+fi
+exit "${RESULT}"

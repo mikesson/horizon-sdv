@@ -41,16 +41,16 @@ pipeline {
     stage ('Start Instance') {
       agent { kubernetes { yaml kubernetesPodTemplate } }
       stages {
-        stage ('Server Action') {
-          when {
-            anyOf {
-              allOf {
-                expression { env.ABFS_TERRAFORM_ACTION == 'APPLY' }
-                expression { env.ABFS_LICENSE_B64 }
+        stage ('Input Validation') {
+          steps {
+            script {
+              if (env.ABFS_TERRAFORM_ACTION == 'APPLY' && (!env.ABFS_LICENSE_B64 || !env.ABFS_LICENSE_B64.trim())) {
+                error('ABFS_LICENSE_B64 is mandatory for APPLY actions. Please provide a valid base64-encoded ABFS license.')
               }
-              expression { env.ABFS_TERRAFORM_ACTION != 'APPLY' }
             }
           }
+        }
+        stage ('Server Action') {
           steps {
             container(name: 'abfs-server-builder') {
               catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
@@ -61,8 +61,16 @@ pipeline {
                   sh '''
                     cd ./workloads/android/pipelines/environment/abfs/server_administration/server_operations/
                     ABFS_TERRAFORM_ACTION="${ABFS_TERRAFORM_ACTION}" \
+                    GOOGLE_ABFS_TERRAFORM_GIT_URL="${GOOGLE_ABFS_TERRAFORM_GIT_URL}" \
+                    GOOGLE_ABFS_TERRAFORM_VERSION="${GOOGLE_ABFS_TERRAFORM_VERSION}" \
                     SERVER_MACHINE_TYPE="${SERVER_MACHINE_TYPE}" \
                     ABFS_LICENSE_B64=${ABFS_LICENSE_B64} \
+                    ABFS_EXTRA_PARAMS="${ABFS_EXTRA_PARAMS}" \
+                    EXISTING_BUCKET_NAME="${EXISTING_BUCKET_NAME}" \
+                    ABFS_SPANNER_INSTANCE_MIN_NODES="${ABFS_SPANNER_INSTANCE_MIN_NODES}" \
+                    ABFS_SPANNER_INSTANCE_MAX_NODES="${ABFS_SPANNER_INSTANCE_MAX_NODES}" \
+                    ABFS_SPANNER_DATABASE_CREATE_TABLES="${ABFS_SPANNER_DATABASE_CREATE_TABLES}" \
+                    ABFS_SPANNER_DATABASE_SCHEMA_VERSION="${ABFS_SPANNER_DATABASE_SCHEMA_VERSION}" \
                     ABFS_COS_IMAGE_REF="${ABFS_COS_IMAGE_REF}" \
                     ./abfs_server_run.sh
                   '''

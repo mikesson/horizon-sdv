@@ -19,4 +19,16 @@ resource "google_storage_bucket" "bucket" {
   location                    = var.location
   force_destroy               = true
   uniform_bucket_level_access = true
+
+  dynamic "lifecycle_rule" {
+    for_each = var.lifecycle_delete_age_days != null ? [var.lifecycle_delete_age_days] : []
+    content {
+      action {
+        type = "Delete"
+      }
+      condition {
+        age = lifecycle_rule.value
+      }
+    }
+  }
 }

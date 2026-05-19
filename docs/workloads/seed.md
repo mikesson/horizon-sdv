@@ -100,6 +100,27 @@ This provides the URL for the OpenBSW repository. Such as:
 ### `OPENBSW_GIT_BRANCH`
 This provides the branch/tag revision for the OpenBSW repository.
 
+### `NODEJS_VERSION`
+Version of NodeJS to install across workloads.
+
+### `ENABLE_GEMINI_AI_ASSISTANT`
+Enable Gemini AI to support in diagnosis of build and test failures.
+
+### `GEMINI_PREVIEW_FEATURES`
+Enable preview features to experiment with alternative model versions.
+For known issues and recommended settings, see [Gemini CLI integration](common/agentic-ai/gemini.md#known-issues).
+
+### `GEMINI_LOCATION_GLOBAL`
+Change to global endpoint to allow for additional models.
+For known issues and recommended settings, see [Gemini CLI integration](common/agentic-ai/gemini.md#known-issues).
+
+### `GEMINI_MODEL`
+Override the model to use.
+
+### `GEMINI_CLI_VERSION`
+The version of gemini-cli to be installed.
+Run `npm view @google/gemini-cli versions` for a full list of valid versions.
+
 ### Groovy Scripts <a name="groovyscripts"></a>
 
 This job uses the "Authorize Project" plugin to set an authorization property, allowing the job to run as the user who triggered the build. This is configured as follows:
@@ -138,8 +159,8 @@ def replacements = [
  ['${CLOUD_REGION}', "${CLOUD_REGION}"],
  ['${CLOUD_PROJECT}', "${CLOUD_PROJECT}"],
  ['${HORIZON_DOMAIN}', "${HORIZON_DOMAIN}"],
- ['${HORIZON_GIT_URL}', "${HORIZON_GIT_URL}"],
- ['${HORIZON_GIT_BRANCH}', "${HORIZON_GIT_BRANCH}"],
+ ['${HORIZON_SCM_URL}', "${HORIZON_SCM_URL}"],
+ ['${HORIZON_SCM_BRANCH}', "${HORIZON_SCM_BRANCH}"],
  ['${HEADER_STYLE}', "${HEADER_STYLE}"],
  ['${SEPARATOR_STYLE}', "${SEPARATOR_STYLE}"]]
 ```

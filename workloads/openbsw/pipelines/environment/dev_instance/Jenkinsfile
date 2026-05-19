@@ -29,7 +29,7 @@ pipeline {
       kind: Pod
       metadata:
         annotations:
-          cluster-autoscaler.kubernetes.io/safe-to-evict: "true"
+          cluster-autoscaler.kubernetes.io/safe-to-evict: "false"
         labels:
           openbsw_pod: "true"
       spec:
@@ -51,7 +51,7 @@ pipeline {
         containers:
         - name: builder
           image: ${CLOUD_REGION}-docker.pkg.dev/${CLOUD_PROJECT}/${OPENBSW_BUILD_DOCKER_ARTIFACT_PATH_NAME}:${IMAGE_TAG}
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Always
           securityContext:
             privileged: true
           command:
@@ -74,7 +74,10 @@ pipeline {
 
   stages {
     stage ('Start VM Instance') {
-      agent { kubernetes { yaml kubernetesPodTemplate } }
+      agent { kubernetes {
+        yamlMergeStrategy merge()
+        yaml kubernetesPodTemplate
+      } }
       stages {
         stage ('MTK Connect to Host Device') {
           when { expression { env.MTK_CONNECT_ENABLE == 'true' } }

@@ -51,15 +51,18 @@ by performing builds on that patchset and providing the user with a vote to thei
             }
           }
           triggerOnEvents{
-            patchsetCreated()
+            commentAdded{
+              commentAddedTriggerApprovalValue('+1')
+              verdictCategory('Ready-for-Build')
+            }
           }
         }
       }
     }
   }
 
-  // Delay to avoid multiple gerrit triggers for TOPIC related changes
-  quietPeriod(180)
+  // Delay to avoid debounce issues with Ready for Build vote
+  quietPeriod(120)
 
   environmentVariables {
     env('GERRIT_REPO_SYNC_JOBS', '${REPO_SYNC_JOBS}')
@@ -71,8 +74,8 @@ by performing builds on that patchset and providing the user with a vote to thei
   logRotator {
     artifactDaysToKeep(60)
     artifactNumToKeep(100)
-    daysToKeep(60)
-    numToKeep(200)
+    daysToKeep(7)
+    numToKeep(50)
   }
 
   definition {
@@ -81,10 +84,10 @@ by performing builds on that patchset and providing the user with a vote to thei
       scm {
         git {
           remote {
-            url("${HORIZON_GIT_URL}")
-            credentials('jenkins-git-creds')
+            url("${HORIZON_SCM_URL}")
+            credentials('jenkins-scm-creds')
           }
-          branch("*/${HORIZON_GIT_BRANCH}")
+          branch("*/${HORIZON_SCM_BRANCH}")
         }
       }
       scriptPath('workloads/android/pipelines/builds/gerrit/Jenkinsfile')

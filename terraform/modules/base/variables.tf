@@ -27,24 +27,49 @@ variable "sdv_sub_env_branches" {
   default     = {}
 }
 
-variable "git_auth_method" {
-  description = "Authentication method for Argo CD: 'app' or 'pat'."
+# SCM Configuration
+variable "scm_type" {
+  description = "SCM type: 'github' or 'git'"
   type        = string
 }
 
-variable "git_repo_owner" {
-  description = "Git repository owner (user or organization name)"
+variable "scm_auth_method" {
+  description = "SCM auth method: 'app' or 'userpass'"
   type        = string
 }
 
-variable "git_repo_name" {
-  description = "Git repository name"
+variable "scm_repo_url" {
+  description = "Full SCM repository URL"
   type        = string
 }
 
-variable "git_repo_branch" {
-  description = "Git repository branch"
+variable "scm_repo_branch" {
+  description = "SCM repository branch"
   type        = string
+}
+
+variable "scm_repo_owner" {
+  description = "SCM repository owner (parsed from URL for GitHub)"
+  type        = string
+  default     = ""
+}
+
+variable "scm_repo_name" {
+  description = "SCM repository name (parsed from URL for GitHub)"
+  type        = string
+  default     = ""
+}
+
+variable "scm_username" {
+  description = "SCM username"
+  type        = string
+  default     = "git"
+}
+
+variable "github_repo_branch" {
+  description = "[Legacy] Github repo branch"
+  type        = string
+  default     = ""
 }
 
 variable "env_name" {
@@ -279,6 +304,36 @@ variable "sdv_openbsw_build_node_pool_max_node_count" {
   default     = 20
 }
 
+variable "sdv_utility_node_pool_name" {
+  description = "Name of the utility node pool (Gemini/Vertex CLI and similar workloads)"
+  type        = string
+  default     = "sdv-utility-node-pool"
+}
+
+variable "sdv_utility_node_pool_node_count" {
+  description = "Number of nodes for the utility node pool"
+  type        = number
+  default     = 0
+}
+
+variable "sdv_utility_node_pool_machine_type" {
+  description = "Machine type for the utility node pool (size for up to 32 CPU / 96Gi pod limits; n2-standard-48+ recommended over n2-standard-32 due to kube-reserved CPU)"
+  type        = string
+  default     = "n2-standard-48"
+}
+
+variable "sdv_utility_node_pool_min_node_count" {
+  description = "Minimum number of nodes for the utility node pool"
+  type        = number
+  default     = 0
+}
+
+variable "sdv_utility_node_pool_max_node_count" {
+  description = "Maximum number of nodes for the utility node pool"
+  type        = number
+  default     = 10
+}
+
 variable "sdv_wi_service_accounts" {
   description = "A map of service accounts and their configurations for WI"
   type = map(object({
@@ -372,16 +427,22 @@ variable "arm64_services_range" {
   default     = "10.22.0.0/16"
 }
 
+variable "sdv_enable_network_policies" {
+  description = "Enable network policies for all workloads. When disabled, all network policies will be removed. Default is enabled."
+  type        = bool
+  default     = true
+}
+
 variable "sdv_dns_dnssec_enabled" {
   description = "Enable DNSSEC for Cloud DNS zone. Requires domain ownership verification. Enabled by default."
   type        = bool
   default     = true
 }
 
-variable "sdv_enable_network_policies" {
-  description = "Enable network policies for all workloads. When disabled, all network policies will be removed. Default is enabled."
+variable "sdv_dns_use_static_a_records" {
+  description = "Use static A records in parent zone instead of zone delegation. When true: no Cloud DNS zone for app domain, certificate uses Load Balancer authorization, DNSSEC off. Add A records (domain and mcp.domain) to parent zone manually; LB IP is visible in GCP Console."
   type        = bool
-  default     = true
+  default     = false
 }
 
 variable "sdv_enable_kms_encryption" {

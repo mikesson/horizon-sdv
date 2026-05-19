@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# Copyright (c) 2024-2025 Accenture, All Rights Reserved.
+# Copyright (c) 2024-2026 Accenture, All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -31,6 +31,7 @@
 # Include common functions and variables.
 # shellcheck disable=SC1091
 source "$(dirname "${BASH_SOURCE[0]}")"/cvd_environment.sh "$0"
+# Colours: GREEN/ORANGE/RED/NC from cvd_environment.sh.
 
 declare BOOTED_INSTANCES=0
 
@@ -63,14 +64,14 @@ function cuttlefish_extract_artifacts() {
     # Unpack the host packages.
     if ! tar -xvf cvd-host_package.tar.gz
     then
-        echo "Failed to extract cvd-host_package.tar.gz"
+        echo -e "${RED}Failed to extract cvd-host_package.tar.gz${NC}" >&2
         exit 1
     fi
 
     # Unpack the Cuttlefish device images.
     if ! unzip aosp_cf_"${ARCHITECTURE}"_auto-img*.zip
     then
-        echo "Failed to extract aosp_cf_${ARCHITECTURE}_auto-img*.zip"
+        echo -e "${RED}Failed to extract aosp_cf_${ARCHITECTURE}_auto-img*.zip${NC}" >&2
         exit 1
     fi
 
@@ -90,39 +91,34 @@ function cuttlefish_adjust_resources() {
         # Check how many are available
         INTERFACES=$(ip -c a | grep -c cvd-wtap)
         if (( NUM_INSTANCES == INTERFACES )); then
-            echo "Cuttlefish updated for $NUM_INSTANCES instances"
+            echo -e "${GREEN}Cuttlefish updated for $NUM_INSTANCES instances${NC}"
         else
-            echo "Warning: resources $INTERFACES != $NUM_INSTANCES"
+            echo -e "${ORANGE}Warning: resources $INTERFACES != $NUM_INSTANCES${NC}"
         fi
     fi
 }
 
 # Start Cuttlefish Virtual Device (CVD) host.
 function cuttlefish_start() {
-    echo "cuttlefish_start"
+    echo -e "${GREEN}cuttlefish_start${NC}"
 
     cd "${HOME}"/cf || exit
 
     # Remove log file.
     rm -f "${logfile}"
 
-    # Start the CF devices (must be run as sudo)
-    # Options:
-    # resume: do not resume using the disk from the last session.
-    # config: default to auto
-    # report_anonymous_usage_stats: default to no, avoids user input.
-    # num_instances: number of guest instances to launch.
-    # cpus: virtual CPU count.
-    # memory_mb: total memory available to guest.
-    # console: enable serial console
-    CVD_CMD="sudo HOME=\"${PWD}\" /usr/bin/cvd create --noresume -config=auto \
-        -report_anonymous_usage_stats=no --num_instances=\"${NUM_INSTANCES}\" \
-        --cpus=\"${VM_CPUS}\" --memory_mb=\"${VM_MEMORY_MB}\" --console=true \
-        ${CVD_ADDITIONAL_FLAGS} >> \"${logfile}\" 2>&1 &"
-    echo "Running ${CVD_CMD} in background."
+    # Start the CF devices (must be run as sudo).
+    # CVD_COMMAND_LINE: full command after HOME=… (default set in cvd_environment.sh).
+    CVD_COMMAND_LINE=$(echo "${CVD_COMMAND_LINE}" | xargs)
+    if [[ -z "${CVD_COMMAND_LINE}" ]]; then
+        echo -e "${RED}ERROR: CVD_COMMAND_LINE is empty after cvd_environment.sh${NC}" >&2
+        exit 1
+    fi
+    CVD_CMD="sudo HOME=\"${PWD}\" ${CVD_COMMAND_LINE} >> \"${logfile}\" 2>&1 &"
+    echo -e "${GREEN}Running ${CVD_CMD} in background.${NC}"
     if ! eval "${CVD_CMD}"
     then
-        echo "ERROR: command ${CVD_CMD} failed, exit!"
+        echo -e "${RED}ERROR: command ${CVD_CMD} failed, exit!${NC}" >&2
         exit 1
     fi
 }
@@ -133,9 +129,9 @@ function cuttlefish_install_wifi() {
 
     if [ -f "${WIFI_APK_NAME}" ]; then
 
-        echo "WiFi Device Summary:" | tee "${wifilogfile}"
+        echo -e "${GREEN}WiFi Device Summary:${NC}" | tee "${wifilogfile}"
 
-        echo "Start adb server in readiness to install Wifi"
+        echo -e "${GREEN}Start adb server in readiness to install Wifi${NC}"
         sudo adb kill-server || true
         sleep 10
         sudo adb start-server || true
@@ -144,53 +140,53 @@ function cuttlefish_install_wifi() {
         # shellcheck disable=SC2207
         DEVICES=($(adb devices | grep -E '0.+device$' | cut -f1))
         for device in "${DEVICES[@]}"; do
-            echo "Installing ${WIFI_APK_NAME} on ${device}"
+            echo -e "${GREEN}Installing ${WIFI_APK_NAME} on ${device}${NC}"
             adb -s "${device}" install -g -r "${WIFI_APK_NAME}"
 
-            echo "Enabling WiFi service on ${device}"
+            echo -e "${GREEN}Enabling WiFi service on ${device}${NC}"
             adb -s "${device}" shell su root svc wifi enable
 
-            echo "Connecting WiFi to Network on ${device}"
+            echo -e "${GREEN}Connecting WiFi to Network on ${device}${NC}"
             adb -s "${device}" shell am instrument -e method "connectToNetwork" -e scan_ssid "false" -e ssid "VirtWifi" -w com.android.tradefed.utils.wifi/.WifiUtil | tee connection_result.log
             if ! grep -E -q "INSTRUMENTATION_RESULT.*result=true" connection_result.log
             then
-                echo "${device}: Failed to connect to wifi" | tee -a "${wifilogfile}"
+                echo -e "${ORANGE}${device}: Failed to connect to wifi${NC}" | tee -a "${wifilogfile}"
                 connection_result=$(grep "INSTRUMENTATION_RESULT:" connection_result.log)
                 if [ -n "${connection_result}" ]; then
-                    echo "    ${connection_result}" | tee -a "${wifilogfile}"
+                    echo -e "${ORANGE}    ${connection_result}${NC}" | tee -a "${wifilogfile}"
                 fi
             else
-                echo "${device}: Successfully connected to wifi" | tee -a "${wifilogfile}"
+                echo -e "${GREEN}${device}: Successfully connected to wifi${NC}" | tee -a "${wifilogfile}"
             fi
 
-            echo "WiFi status on ${device}"
-            echo "================================================="
+            echo -e "${GREEN}WiFi status on ${device}${NC}"
+            echo -e "${GREEN}=================================================${NC}"
             adb -s "${device}" shell su root dumpsys wifi | grep "current SSID"
-            echo "================================================="
+            echo -e "${GREEN}=================================================${NC}"
         done
     else
-        echo "Unable to find ${WIFI_APK_NAME}"
+        echo -e "${ORANGE}Unable to find ${WIFI_APK_NAME}${NC}"
     fi
 }
 
 # Wait for device to boot (VIRTUAL_DEVICE_BOOT_COMPLETED) or timeout.
 function cuttlefish_wait_for_device_booted() {
     local -r timeout="${SECONDS}"+"${CUTTLEFISH_MAX_BOOT_TIME}"
-    echo "Wait for boot: ${CUTTLEFISH_MAX_BOOT_TIME} seconds"
+    echo -e "${GREEN}Wait for boot: ${CUTTLEFISH_MAX_BOOT_TIME} seconds${NC}"
     while (( "${SECONDS}" < "${timeout}" )); do
         BOOTED_INSTANCES=$(grep -c VIRTUAL_DEVICE_BOOT_COMPLETED "${logfile}")
         if (( BOOTED_INSTANCES == NUM_INSTANCES )); then
-            echo "Boot completed."
+            echo -e "${GREEN}Boot completed.${NC}"
             break
         fi
-        echo "Waiting on boot, sleep 20s ..."
+        echo -e "${ORANGE}Waiting on boot, sleep 20s ...${NC}"
         sleep 20
     done
 }
 
 # Cleanup cuttlefish directory.
 function cuttlefish_cleanup() {
-    echo "cuttlefish_cleanup"
+    echo -e "${GREEN}cuttlefish_cleanup${NC}"
     cd "${HOME}" || exit
     sudo rm -rf cf > /dev/null 2>&1
 }
@@ -203,7 +199,7 @@ function cuttlefish_nuclear() {
 
 # Stop CVD.
 function cuttlefish_stop() {
-    echo "cuttlefish_stop"
+    echo -e "${ORANGE}cuttlefish_stop${NC}"
     adb reboot
     sudo adb kill-server || true
     sudo /usr/bin/cvd stop > /dev/null 2>&1
@@ -213,10 +209,21 @@ function cuttlefish_stop() {
 
 # Archive logs
 function cuttlefish_archive_logs() {
-    cp -f "${logfile}" "${WORKSPACE}"
-    cd "${HOME}"/cf/cuttlefish/instances/ || true
-    zip -r "${WORKSPACE}"/cuttlefish_logs-"${BUILD_NUMBER}".zip cvd*/logs/ || true
-    cd - || true
+    cp -f "${logfile}" "${WORKSPACE}" 2>/dev/null || true
+    local instances_dir="${HOME}/cf/cuttlefish/instances"
+    if [[ ! -d "${instances_dir}" ]]; then
+        return 0
+    fi
+    # zip exits 12 with "Nothing to do!" when cvd*/logs/ is missing or empty; skip in that case.
+    if [[ -z "$(find "${instances_dir}" -type f -path '*/cvd*/logs/*' 2>/dev/null | head -n 1)" ]]; then
+        return 0
+    fi
+    # Restore with an explicit path — never use `cd -` (fails with "OLDPWD not set" if no prior cd succeeded).
+    local _prev_pwd
+    _prev_pwd=$(pwd)
+    cd "${instances_dir}" || return 0
+    zip -qr "${WORKSPACE}/cuttlefish_logs-${BUILD_NUMBER}.zip" cvd*/logs/ || true
+    cd "${_prev_pwd}" || cd "${WORKSPACE}" || true
 }
 
 case "${1}" in
@@ -238,10 +245,18 @@ case "${1}" in
         # Refer to Google for the reasons why!
         NUM_RETRIES=4
         for (( i = 1; i <= NUM_RETRIES; ++i )); do
-            echo "Attempt ${i} of ${NUM_RETRIES} ..."
+            if (( i > 1 )); then
+                echo -e "${ORANGE}Attempt ${i} of ${NUM_RETRIES} (retry after failed boot) ...${NC}"
+            else
+                echo -e "${GREEN}Attempt ${i} of ${NUM_RETRIES} ...${NC}"
+            fi
             cuttlefish_start
             cuttlefish_wait_for_device_booted
-            echo "Booted ${BOOTED_INSTANCES} instances of ${NUM_INSTANCES}"
+            if (( BOOTED_INSTANCES == NUM_INSTANCES )); then
+                echo -e "${GREEN}Booted ${BOOTED_INSTANCES} instances of ${NUM_INSTANCES}${NC}"
+            else
+                echo -e "${ORANGE}Booted ${BOOTED_INSTANCES} instances of ${NUM_INSTANCES} (expected ${NUM_INSTANCES})${NC}"
+            fi
             if (( BOOTED_INSTANCES == NUM_INSTANCES )); then
                 sudo /usr/bin/cvd status
                 break;
@@ -251,15 +266,15 @@ case "${1}" in
         done
 
         if (( BOOTED_INSTANCES == 0 )); then
-            echo "Error: android guest instances/devices not booted."
+            echo -e "${RED}Error: android guest instances/devices not booted.${NC}" >&2
             # Stop and clean up
             cuttlefish_archive_logs
             cuttlefish_stop
             cuttlefish_cleanup
             exit 1
         elif (( BOOTED_INSTANCES != NUM_INSTANCES )); then
-            echo "ERROR: Only booted ${BOOTED_INSTANCES} of requested ${NUM_INSTANCES}!"
-            echo "       Terminating."
+            echo -e "${RED}ERROR: Only booted ${BOOTED_INSTANCES} of requested ${NUM_INSTANCES}!${NC}" >&2
+            echo -e "${RED}       Terminating.${NC}" >&2
             exit 1
         fi
         if [[ "${CUTTLEFISH_INSTALL_WIFI}" == "true" ]]; then

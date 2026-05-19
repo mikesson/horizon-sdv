@@ -118,6 +118,33 @@ variable "openbsw_build_node_pool_max_node_count" {
   default     = 3
 }
 
+variable "utility_node_pool_name" {
+  description = "Name of the utility node pool (Vertex/Gemini CLI and similar; not Android-specific)"
+  type        = string
+}
+
+variable "utility_node_pool_node_count" {
+  description = "Number of nodes for the utility node pool"
+  type        = number
+}
+
+variable "utility_node_pool_machine_type" {
+  description = "Machine type for the utility node pool. Size for pods with limits up to 32 CPU / 96Gi (e.g. workloads/common/agentic-ai/gemini/helm/values.yaml); n2-standard-32 allocatable CPU is often slightly under 32 cores after kube-reserved, so n2-standard-48 or larger is safer unless CPU limits are reduced."
+  type        = string
+}
+
+variable "utility_node_pool_min_node_count" {
+  description = "Minimum number of nodes for the utility node pool"
+  type        = number
+  default     = 0
+}
+
+variable "utility_node_pool_max_node_count" {
+  description = "Maximum number of nodes for the utility node pool"
+  type        = number
+  default     = 5
+}
+
 variable "network" {
   description = "Name of the network"
   type        = string

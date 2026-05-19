@@ -1,4 +1,4 @@
-# Copyright (c) 2024-2025 Accenture, All Rights Reserved.
+# Copyright (c) 2024-2026 Accenture, All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,7 +15,12 @@
 config:
   name: Horizon SDV
   enableNetworkPolicies: true
-  applications:
+
+  # config.containerImages: set only by the root Argo CD Application (Terraform). Do not add empty keys
+  # here — they merge over environment-specific image refs and yield invalid Deployments (empty image:).
+
+  # Helm chart version pins for Argo CD Applications (upstream chart versions / revisions).
+  chartVersions:
     keycloak:
       version: "7.1.4"
     postgresql:
@@ -26,10 +31,52 @@ config:
       version: "1.29.11"
     mtkconnect:
       version: "v1.10.0"
+    argoEvents:
+      version: "2.3.2"
+      # NATS StatefulSet size for the default EventBus. Use 1 on small/dev clusters (3 needs quorum
+      # and enough nodes); if NATS is not Ready, the webhook EventSource often hangs on POST (502 from Horizon API).
+      eventBusNATSReplicas: 1
+    argo_workflows:
+      version: "0.47.4"
+
+  # Developer Portal (SPA + proxy): Gateway path, Keycloak, in-cluster URL overrides — not a chart version.
+  horizonDevelopmentPortal:
+    # HTTP path prefix (Gateway HTTPRoute, Keycloak redirect URIs, portal ConfigMap PUBLIC_PATH).
+    publicPath: "/developer-portal"
+    # Must match Keycloak deployment (realm / http path).
+    keycloakRealm: "horizon"
+    keycloakHttpPathPrefix: "/auth"
+    # OAuth public client id (Keycloak client + config.js).
+    keycloakClientId: "horizon-dev-portal"
+    # Confidential client for the Go proxy (token exchange to Horizon API); must exist in Keycloak.
+    horizonApiCiClientId: "horizon-api-ci"
+    # Optional in-cluster service URLs (empty = defaults from namespace prefix + standard Service names).
+    horizonApiInternalBaseUrl: ""
+    moduleManagerInternalBaseUrl: ""
+
+  # Config Connector configuration (templates/config-connector.yaml).
+  configConnector:
+    # Namespaced Config Connector: one ConfigConnectorContext per namespace.
+    # Must include every namespace where CNRM resources are deployed (e.g. PubSubTopic in module hello-world charts).
+    namespaces:
+      - gcp
+      - sample-module-hello
+      - sample-hard-module-hello
+      - sample-soft-module-hello
+
+    # Centralized KCC webhook cert monitor:
+    # - thresholdSeconds: restart cnrm-webhook-manager when cert expires within this window.
+    # - cooldownSeconds: minimum interval between automatic restarts.
+    webhookMonitor:
+      thresholdSeconds: 2592000   # 30 days
+      cooldownSeconds: 86400      # 24 hours
   workloads:
     android:
       helm:
-        version: '5.8.114'
+        version: '5.9.18'
+      # Set by Terraform on live clusters (MODULE_CONFIG for Module Manager module workloads-android).
+      url: ""
+      branch: ""
 spec:
   destination:
     server: https://kubernetes.default.svc

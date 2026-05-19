@@ -1,0 +1,509 @@
+# Copyright (c) 2024-2026 Accenture, All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#         http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# ConfigMap horizon-workflow-cloud-env: CLOUD_PROJECT, CLOUD_REGION, CLOUD_ZONE, HORIZON_DOMAIN for workflow pods
+# (gitops config). Sync wave 0 before workflow SAs (wave 1).
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: horizon-workflow-cloud-env
+  namespace: {{ .Values.config.namespacePrefix }}workflows
+  labels:
+    # Required so the workflow controller informer detects this CM for valueFrom.configMapKeyRef parameters.
+    workflows.argoproj.io/configmap-type: Parameter
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+data:
+  CLOUD_PROJECT: {{ .Values.config.projectID | quote }}
+  CLOUD_REGION: {{ .Values.config.region | quote }}
+  CLOUD_ZONE: {{ .Values.config.zone | quote }}
+  HORIZON_DOMAIN: {{ .Values.config.domain | quote }}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: argo-workflows-server
+  namespace: {{ .Values.config.namespacePrefix }}argo-workflows
+  annotations:
+    iam.gke.io/gcp-service-account: gke-{{ .Values.config.namespacePrefix }}argo-workflows-sa@{{ .Values.config.projectID }}.iam.gserviceaccount.com
+    argocd.argoproj.io/sync-wave: "1"
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: argo-workflows-sso-admin
+  namespace: {{ .Values.config.namespacePrefix }}argo-workflows
+  annotations:
+    workflows.argoproj.io/rbac-rule: "'administrators' in groups"
+    workflows.argoproj.io/rbac-rule-precedence: "20"
+    workflows.argoproj.io/service-account-token.name: argo-workflows-sso-admin.service-account-token
+    argocd.argoproj.io/sync-wave: "1"
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: argo-workflows-sso-user
+  namespace: {{ .Values.config.namespacePrefix }}argo-workflows
+  annotations:
+    workflows.argoproj.io/rbac-rule: "'developers' in groups"
+    workflows.argoproj.io/rbac-rule-precedence: "10"
+    workflows.argoproj.io/service-account-token.name: argo-workflows-sso-user.service-account-token
+    argocd.argoproj.io/sync-wave: "1"
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: argo-workflows-sso-admin.service-account-token
+  namespace: {{ .Values.config.namespacePrefix }}argo-workflows
+  annotations:
+    kubernetes.io/service-account.name: argo-workflows-sso-admin
+    argocd.argoproj.io/sync-wave: "1"
+type: kubernetes.io/service-account-token
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: argo-workflows-sso-user.service-account-token
+  namespace: {{ .Values.config.namespacePrefix }}argo-workflows
+  annotations:
+    kubernetes.io/service-account.name: argo-workflows-sso-user
+    argocd.argoproj.io/sync-wave: "1"
+type: kubernetes.io/service-account-token
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: argo-workflows-sso-admin
+  namespace: {{ .Values.config.namespacePrefix }}workflows
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+rules:
+- apiGroups:
+  - argoproj.io
+  resources:
+  - workflows
+  - workflowtemplates
+  - cronworkflows
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - pods
+  - pods/log
+  - events
+  verbs:
+  - delete
+  - get
+  - list
+  - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: argo-workflows-sso-user
+  namespace: {{ .Values.config.namespacePrefix }}workflows
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+rules:
+- apiGroups:
+  - argoproj.io
+  resources:
+  - workflows
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - argoproj.io
+  resources:
+  - workflowtemplates
+  - cronworkflows
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - pods
+  - pods/log
+  - events
+  verbs:
+  - get
+  - list
+  - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: argo-workflows-sso-admin
+  namespace: {{ .Values.config.namespacePrefix }}workflows
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+subjects:
+- kind: ServiceAccount
+  name: argo-workflows-sso-admin
+  namespace: {{ .Values.config.namespacePrefix }}argo-workflows
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: argo-workflows-sso-admin
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: argo-workflows-sso-user
+  namespace: {{ .Values.config.namespacePrefix }}workflows
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+subjects:
+- kind: ServiceAccount
+  name: argo-workflows-sso-user
+  namespace: {{ .Values.config.namespacePrefix }}argo-workflows
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: argo-workflows-sso-user
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: argo-workflows-sso-ui-read
+  namespace: {{ .Values.config.namespacePrefix }}argo-workflows
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+rules:
+- apiGroups:
+  - argoproj.io
+  resources:
+  - workflows
+  - workflowtemplates
+  - cronworkflows
+  - eventsources
+  - sensors
+  - workfloweventbindings
+  verbs:
+  - get
+  - list
+  - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: argo-workflows-sso-ui-read
+  namespace: {{ .Values.config.namespacePrefix }}argo-workflows
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+subjects:
+- kind: ServiceAccount
+  name: argo-workflows-sso-admin
+  namespace: {{ .Values.config.namespacePrefix }}argo-workflows
+- kind: ServiceAccount
+  name: argo-workflows-sso-user
+  namespace: {{ .Values.config.namespacePrefix }}argo-workflows
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: argo-workflows-sso-ui-read
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: argo-workflows-sso-cluster-read
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - namespaces
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - argoproj.io
+  resources:
+  - clusterworkflowtemplates
+  - workflows
+  - workflowtemplates
+  - cronworkflows
+  verbs:
+  - get
+  - list
+  - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: argo-workflows-sso-cluster-read
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+subjects:
+- kind: ServiceAccount
+  name: argo-workflows-sso-admin
+  namespace: {{ .Values.config.namespacePrefix }}argo-workflows
+- kind: ServiceAccount
+  name: argo-workflows-sso-user
+  namespace: {{ .Values.config.namespacePrefix }}argo-workflows
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: argo-workflows-sso-cluster-read
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: workflow-executor
+  namespace: {{ .Values.config.namespacePrefix }}workflows
+  annotations:
+    iam.gke.io/gcp-service-account: gke-{{ .Values.config.namespacePrefix }}argo-workflows-sa@{{ .Values.config.projectID }}.iam.gserviceaccount.com
+    argocd.argoproj.io/sync-wave: "1"
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: workflow-executor-elevated
+  namespace: {{ .Values.config.namespacePrefix }}workflows
+  annotations:
+    iam.gke.io/gcp-service-account: gke-{{ .Values.config.namespacePrefix }}argo-workflows-elevated-sa@{{ .Values.config.projectID }}.iam.gserviceaccount.com
+    argocd.argoproj.io/sync-wave: "1"
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: workflow-executor-writer-role
+  namespace: {{ .Values.config.namespacePrefix }}workflows
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "list", "watch", "create", "update", "delete", "patch"]
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs:
+      [
+        "create",
+        "delete",
+        "deletecollection",
+        "get",
+        "list",
+        "patch",
+        "update",
+        "watch",
+      ]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: workflow-executor-writer-rolebinding
+  namespace: {{ .Values.config.namespacePrefix }}workflows
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+subjects:
+  - kind: ServiceAccount
+    name: workflow-executor
+    namespace: {{ .Values.config.namespacePrefix }}workflows
+roleRef:
+  kind: Role
+  name: workflow-executor-writer-role
+  apiGroup: rbac.authorization.k8s.io
+---
+# Argo executor must write WorkflowTaskResult objects in this namespace or steps hang / 403 near completion.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: argo-workflowtaskresults
+  namespace: {{ .Values.config.namespacePrefix }}workflows
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+rules:
+  - apiGroups: ["argoproj.io"]
+    resources: ["workflowtaskresults"]
+    verbs: ["create", "get", "list", "patch", "update"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: argo-workflowtaskresults
+  namespace: {{ .Values.config.namespacePrefix }}workflows
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+subjects:
+  - kind: ServiceAccount
+    name: workflow-executor
+    namespace: {{ .Values.config.namespacePrefix }}workflows
+  - kind: ServiceAccount
+    name: workflow-executor-elevated
+    namespace: {{ .Values.config.namespacePrefix }}workflows
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: argo-workflowtaskresults
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ .Values.config.namespacePrefix }}workflow-executor-elevated-cluster-role
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "list", "watch", "create", "update", "delete", "patch"]
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs:
+      [
+        "create",
+        "delete",
+        "deletecollection",
+        "get",
+        "list",
+        "patch",
+        "update",
+        "watch",
+      ]
+  - apiGroups: [""]
+    resources: ["persistentvolumes", "persistentvolumeclaims"]
+    verbs:
+      [
+        "create",
+        "get",
+        "list",
+        "watch",
+        "delete",
+        "update",
+        "patch",
+      ]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ .Values.config.namespacePrefix }}workflow-executor-elevated-cluster-rolebinding
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+subjects:
+  - kind: ServiceAccount
+    name: workflow-executor-elevated
+    namespace: {{ .Values.config.namespacePrefix }}workflows
+roleRef:
+  kind: ClusterRole
+  name: {{ .Values.config.namespacePrefix }}workflow-executor-elevated-cluster-role
+  apiGroup: rbac.authorization.k8s.io
+{{- if or (eq .Values.scm.authMethod "userpass") (eq .Values.scm.authMethod "app") }}
+# GSM-backed SecretStore for workflow ExternalSecrets (PAT or GitHub App fields).
+---
+apiVersion: external-secrets.io/v1beta1
+kind: SecretStore
+metadata:
+  name: workflows-secret-store
+  namespace: {{ .Values.config.namespacePrefix }}workflows
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  provider:
+    gcpsm:
+      projectID: {{ .Values.config.projectID }}
+      auth:
+        workloadIdentity:
+          clusterLocation: {{ .Values.config.region }}
+          clusterName: sdv-cluster
+          serviceAccountRef:
+            name: workflow-executor
+{{- end }}
+{{- if eq .Values.scm.authMethod "userpass" }}
+# HTTPS username/password for Argo git artifacts (same GSM key as Jenkins scm-password-b64).
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: workflow-pipeline-git-creds
+  namespace: {{ .Values.config.namespacePrefix }}workflows
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+type: Opaque
+stringData:
+  username: {{ .Values.scm.username | quote }}
+---
+apiVersion: external-secrets.io/v1beta1
+kind: ExternalSecret
+metadata:
+  name: workflow-pipeline-git-creds-secret
+  namespace: {{ .Values.config.namespacePrefix }}workflows
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  refreshInterval: 10s
+  secretStoreRef:
+    kind: SecretStore
+    name: workflows-secret-store
+  target:
+    name: workflow-pipeline-git-creds
+    creationPolicy: Merge
+  data:
+    - secretKey: password
+      remoteRef:
+        key: {{ .Values.config.namespacePrefix }}scm-password-b64
+        decodingStrategy: Base64
+{{- end }}
+{{- if eq .Values.scm.authMethod "app" }}
+# GitHub App (same GSM keys as Jenkins jenkins-scm-creds). CWT (not namespaced WorkflowTemplate):
+# one cluster-wide templateRef target for aaos-builder / runtime-image DAGs (clusterScope: true);
+# must be a workflow template so the Argo workflow UID can name the per-run Secret (WORKFLOW_UID env).
+# Rationale: docs/guides/argo_workflows_platform_integration_handoff.md#why-prepare-github-app-git-creds-is-a-clusterworkflowtemplate
+---
+apiVersion: external-secrets.io/v1beta1
+kind: ExternalSecret
+metadata:
+  name: workflow-github-app-secret
+  namespace: {{ .Values.config.namespacePrefix }}workflows
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  refreshInterval: 10s
+  secretStoreRef:
+    kind: SecretStore
+    name: workflows-secret-store
+  target:
+    name: workflow-github-app
+    creationPolicy: Owner
+  data:
+    - secretKey: appID
+      remoteRef:
+        key: {{ .Values.config.namespacePrefix }}github-app-id-b64
+        decodingStrategy: Base64
+    - secretKey: privateKey
+      remoteRef:
+        key: {{ .Values.config.namespacePrefix }}github-app-private-key-pkcs8-b64
+        decodingStrategy: Base64
+    - secretKey: installationId
+      remoteRef:
+        key: {{ .Values.config.namespacePrefix }}github-app-installation-id-b64
+        decodingStrategy: Base64
+{{- end }}
+---

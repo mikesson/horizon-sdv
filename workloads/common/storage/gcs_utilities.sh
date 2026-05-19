@@ -182,21 +182,57 @@ function objectlist_list_metadata(){
 
 # Outputs a list of objects for path input
 # Returns output on stdout
-# Parameters:   <path to object or folder>
+# Parameters:   <path to object or folder (can contain any number of wildcard characters)>
 # Input:        get_object_list "gs://bucketname/foldername/objectname"
 # Output:       "gs://bucketname/foldername/objectname"
 # Input:        get_object_list "gs://bucketname/foldername/"
 # Output:       list of objects in the folder
+# Input:        get_object_list "gs://bucketname/foldername/*x86*cf*.zip"
+# Output:       list of x86 cf zip files in the folder
 function get_object_list(){
     local url_path="$1"
 
-    # test if input is a folder or an object
-    if [[ "$url_path" == */ || "$url_path" == */\* ]]; then
-        url_path="${url_path%%\**}"   # remove all trailing *
-        gcloud storage ls "$url_path**"
-    else
-        echo "$url_path"
+    # No wildcards
+    if [[ "$url_path" != *"*"* && "$url_path" != *"?"* ]]; then
+        if [[ "$url_path" == */ ]]; then
+            gcloud storage ls "$url_path**"
+        else
+            echo "$url_path"
+        fi
+        return
     fi
+
+    # Require at least one slash so we have a valid prefix (e.g. gs://bucket/path/)
+    if [[ "$url_path" != */* ]]; then
+        echo "get_object_list: path with wildcard must contain a slash (e.g. gs://bucket/prefix*)" >&2
+        return 1
+    fi
+
+    # Prefix: path up to (but not including) first * or ?
+    [[ "$url_path" =~ ^([^\*\?]*) ]]
+    local before_wildcard="${BASH_REMATCH[1]}"
+
+    # Normalize to a listable prefix (ends with /)
+    prefix="${before_wildcard%/*}/"
+
+    # Remainder: url_path after prefix
+    remainder="${url_path#"$prefix"}"
+
+    # Regex from remainder
+    remainder_regex=$(printf '%s' "$remainder" | sed -e 's/\\/\\\\/g' -e 's/\./\\./g' -e 's/\*/.''*/g' -e 's/\?/./g')
+    if [[ "$url_path" == */ ]]; then
+        pattern="^${remainder_regex}"      # suffix starts with pattern
+    else
+        pattern="^${remainder_regex}$"     # suffix equals pattern
+    fi
+
+    # List all under prefix, then filter output to only include objects that match the pattern
+    while IFS= read -r line; do
+        [[ -z "$line" ]] && continue
+        suffix="${line#"$prefix"}"    # strip prefix
+        [[ "$suffix" =~ $pattern ]] && echo "$line"    # match suffix
+    done < <(gcloud storage ls "$prefix**")
+
 }
 
 # Uploads a file or multiple files to GCS bucket and optionally includes metadata
@@ -260,9 +296,9 @@ function objectlist_delete_all(){
 
 # Outputs the storage class of
 # - an object
-# - all objects in the specified parent path (specified with a trailing / or /*)
+# - all objects matching the specified path (can contain any number of wildcard characters)
 # Returns output on stdout
-# Parameters:   <object_or_parent_path>
+# Parameters:   <object_or_parent_path>  can contain any number of wildcard characters
 # Input:        list_storage_class gs://bucketname/foldername/objectname
 # Output:       gs://bucketname/foldername/objectname STANDARD
 function list_storage_class(){
@@ -282,7 +318,7 @@ function list_storage_class(){
 
 # Adds or Updates any number of custom metadata key/value pairs to either
 # - an object
-# - all objects in the specified parent path (specified with a trailing / or /*)
+# - all objects matching the specified path (can contain any number of wildcard characters)
 # Parameters:   <object_or_parent_path> <key1>=<value1> <key2>=<value2> ....
 # Input:        add_metadata "gs://bucketname/foldername/objectname" "key1=1 key2=2"
 function add_metadata(){
@@ -312,7 +348,7 @@ function add_metadata(){
 
 # Outputs all custom metadata associated with either
 # - an object
-# - all objects in the specified parent path (specified with a trailing / or /*)
+# - all objects matching the provided path (can contain any number of wildcard characters)
 # Returns output on stdout
 # Parameters:   <object_or_parent_path>
 # Input:        list_metadata gs://bucketname/foldername/objectname
@@ -334,7 +370,7 @@ function list_metadata(){
 
 # Removes all custom metadata from either
 # - an object
-# - all objects in the specified parent path (specified with a trailing / or /*)
+# - all objects matching the specified path (can contain any number of wildcard characters)
 # Parameters:   <object_or_parent_path>
 # Input:        remove_all_metadata gs://bucketname/foldername/objectname
 function remove_all_metadata(){
@@ -398,7 +434,7 @@ function remove_metadata(){
 # Outputs all objects in a bucket path which have custom metadata
 # set which matches the provided key(s) and value (if provided)
 # Returns output on stdout
-# Parameters:   <bucket_path>       path must end in / or /*
+# Parameters:   <bucket_path>       can contain any number of wildcard characters
 #               <key_or_key=value> <key_or_key=value> <key_or_key=value>
 # Input:        list_objects_filtered_metadata "gs://bucketname/foldername/*" "key1=1 key2"
 # Output:       gs://bucketname/foldername/object1name

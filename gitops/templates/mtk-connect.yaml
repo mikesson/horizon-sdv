@@ -34,9 +34,9 @@ spec:
             targetRevision: {{ .Values.spec.source.targetRevision }}
         config:
           namespacePrefix: {{ .Values.config.namespacePrefix }}
-          applications:
+          chartVersions:
             mtkconnect:
-              version: {{ .Values.config.applications.mtkconnect.version }}
+              version: {{ .Values.config.chartVersions.mtkconnect.version }}
     path: gitops/apps/mtk-connect
   destination:
     server: https://kubernetes.default.svc

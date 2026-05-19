@@ -1,0 +1,67 @@
+# Copyright (c) 2024-2026 Accenture, All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#         http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# Cluster-wide templateRef for aaos-builder / runtime-image when scm.authMethod is app (via prepare-pipeline-git-creds umbrella).
+# ExternalSecret workflow-github-app: gitops/templates/argo-workflows-init.yaml (sync wave 1). Script ConfigMap: this chart (when scm.authMethod is app).
+# Argo Events: Sensor webhook-prepare-github-app-git-creds (templates/sensors.yaml). Horizon: labels on metadata.
+apiVersion: argoproj.io/v1alpha1
+kind: ClusterWorkflowTemplate
+metadata:
+  name: prepare-github-app-git-creds
+  labels:
+    horizon-sdv.io/expose: "false"
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  # Align with Argo workflow-controller artifactRepository.archiveLogs (GCS); explicit for steps invoked from workloads-android pipelines.
+  archiveLogs: true
+  arguments:
+    parameters:
+      - name: horizonSubmittedFrom
+        value: ""
+  templates:
+    - name: prepare-github-app-git-creds
+      container:
+        image: python:3.12-slim
+        command: [sh, -ec]
+        args:
+          - |
+            pip install --no-cache-dir 'pyjwt>=2.8.0' 'cryptography>=42.0.0'
+            python3 /scripts/github_app_installation_token.py
+        env:
+          - name: GITHUB_APP_ID
+            valueFrom:
+              secretKeyRef:
+                name: workflow-github-app
+                key: appID
+          - name: GITHUB_APP_PRIVATE_KEY
+            valueFrom:
+              secretKeyRef:
+                name: workflow-github-app
+                key: privateKey
+          - name: GITHUB_APP_INSTALLATION_ID
+            valueFrom:
+              secretKeyRef:
+                name: workflow-github-app
+                key: installationId
+          - name: WORKFLOW_UID
+            value: "{{ "{{" }}workflow.uid{{ "}}" }}"
+        volumeMounts:
+          - name: github-app-script
+            mountPath: /scripts
+            readOnly: true
+      volumes:
+        - name: github-app-script
+          configMap:
+            name: {{ .Values.namespacePrefix }}workflow-github-app-token-script

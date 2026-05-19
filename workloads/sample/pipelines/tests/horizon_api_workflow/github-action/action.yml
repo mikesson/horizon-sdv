@@ -1,0 +1,68 @@
+# Copyright (c) 2026 Accenture, All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#         http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# Example JavaScript action: Horizon API workflow (REST, same semantics as
+# horizon-workflow-via-rest.py / Jenkins rest-python branch).
+#
+# Copy the example workflow from example-github-workflow.yml into .github/workflows/
+# to run it — GitHub only loads workflows from .github/workflows/.
+
+name: Horizon API workflow (Node REST)
+description: Submit a Horizon workflow, stream logs, show results (Node REST client only).
+author: Accenture
+
+inputs:
+  workflow_module:
+    description: Horizon catalog module (WORKFLOW_MODULE); default sample.
+    required: false
+    default: sample
+  workflow_template:
+    description: Workflow template name from GET /v1/catalog (WORKFLOW_TEMPLATE).
+    required: false
+    default: sample-smoke-test
+  workflow_parameters_json:
+    description: JSON object for submit parameters (WORKFLOW_PARAMETERS_JSON).
+    required: false
+    default: '{"horizonSubmittedFrom":"","sampleEnv":"github-actions","sampleBuildId":"","sampleNote":""}'
+  horizon_domain:
+    description: Horizon host (no scheme); API at https://{domain}/horizon-api, Keycloak at https://{domain}/auth unless keycloak_base is set.
+    required: false
+    default: ''
+  horizon_api_base_url:
+    description: Override Horizon API base URL (overrides horizon_domain).
+    required: false
+    default: ''
+  keycloak_base:
+    description: Keycloak base URL override (default derived from horizon_domain).
+    required: false
+    default: ''
+  keycloak_client_id:
+    description: OAuth client id for client_credentials (default horizon-api-ci).
+    required: false
+    default: horizon-api-ci
+  keycloak_realm:
+    description: Keycloak realm (default horizon).
+    required: false
+    default: horizon
+
+outputs:
+  horizon_workflow_name:
+    description: Workflow name returned after submit (HORIZON_WORKFLOW_NAME).
+
+runs:
+  using: node20
+  main: index.js
+
+# Secrets are not declared here — pass KEYCLOAK_CLIENT_SECRET and/or HORIZON_ACCESS_TOKEN
+# from the workflow step env (see example-github-workflow.yml), same as any JS action.

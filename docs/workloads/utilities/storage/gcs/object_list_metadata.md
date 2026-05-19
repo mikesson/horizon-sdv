@@ -24,7 +24,7 @@ Path to the desired object in GCS (e.g. `gs://bucketname/path/objectname`)
 
 or
 
-Path to desired folder in GCS (ending with / or /*) (e.g. `gs://bucketname/path/`)
+Path to desired folder - can contain any number of wildcard characters (e.g. `gs://bucketname/path/` or `gs://bucketname/subpath/*x86*`)
 
 ## SYSTEM VARIABLES <a name="system-variables"></a>
 
@@ -42,11 +42,11 @@ These are as follows:
 -   `CLOUD_REGION`
     - The GCP project region. Important for bucket, registry paths used in pipelines.
 
--   `HORIZON_GIT_URL`
+-   `HORIZON_SCM_URL`
     - The URL to the Horizon SDV git repository.
 
--   `HORIZON_GIT_BRANCH`
-    - The branch name the job will be configured for from `HORIZON_GIT_URL`.
+-   `HORIZON_SCM_BRANCH`
+    - The branch name the job will be configured for from `HORIZON_SCM_URL`.
 
 -   `JENKINS_SERVICE_ACCOUNT`
     - Service account to use for pipelines. Required to ensure correct roles and permissions for GCP resources.

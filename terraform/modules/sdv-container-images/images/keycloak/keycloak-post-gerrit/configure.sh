@@ -22,7 +22,7 @@ CACERT=${SERVICEACCOUNT}/ca.crt
 
 UPDATE_NEEDED=false
 
-npm install
+npm install --ignore-scripts
 node keycloak.mjs
 SECRET=$(cat client-gerrit.json | jq -r ".secret")
 

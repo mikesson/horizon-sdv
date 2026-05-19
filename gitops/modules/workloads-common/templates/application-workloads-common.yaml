@@ -1,0 +1,56 @@
+# Copyright (c) 2026 Accenture, All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#         http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# Child Application: shared ClusterWorkflowTemplates (common-docker-image-build + prepare-github-app-git-creds); Sensors in those charts.
+# Deployed via Module Manager enable (mod-workloads-common). Sync wave 2 before workloads-android (wave 3).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: {{ .Values.config.namespacePrefix }}workloads-common
+  namespace: {{ .Values.config.namespacePrefix }}argocd
+  labels:
+    app.kubernetes.io/name: workloads-common
+    horizon-sdv.io/module: {{ .Values.moduleName }}
+    horizon-sdv.io/app-role: child
+    horizon-sdv.io/module-manager-managed: "true"
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: {{ .Values.config.namespacePrefix }}horizon-sdv
+  sources:
+    - repoURL: {{ .Values.repo.url | quote }}
+      targetRevision: {{ .Values.repo.revision | quote }}
+      path: workloads/common/common_docker_image/helm
+      helm:
+        releaseName: workloads-common-docker-image-cwt
+        values: |
+          namespacePrefix: {{ .Values.config.namespacePrefix | quote }}
+    - repoURL: {{ .Values.repo.url | quote }}
+      targetRevision: {{ .Values.repo.revision | quote }}
+      path: gitops/modules/workloads-common/prepare-github-app-git-creds
+      helm:
+        releaseName: workloads-common-prepare-github-app-cwt
+        values: |
+          namespacePrefix: {{ .Values.config.namespacePrefix | quote }}
+          scm:
+            authMethod: {{ .Values.config.scm.authMethod | quote }}
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: {{ .Values.config.namespacePrefix }}workflows
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+    automated: {}

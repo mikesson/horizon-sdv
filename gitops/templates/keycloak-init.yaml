@@ -78,7 +78,17 @@ metadata:
 type: Opaque
 stringData:
   username: "admin"
-
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: keycloak-argocd-admin
+  namespace: {{ .Values.config.namespacePrefix }}keycloak
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+type: Opaque
+stringData:
+  username: "argocd-admin"
 ---
 apiVersion: v1
 kind: Secret
@@ -226,7 +236,27 @@ spec:
       remoteRef:
         key: {{ .Values.config.namespacePrefix }}grafana-admin-password-b64
         decodingStrategy: Base64
-
+---
+apiVersion: external-secrets.io/v1beta1
+kind: ExternalSecret
+metadata:
+  name: argocd-admin-initial-secret
+  namespace: {{ .Values.config.namespacePrefix }}keycloak
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  refreshInterval: 10s
+  secretStoreRef:
+    kind: SecretStore
+    name: keycloak-secret-store
+  target:
+    name: keycloak-argocd-admin
+    creationPolicy: Merge
+  data:
+    - secretKey: password
+      remoteRef:
+        key: {{ .Values.config.namespacePrefix }}argocd-admin-password-b64
+        decodingStrategy: Base64
 ---
 apiVersion: external-secrets.io/v1beta1
 kind: ExternalSecret

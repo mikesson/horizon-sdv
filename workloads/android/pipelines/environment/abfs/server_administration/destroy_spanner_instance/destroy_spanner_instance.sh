@@ -55,7 +55,7 @@ function destroy_spanner() {
                 echo -e "\033[1;32mListing and deleting backup schedules...\033[0m"
                 schedules=$(gcloud spanner backup-schedules list --instance="$ABFS_DB_NAME" --database="$ABFS_DB_NAME" --format="value(name)" || true)
                 if [[ -z "$schedules" ]]; then
-                    echo -e "\033[1;33No backup schedules found.\033[0m"
+                    echo -e "\033[1;33mNo backup schedules found.\033[0m"
                 else
                     while IFS= read -r schedule; do
                         [[ -z "$schedule" ]] && continue
@@ -69,7 +69,7 @@ function destroy_spanner() {
                 echo -e "\033[1;32mListing and deleting backups...\033[0m"
                 backups=$(gcloud spanner backups list --instance="${ABFS_DB_NAME}" --format="value(name)")
                 if [[ -z "$backups" ]]; then
-                    echo -e "\033[1;33No backups found.\033[0m"
+                    echo -e "\033[1;33mNo backups found.\033[0m"
                 else
                     while IFS= read -r backup; do
                         [[ -z "$backup" ]] && continue

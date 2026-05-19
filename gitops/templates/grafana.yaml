@@ -93,7 +93,7 @@ spec:
             token_url: https://{{ .Values.config.domain }}/auth/realms/horizon/protocol/openid-connect/token
             api_url: https://{{ .Values.config.domain }}/auth/realms/horizon/protocol/openid-connect/userinfo
             allow_assign_grafana_admin: true
-            role_attribute_path: contains(groups[*], 'horizon-grafana-administrators') && 'Admin' || contains(groups[*], 'horizon-grafana-viewers') && 'Viewer'
+            role_attribute_path: contains(roles[*], 'administrators') && 'Admin' || contains(roles[*], 'viewers') && 'Viewer'
             login_attribute_path: username
             name_attribute_path: name
             email_attribute_path: email

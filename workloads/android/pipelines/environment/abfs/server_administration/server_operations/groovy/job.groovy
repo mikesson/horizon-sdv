@@ -13,26 +13,41 @@
 // limitations under the License.
 pipelineJob('Android/Environment/ABFS/Server Administration/Server Operations') {
   description("""
-    <br/><h3 style="margin-bottom: 10px;">ABFS Server</h3>
-      <p>This job creates a virtual machine (VM) instance for the ABFS Server, which is required for the ABFS build job to mount the ABFS source(cache).<br/>
-      The ABFS Server VM instance will be seeded with the desired Android revision by the Uploaders.<br/>
-      Use <i>Get Server Details</i> to check the state of the server.</p>
+    <br/><h3 style="margin-bottom: 10px;">ABFS Server Operations</h3>
+      <p>This job manages the ABFS Server VM lifecycle and Terraform-backed infrastructure for ABFS server components.<br/>
+      Use this job to create/update, start/stop, restart, or destroy the ABFS server resources.</p>
     <h4 style="margin-bottom: 10px;">Prerequisites</h4>
-      <p>Before creating the ABFS Server VM instance, the following dependencies must be met:</p>
-      <ul><li><b>Service Account Creation</b>: The abfs-server service account must be created in the GCP project.</li>
-          <li><b>ABFS License Deployment</b>: The ABFS license provided by Google must be deployed on the platform via Jenkins.</li>
-          <li><b>Docker Infra Image Template Job</b>:The Docker Infra Image Template job must be run, and the Docker image must be available in the registry.</li>
+      <ul>
+        <li><b>Service account</b>: <code>abfs-server</code> service account exists in the target GCP project.</li>
+        <li><b>ABFS license</b>: provide <code>ABFS_LICENSE_B64</code> for <code>APPLY</code> operations.</li>
+        <li><b>Infra image</b>: Docker Infra Image Template job has run successfully and image is available.</li>
       </ul>
-    <p>By meeting these prerequisites, you can ensure a successful creation of the ABFS Server VM instance, which is essential for the ABFS uploader and build job.</p>
+    <h4 style="margin-bottom: 10px;">Recommended operation order</h4>
+      <ol>
+        <li>Run <code>APPLY</code> to create/update server infrastructure.</li>
+        <li>Run <i>Get Server Details</i> to verify instance and process readiness.</li>
+        <li>Use <code>STOP</code>/<code>START</code>/<code>RESTART</code> for runtime operations as needed.</li>
+        <li>Use <code>DESTROY</code> only for teardown scenarios.</li>
+      </ol>
+    <h4 style="margin-bottom: 10px;">Spanner guidance</h4>
+      <p>Set <code>ABFS_SPANNER_DATABASE_CREATE_TABLES=true</code> only when provisioning a new ABFS Spanner DB.<br/>
+      For upgrades or existing legacy DBs, keep it <code>false</code>.</p>
     <br/><div style="border-top: 1px solid #ccc; width: 100%;"></div><br/>
     """)
 
   parameters {
+    separator {
+      name('1) Action and Safety')
+      sectionHeader('1) Action and Safety')
+      sectionHeaderStyle("${HEADER_STYLE}")
+      separatorStyle("${SEPARATOR_STYLE}")
+    }
+
     choiceParam {
       name('ABFS_TERRAFORM_ACTION')
       choices(['APPLY', 'DESTROY', 'START', 'STOP', 'RESTART'])
-      description('''<p>The action to perform to create, destroy, stop, start, restart server.<br/>
-        Use `APPLY` to create the server or update based on any changes made below.</p>''')
+      description('''<p>Server operation to run.<br/>
+        Use <code>APPLY</code> for create/update, <code>DESTROY</code> for teardown, and <code>STOP</code>/<code>START</code>/<code>RESTART</code> for runtime lifecycle.</p>''')
     }
 
     nonStoredPassword {
@@ -40,11 +55,11 @@ pipelineJob('Android/Environment/ABFS/Server Administration/Server Operations') 
       description('''<p><b>Mandatory:</b> Base64-encoded ABFS license file (required for <code>APPLY</code> actions).</p>''')
     }
 
-    stringParam {
-      name('SERVER_MACHINE_TYPE')
-      defaultValue('n2-highmem-64')
-      description('''<p>Machine type for ABFS server.</p>''')
-      trim(true)
+    separator {
+      name('2) Core Image and Module Version')
+      sectionHeader('2) Core Image and Module Version')
+      sectionHeaderStyle("${HEADER_STYLE}")
+      separatorStyle("${SEPARATOR_STYLE}")
     }
 
     stringParam {
@@ -69,30 +84,99 @@ pipelineJob('Android/Environment/ABFS/Server Administration/Server Operations') 
     }
 
     stringParam {
-      name('SPANNER_DDL_FILE')
-      defaultValue('files/schemas/0.0.31-schema.sql')
-      description('''<p>Spanner Database Schema file.</p>''')
+      name('ABFS_COS_IMAGE_REF')
+      defaultValue("${ABFS_COS_IMAGE_REF}")
+      description('''<p>ABFS Containerized OS images used on server and uploader instances.</p>''')
       trim(true)
     }
 
+    separator {
+      name('3) Capacity and Sizing')
+      sectionHeader('3) Capacity and Sizing')
+      sectionHeaderStyle("${HEADER_STYLE}")
+      separatorStyle("${SEPARATOR_STYLE}")
+    }
+
     stringParam {
-      name('TERRAFORM_GIT_URL')
+      name('SERVER_MACHINE_TYPE')
+      defaultValue('n2-highmem-64')
+      description('''<p>Machine type for ABFS server.</p>''')
+      trim(true)
+    }
+
+    separator {
+      name('4) Source and Seed Behavior')
+      sectionHeader('4) Source and Seed Behavior')
+      sectionHeaderStyle("${HEADER_STYLE}")
+      separatorStyle("${SEPARATOR_STYLE}")
+    }
+
+    stringParam {
+      name('GOOGLE_ABFS_TERRAFORM_GIT_URL')
       defaultValue('https://github.com/terraform-google-modules/terraform-google-abfs.git')
       description('''<p>ABFS Terraform Git repo.</p>''')
       trim(true)
     }
 
     stringParam {
-      name('TERRAFORM_GIT_VERSION')
-      defaultValue('961f5aa3c3be87a242597cbd4bc08821f28a7085')
-      description('''<p>ABFS Terraform Git repo sha1 version.</p>''')
+      name('GOOGLE_ABFS_TERRAFORM_VERSION')
+      defaultValue('v0.10.0')
+      description('''<p>ABFS Terraform Git repo tag or sha1 version.</p>''')
+      trim(true)
+    }
+
+    separator {
+      name('5) Spanner Controls')
+      sectionHeader('5) Spanner Controls')
+      sectionHeaderStyle("${HEADER_STYLE}")
+      separatorStyle("${SEPARATOR_STYLE}")
+    }
+
+    stringParam {
+      name('ABFS_SPANNER_INSTANCE_MIN_NODES')
+      defaultValue('1')
+      description('''<p>Minimum number of Spanner nodes for the ABFS instance.</p>''')
       trim(true)
     }
 
     stringParam {
-      name('ABFS_COS_IMAGE_REF')
-      defaultValue("${ABFS_COS_IMAGE_REF}")
-      description('''<p>ABFS Containerized OS images used on server and uploader instances.</p>''')
+      name('ABFS_SPANNER_INSTANCE_MAX_NODES')
+      defaultValue('10')
+      description('''<p>Maximum number of Spanner nodes for the ABFS instance.</p>''')
+      trim(true)
+    }
+
+    choiceParam {
+      name('ABFS_SPANNER_DATABASE_CREATE_TABLES')
+      choices(['true', 'false'])
+      description('''<p>Mandatory. Set <code>false</code> for upgrades/legacy DBs. Set <code>true</code> only for creating a new ABFS Spanner DB; the pipeline will fail if an ABFS DB already exists.</p>''')
+    }
+
+    stringParam {
+      name('ABFS_SPANNER_DATABASE_SCHEMA_VERSION')
+      defaultValue('0.0.31')
+      description('''<p>Schema version used only when <code>ABFS_SPANNER_DATABASE_CREATE_TABLES=true</code>.</p>''')
+      trim(true)
+    }
+
+    separator {
+      name('6) Advanced and Optional')
+      sectionHeader('6) Advanced and Optional')
+      sectionHeaderStyle("${HEADER_STYLE}")
+      separatorStyle("${SEPARATOR_STYLE}")
+    }
+
+    stringParam {
+      name('ABFS_EXTRA_PARAMS')
+      defaultValue('[]')
+      description('''<p>JSON array of extra ABFS server command parameters.</p>''')
+      trim(true)
+    }
+
+    stringParam {
+      name('EXISTING_BUCKET_NAME')
+      defaultValue('')
+      description('''<p>Optional existing GCS bucket name for ABFS server data.</p>''')
       trim(true)
     }
 
@@ -107,8 +191,8 @@ pipelineJob('Android/Environment/ABFS/Server Administration/Server Operations') 
   }
 
   logRotator {
-    daysToKeep(60)
-    numToKeep(200)
+    daysToKeep(7)
+    numToKeep(50)
   }
 
   definition {
@@ -117,10 +201,10 @@ pipelineJob('Android/Environment/ABFS/Server Administration/Server Operations') 
       scm {
         git {
           remote {
-            url("${HORIZON_GIT_URL}")
-            credentials('jenkins-git-creds')
+            url("${HORIZON_SCM_URL}")
+            credentials('jenkins-scm-creds')
           }
-          branch("*/${HORIZON_GIT_BRANCH}")
+          branch("*/${HORIZON_SCM_BRANCH}")
         }
       }
       scriptPath('workloads/android/pipelines/environment/abfs/server_administration/server_operations/Jenkinsfile')

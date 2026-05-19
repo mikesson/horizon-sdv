@@ -1,0 +1,128 @@
+# Copyright (c) 2024-2026 Accenture, All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#         http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+apiVersion: gateway.networking.k8s.io/v1beta1
+kind: HTTPRoute
+metadata:
+  name: horizon-dev-portal-route
+  namespace: {{ .Values.config.namespacePrefix }}horizon-dev-portal
+  labels:
+    gateway: gke-gateway
+  annotations:
+    argocd.argoproj.io/sync-wave: "7"
+spec:
+  parentRefs:
+    - kind: Gateway
+      name: gke-gateway
+      namespace: {{ .Values.config.namespacePrefix }}gke-gateway
+      sectionName: https
+  hostnames:
+    - {{ .Values.config.domain }}
+  rules:
+    # Without a trailing slash, relative asset URLs (./assets/..., ./config.js) resolve to the site root.
+    # Redirect /developer-portal → /developer-portal/ so the browser's base URL is correct.
+    # Gateway API RequestRedirect supports only 301/302 (not 308).
+{{- $pp := .Values.config.horizonDevelopmentPortal.publicPath | trimSuffix "/" }}
+{{- if $pp }}
+    - matches:
+        - path:
+            type: Exact
+            value: {{ $pp | quote }}
+      filters:
+        - type: RequestRedirect
+          requestRedirect:
+            path:
+              type: ReplaceFullPath
+              replaceFullPath: {{ print $pp "/" | quote }}
+            statusCode: 301
+{{- end }}
+    - matches:
+        - path:
+            type: PathPrefix
+            value: {{ .Values.config.horizonDevelopmentPortal.publicPath }}
+      filters:
+        - type: URLRewrite
+          urlRewrite:
+            hostname: {{ .Values.config.domain }}
+            path:
+              type: ReplacePrefixMatch
+              replacePrefixMatch: /
+      backendRefs:
+        - name: {{ .Values.config.namespacePrefix }}horizon-dev-portal
+          port: 80
+---
+apiVersion: networking.gke.io/v1
+kind: HealthCheckPolicy
+metadata:
+  name: {{ .Values.config.namespacePrefix }}horizon-dev-portal-healthcheck
+  namespace: {{ .Values.config.namespacePrefix }}horizon-dev-portal
+  annotations:
+    argocd.argoproj.io/sync-wave: "7"
+
+spec:
+  default:
+    checkIntervalSec: 15
+    timeoutSec: 15
+    healthyThreshold: 1
+    unhealthyThreshold: 2
+    logConfig:
+      enabled: true
+    config:
+      type: HTTP
+      httpHealthCheck:
+        # NEG probes pod targetPort (8080), not Service port 80; port 80 yields no listener on the pod.
+        port: 8080
+        requestPath: /healthz
+
+  targetRef:
+    group: ""
+    kind: Service
+    name: {{ .Values.config.namespacePrefix }}horizon-dev-portal
+---
+# Default LB backend timeout (~15s) returns 504 while the Go proxy waits on Horizon API (catalog) or streams workflow logs.
+apiVersion: networking.gke.io/v1
+kind: GCPBackendPolicy
+metadata:
+  name: {{ .Values.config.namespacePrefix }}horizon-dev-portal-backendpolicy
+  namespace: {{ .Values.config.namespacePrefix }}horizon-dev-portal
+  annotations:
+    argocd.argoproj.io/sync-wave: "7"
+spec:
+  default:
+    timeoutSec: 3600
+  targetRef:
+    group: ""
+    kind: Service
+    name: {{ .Values.config.namespacePrefix }}horizon-dev-portal
+---
+{{- if .Values.config.enableNetworkPolicies }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-horizon-dev-portal-ingress-from-gateway
+  namespace: {{ .Values.config.namespacePrefix }}horizon-dev-portal
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: horizon-dev-portal
+  policyTypes:
+    - Ingress
+  ingress:
+    # Service port 80 maps to containerPort 8080; Gateway/NEG targets pod:8080.
+    - ports:
+        - protocol: TCP
+          port: 8080
+{{- end }}

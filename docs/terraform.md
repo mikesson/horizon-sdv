@@ -58,19 +58,21 @@ Terraform implementation in the Horizon SDV poject repository is organized into 
 
 Main entry point for terraform execution is `env/main.tf` file. This file contains all input configuration parameters that are needed to be provided before execution. List of input configuration parameters is provided in the `local-env.sh` file which can be modified and sourced if there is a need of running terraform manually. If GitHub Workflows are used - all these input variables are provided automatically.
 
-- sdv_github_app_id (Github Application ID)
-- sdv_github_app_install_id (GitHub Installation ID)
-- sdv_github_app_private_key (GitHub Application Private Key)
-- git_auth_method (Authentication method either app (GitHub) or pat)
-- sdv_git_pat (Git Personal Access Token)
+- scm_type (SCM type: 'github' or 'git')
+- scm_auth_method (Authentication method: 'app', 'userpass', or 'none')
+- scm_repo_url (Full repository URL)
+- scm_repo_branch (Repository branch)
+- scm_username (SCM username, default: 'git')
+- scm_password (SCM password or token)
+- sdv_github_app_id (GitHub App ID, for app authentication)
+- sdv_github_app_install_id (GitHub App Installation ID, for app authentication)
+- sdv_github_app_private_key (GitHub App Private Key, for app authentication)
 - sdv_jenkins_admin_password (Jenkins initial admin account password)
 - sdv_keycloak_admin_password (Keycloak initial admin account password)
 - sdv_gerrit_admin_password (Gerrit initial admin accont password)
 - sdv_gerrit_ssh_private_key (Gerrit initial admin SSH private key)
 - sdv_keycloak_horizon_admin_password (Keycloak initial horizon realm admin account password)
 - sdv_cuttlefish_ssh_private_key (GCE SSH access to Cuttlefish VMs private key)
-- sdv_git_repo_name (Repository Name)
-- sdv_git_repo_owner (Repository Owner: GitHub Organization name or Git user name who owns the Git repo)
 - sdv_env_name (Environment and SubDomain name)
 - sdv_root_domain (Top level Domain Name)
 - sdv_gcp_project_id (GCP Project ID)
@@ -234,8 +236,10 @@ Module Workload Identity is used to manage Google Cloud Service Accounts and the
 - google_service_account.sdv_wi_sa: Creates service accounts for each entry in var.wi_service_accounts.
 - flattened_roles_with_sa and flattened_gke_sas: Flattens the roles associated with each service account into a list.
 - roles_with_sa_map and gke_sas_with_sa_map: Maps each role-service account combination to a unique key.
-- google_project_iam_member.sdv_wi_sa_iam_2 and sdv_wi_sa_wi_users_gke_ns_sa: Assigns roles to service accounts based on roles_with_sa_map.
-In case of GKE assigns the roles/iam.workloadIdentityUser role to GKE service accounts based on gke_sas_with_sa_map.
+- google_project_iam_member.sdv_wi_sa_iam_2: Assigns **project** roles (Secret Manager, storage, etc.) to each GSA email based on roles_with_sa_map.
+- google_service_account_iam_member.sdv_wi_sa_workload_identity_user: Grants **roles/iam.workloadIdentityUser** on each **Google service account** to the corresponding GKE principal `serviceAccount:PROJECT_ID.svc.id.goog[namespace/ksa]` from gke_sas_with_sa_map (required for GKE Workload Identity; not project IAM).
+
+See **[terraform_sdv_wi_workload_identity_bindings.md](guides/terraform_sdv_wi_workload_identity_bindings.md)** for symptoms, rationale, and apply notes.
 
 
 ## Execute terraform scripts

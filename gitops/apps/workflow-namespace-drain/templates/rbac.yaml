@@ -1,0 +1,78 @@
+# Copyright (c) 2026 Accenture, All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#         http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# The controller namespace is created by Terraform Helm provider's
+# create_namespace=true. Do not render a Namespace object here: Helm creates the
+# release namespace before rendering chart resources, and also templating that
+# same Namespace can cause Helm ownership/adoption conflicts on fresh installs.
+
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: workflow-namespace-drain
+  namespace: {{ .Values.namespace }}
+  labels:
+    app.kubernetes.io/name: workflow-namespace-drain
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ .Release.Name }}-workflows
+  labels:
+    app.kubernetes.io/name: workflow-namespace-drain
+rules:
+  - apiGroups: ["argoproj.io"]
+    resources: ["workflows", "workflows/finalizers"]
+    verbs: ["get", "list", "watch", "delete", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ .Release.Name }}-workflows
+  labels:
+    app.kubernetes.io/name: workflow-namespace-drain
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ .Release.Name }}-workflows
+subjects:
+  - kind: ServiceAccount
+    name: workflow-namespace-drain
+    namespace: {{ .Values.namespace }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: workflow-namespace-drain-applications
+  namespace: {{ .Values.argocd.namespace }}
+  labels:
+    app.kubernetes.io/name: workflow-namespace-drain
+rules:
+  - apiGroups: ["argoproj.io"]
+    resources: ["applications", "applications/finalizers"]
+    verbs: ["get", "list", "watch", "update", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: workflow-namespace-drain-applications
+  namespace: {{ .Values.argocd.namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: workflow-namespace-drain-applications
+subjects:
+  - kind: ServiceAccount
+    name: workflow-namespace-drain
+    namespace: {{ .Values.namespace }}

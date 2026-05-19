@@ -1,4 +1,4 @@
-// Copyright (c) 2025 Accenture, All Rights Reserved.
+// Copyright (c) 2025-2026 Accenture, All Rights Reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -65,17 +65,18 @@ pipelineJob('OpenBSW/Environment/Docker Image Template') {
     }
     stringParam {
       name('POST_GIT_CLONE_COMMAND')
-      defaultValue('git checkout b4bf4f51')
+      defaultValue('git checkout b9e994e4')
       description('''<p>Optional additional commands post git clone and prior to build/make.<br/>
         <b>Note: </b>Single command line only, use logical operators to execute subsequent commands.<br/></p>''')
       trim(true)
     }
     stringParam {
       name('LINUX_DISTRIBUTION')
-      defaultValue('ubuntu:22.04')
+      defaultValue('ubuntu:noble-20251001')
       description('''<p>Define the Linux distribution to use, e.g.</p></br>
         <ul><li>ubuntu:22.04</li>
-        <ul><li>ubuntu:jammy-20251203</li></ul>''')
+            <li>ubuntu:jammy-20251203</li>
+            <li>ubuntu:noble-20251001</li></ul>''')
       trim(true)
     }
     separator {
@@ -91,27 +92,9 @@ pipelineJob('OpenBSW/Environment/Docker Image Template') {
       trim(true)
     }
     stringParam {
-      name('CLANG_TOOLS_URL')
-      defaultValue('https://github.com/muttleyxd/clang-tools-static-binaries/releases/download/master-32d3ac78/clang-format-17_linux-amd64')
-      description('''<p>Clang tools URL.</p>''')
-      trim(true)
-    }
-    stringParam {
-      name('CMAKE_URL')
-      defaultValue('https://github.com/Kitware/CMake/releases/download/v3.28.3/cmake-3.28.3-linux-x86_64.sh')
-      description('''<p>CMAKE shell install script URL.</p>''')
-      trim(true)
-    }
-    stringParam {
       name('LLVM_ARM_TOOLCHAIN_URL')
       defaultValue('https://github.com/ARM-software/LLVM-embedded-toolchain-for-Arm/releases/download/release-19.1.1/LLVM-ET-Arm-19.1.1-Linux-x86_64.tar.xz')
       description('''<p>LLVM Embedded Toolchain for Arm.</p>''')
-      trim(true)
-    }
-    stringParam {
-      name('LLVM_PROJECT_URL')
-      defaultValue('https://github.com/llvm/llvm-project/releases/download/llvmorg-17.0.2/clang+llvm-17.0.2-x86_64-linux-gnu-ubuntu-22.04.tar.xz')
-      description('''<p>LLVM Compiler Infrastructure URL.</p>''')
       trim(true)
     }
     stringParam {
@@ -128,21 +111,9 @@ pipelineJob('OpenBSW/Environment/Docker Image Template') {
       trim(true)
     }
     stringParam {
-      name('PYELFTOOLS_VERSION')
-      defaultValue('0.32')
-      description('''<p>pyelftools package version to install.</p>''')
-      trim(true)
-    }
-    stringParam {
       name('PYTHON_VERSION')
-      defaultValue('3.10')
+      defaultValue('3.12')
       description('''<p>Python version to install.</p>''')
-      trim(true)
-    }
-    stringParam {
-      name('SSCACHE_URL')
-      defaultValue('https://github.com/mozilla/sccache/releases/download/v0.10.0/sccache-v0.10.0-x86_64-unknown-linux-musl.tar.gz')
-      description('''<p>Shared Compilation Cache URL.</p>''')
       trim(true)
     }
     stringParam {
@@ -181,6 +152,25 @@ pipelineJob('OpenBSW/Environment/Docker Image Template') {
       description('''<p>Version of <code>kubectl</code>. Typically based on <a target="_blank" https://docs.cloud.google.com/sdk/docs/release-notes>Google Cloud CLI</a><br/>Note: Define <code>latest</code> if wishing to use the latest available version.</p>''')
       trim(true)
     }
+    separator {
+      name('Agentic AI: Configuration (Experimental)')
+      sectionHeader('Agentic AI: Configuration (Experimental)')
+      sectionHeaderStyle("${HEADER_STYLE}")
+      separatorStyle("${SEPARATOR_STYLE}")
+    }
+    booleanParam {
+      name('ENABLE_GEMINI_AI_ASSISTANT')
+      defaultValue(${ENABLE_GEMINI_AI_ASSISTANT})
+      description('''<p>Enable Gemini AI to support in diagnosis of build and test failures.</p>''')
+    }
+    stringParam {
+      name('GEMINI_CLI_VERSION')
+      defaultValue("${GEMINI_CLI_VERSION}")
+      description('''<p>The version of gemini-cli to be installed.<br/>
+        <b>Default</b>: Latest available version.<br/>
+        <b>Reference</b>: Run <code>npm view @google/gemini-cli versions</code> for a full list of valid versions.</p>''')
+      trim(true)
+    }
   }
 
   // Block build if certain jobs are running.
@@ -192,8 +182,8 @@ pipelineJob('OpenBSW/Environment/Docker Image Template') {
   }
 
   logRotator {
-    daysToKeep(60)
-    numToKeep(200)
+    daysToKeep(7)
+    numToKeep(50)
   }
 
   definition {
@@ -202,10 +192,10 @@ pipelineJob('OpenBSW/Environment/Docker Image Template') {
       scm {
         git {
           remote {
-            url("${HORIZON_GIT_URL}")
-            credentials('jenkins-git-creds')
+            url("${HORIZON_SCM_URL}")
+            credentials('jenkins-scm-creds')
           }
-          branch("*/${HORIZON_GIT_BRANCH}")
+          branch("*/${HORIZON_SCM_BRANCH}")
         }
       }
       scriptPath('workloads/openbsw/pipelines/environment/docker_image_template/Jenkinsfile')

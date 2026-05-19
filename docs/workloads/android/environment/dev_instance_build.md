@@ -97,11 +97,11 @@ These are as follows:
 -   `HORIZON_DOMAIN`
     - The URL domain which is required by pipeline jobs to derive URL for tools and GCP.
 
--   `HORIZON_GIT_URL`
-    - The URL to the Horizon SDV Git repository.
+-   `HORIZON_SCM_URL`
+    - The URL to the Horizon SDV git repository.
 
--   `HORIZON_GIT_BRANCH`
-    - The branch name the job will be configured for from `HORIZON_GIT_URL`.
+-   `HORIZON_SCM_BRANCH`
+    - The branch name the job will be configured for from `HORIZON_SCM_URL`.
 
 -   `JENKINS_AAOS_BUILD_CACHE_STORAGE_PREFIX`
     - This identifies the Persistent Volume Claim (PVC) prefix that is used to provision persistent storage for build cache, ensuring efficient reuse of cached resources across builds.  The default is [`pd-balanced`](https://cloud.google.com/compute/docs/disks/performance), which strikes a balance between optimal performance and cost-effectiveness.

@@ -26,6 +26,7 @@
     - [OAuth2 Proxy](#oauth-proxy)
     - [Token Injector](#token-injector)
     - [Post Jobs](#post-jobs)
+- [Config Connector webhook reliability](#config-connector-webhook-reliability)
 
 ## GitOps overview
 
@@ -317,3 +318,8 @@ A collection of scripts that handle application-specific configurations when sta
 - **mtk-connect-post** – Configures MTK Connect after installation, ensuring it is properly set up for use.
 - **mtk-connect-post-key** – Generates and configures necessary API keys for MTK Connect.
 - **gerrit-post** – Uses the gerrit-admin account to perform the initial setup and configuration of Gerrit.
+
+## Config Connector webhook reliability
+
+Config Connector webhook TLS verification is centralized via CronJob in
+`gitops/templates/config-connector.yaml`, while module charts keep ordered sync waves.

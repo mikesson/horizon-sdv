@@ -20,7 +20,7 @@ NAMESPACE=$(cat ${SERVICEACCOUNT}/namespace)
 TOKEN=$(cat ${SERVICEACCOUNT}/token)
 CACERT=${SERVICEACCOUNT}/ca.crt
 
-npm install
+npm install --ignore-scripts
 node keycloak.mjs
 
 OLD_KEY=$(kubectl get secret -n ${NAMESPACE_PREFIX}mtk-connect mtk-connect-keycloak -o jsonpath='{.data.privateKey}' | base64 -d)
