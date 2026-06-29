@@ -16,8 +16,8 @@ locals {
   # Parse repo URL to extract owner/name
   scm_repo_url_without_protocol = replace(var.scm_repo_url, "https://", "")
   scm_repo_parts                = split("/", local.scm_repo_url_without_protocol)
-  scm_repo_owner                = var.scm_type == "github" ? local.scm_repo_parts[1] : ""
-  scm_repo_name                 = length(local.scm_repo_parts) > 2 ? replace(local.scm_repo_parts[2], ".git", "") : ""
+  scm_repo_owner                = var.scm_type == "github" ? (length(local.scm_repo_parts) > 1 ? local.scm_repo_parts[1] : "workspace-host") : ""
+  scm_repo_name                 = length(local.scm_repo_parts) > 2 ? replace(local.scm_repo_parts[2], ".git", "") : "horizon-sdv"
 
   # Password policies per secret (adjust lengths/policy per need)
   secret_password_specs = {
