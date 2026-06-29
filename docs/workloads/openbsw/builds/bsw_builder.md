@@ -1,8 +1,23 @@
+<!-- Copyright (c) 2026 Accenture, All Rights Reserved.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+        http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License. -->
+
 # OpenBSW Builds
 
 ## Table of contents
 - [Introduction](#introduction)
 - [Prerequisites](#prerequisites)
+- [Rust reference build (step by step)](#rust-reference-build-step-by-step)
 - [Environment Variables/Parameters](#environment-variables)
   * [Targets](#targets)
 - [System Variables](#system-variables)
@@ -25,8 +40,8 @@ The job offers the following build targets and options:
   - Run unit tests (all or individual test library)
   - Generate code coverage reports
 - Platform Builds:
-  - POSIX Platform builds
-  - NXP S32K148 Platform builds
+  - POSIX Platform builds (`posix-freertos`, `posix-threadx`, or `posix-rust`)
+  - NXP S32K148 Platform builds (`s32k148-*-*` presets; Rust uses `s32k148-rust-gcc` only)
 
 **Artifact Storage**
 
@@ -44,8 +59,8 @@ options to override the build and test commands.
 
 - [Welcome to Eclipse OpenBSW](https://eclipse-openbsw.github.io/openbsw/sphinx_docs/doc/dev/index.html).
 - [Building and Running Unit Tests.](https://eclipse-openbsw.github.io/openbsw/sphinx_docs/doc/dev/learning/unit_tests/index.html).
-- [POSIX Platform](ttps://eclipse-openbsw.github.io/openbsw/sphinx_docs/doc/dev/learning/setup/setup_posix_build.html#setup-posix-build).
-- [NXP S32K148 Platform](https://eclipse-openbsw.github.io/openbsw/sphinx_docs/doc/dev/learning/setup/setup_s32k148_ubuntu_build.htmll).
+- [POSIX Platform](https://eclipse-openbsw.github.io/openbsw/sphinx_docs/doc/dev/learning/setup/setup_posix_build.html#setup-posix-build).
+- [NXP S32K148 Platform](https://eclipse-openbsw.github.io/openbsw/sphinx_docs/doc/dev/learning/setup/setup_s32k148_ubuntu_build.html).
 - [OpenBSW GitHub repo](https://github.com/eclipse-openbsw/openbsw.git).
 
 ## Prerequisites<a name="prerequisites"></a>
@@ -54,6 +69,23 @@ One-time setup requirements.
 
 - Before running this pipeline job, ensure that the following template has been created by running the corresponding job:
   - Docker image template: `OpenBSW Workflows/Environment/Docker Image Template`
+
+## Rust reference build (step by step) <a name="rust-reference-build-step-by-step"></a>
+
+**Rust** here means the **`posix-rust`** (on Linux/POSIX) and **`s32k148-rust-gcc`** (on NXP) builds. For **why Rust needs an extra line in the POSIX test config file**, read [POSIX Target Test — simple explanation](../../tests/posix/README.md#why-the-rust-toml-snippet-matters-plain-english).
+
+### Build in Jenkins
+
+1. Build a fresh **Docker Image Template** so the image includes Rust, then use that **`IMAGE_TAG`** in BSW Builder.
+2. Set **`RTOS_PLATFORM=rust`**. Turn on **`BUILD_POSIX`** and/or **`BUILD_NXP_S32K148`** as needed.
+3. Optional: enable **`POSIX_PYTEST`** to run **automated POSIX tests** in the same job. With Rust selected, the pipeline **adds the missing Rust test config** so those tests know which program to launch (you should not need to edit files by hand).
+4. Outputs: POSIX bundle **`…/posix/posix.tgz`** (includes **`build/posix-rust/…`**); S32K148 under **`build/s32k148-rust-gcc/…`**.
+
+### Test **posix-rust** (POSIX Test job)
+
+1. Copy the **`posix/`** folder URL from a Rust build (pad the build number if your storage layout requires it).
+2. Run **OpenBSW → Tests → POSIX** and paste that URL into **`OPENBSW_DOWNLOAD_URL`**. The job adds the Rust test config when needed.
+3. On the device host: bring up network/CAN, run the **`posix-rust`** app, or run automated tests from **`${HOME}/posix/test/pyTest`** (see the POSIX Test job screen for exact commands).
 
 ## Environment Variables/Parameters <a name="environment-variables"></a>
 
@@ -75,7 +107,7 @@ Useful to pin OpenBSW to a particular sha1.
 
 ### `RTOS_PLATFORM`
 
-RTOS Kernel implementation, e.g. `threadx` or `freertos`, currently supported.
+Select `freertos`, `threadx`, or `rust`. The first two map to CMake presets `posix-*` / `s32k148-*-<toolchain>`. `rust` selects `posix-rust` for POSIX builds and `s32k148-rust-gcc` for S32K148 (GCC only; upstream does not ship a Clang Rust preset).
 
 Note: Ensure the selected toolchain supports the specific kernel port.
 
@@ -85,7 +117,7 @@ Compilation profile, `debug` or `release`.
 
 ### `TOOLCHAIN`
 
-Select the Compiler Toolchain for the build. GCC is standard; Clang provides enhanced static analysis.
+Select the compiler toolchain for S32K148 (`gcc` or `clang`). GCC is standard; Clang provides enhanced static analysis. Ignored for the fixed `s32k148-rust-gcc` preset when `RTOS_PLATFORM` is `rust`.
 
 ### `IMAGE_TAG`
 
@@ -147,7 +179,7 @@ directory.
 
 e.g. `UNIT_TEST_TARGET` set to `bspTest` use the following override:
 
-`ctest --test-dir build/tests/posix/Debug/libs/bsw/bsp/test--parallel ${CMAKE_SYNC_JOBS}`
+`ctest --test-dir build/tests/posix/Debug/libs/bsw/bsp/test --parallel ${CMAKE_SYNC_JOBS}`
 
 ### `BUILD_POSIX`
 
@@ -163,11 +195,11 @@ The artifact to store. Default is the `app.referenceApp.elf`.
 
 ### `POSIX_PYTEST`
 
-Run python tests on POSIX application. User may also run using the POSIX test job.
+When enabled, runs **automated POSIX tests** (Python/pytest) after the POSIX build. You can turn this off and use the **POSIX Test** job instead. With **Rust** selected, the pipeline fills in the test config file so those tests can find the Rust build.
 
 ### `POSIX_PYTEST_CMDLINE`
 
-The command that will be used to run the pyTest on the POSIX platform target.
+The command used to run **automated POSIX tests**. By default it follows **`RTOS_PLATFORM`** (e.g. Rust → `--app=rust`). For Rust, the build script **adds the missing Rust test config** to `test/pyTest/target_posix.toml` before pytest when upstream does not supply it.
 
 ### `BUILD_NXP_S32K148`
 

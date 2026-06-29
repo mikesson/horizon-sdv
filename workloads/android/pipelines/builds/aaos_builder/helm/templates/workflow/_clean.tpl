@@ -27,8 +27,8 @@ Dependencies: runs after compute-vars and image check/build.
       - name: pipeline-repo
         path: /workspace
         git:
-          repo: '{{ "{{" }}workflow.parameters.pipelineRepoUrl{{ "}}" }}'
-          revision: '{{ "{{" }}workflow.parameters.pipelineRepoRevision{{ "}}" }}'
+          repo: {{ .Values.spec.pipelineRepoUrl | quote }}
+          revision: {{ .Values.spec.pipelineRepoRevision | quote }}
 {{- include "aaos-builder.gitArtifactCredsContent" . | nindent 10 }}
 {{- end }}
   container:

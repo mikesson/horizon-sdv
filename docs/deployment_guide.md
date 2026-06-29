@@ -1,3 +1,17 @@
+<!-- Copyright (c) 2026 Accenture, All Rights Reserved.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+        http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License. -->
+
 # Horizon SDV
 
 ## Overview   
@@ -19,15 +33,17 @@ Horizon SDV is designed to simplify the deployment and management of Android wor
   - [Section #2c - Configure Terraform Variables](#section-2c---configure-terraform-variables)
   - [Section #2d - Run the Deployment Script](#section-2d---run-the-deployment-script)
 - [Section #3 - Post-Deployment Setup](#section-3---post-deployment-setup)
-  - [Section #3a - Update Nameservers](#section-3a---update-nameservers)
-  - [Section #3b - Connect to GKE via Connect Gateway](#section-3b---connect-to-gke-via-connect-gateway)
-  - [Section #3c - Setup Keycloak](#section-3c---setup-keycloak)
-  - [Section #3d - Jenkins Access via Keycloak Groups](#section-3d---jenkins-access-via-keycloak-groups)
-  - [Section #3e - Argo CD Access via Keycloak Groups](#section-3e---argo-cd-access-via-keycloak-groups)
-  - [Section #3f - Headlamp Access via Keycloak Groups](#section-3f---headlamp-access-via-keycloak-groups)
-  - [Section #3g - Grafana Access via Keycloak Groups](#section-3g---grafana-access-via-keycloak-groups)
-  - [Section #3h - MCP Gateway Registry Access via Keycloak Groups](#section-3h---mcp-gateway-registry-access-via-keycloak-groups)
-  - [Section #3i - Enable Workloads Modules in Developer Portal](#section-3i---enable-workloads-modules-in-developer-portal)
+  - [Section #3a (Optional) - Domain Setup via GCP](#section-3a-optional---domain-setup-via-gcp)
+  - [Section #3b - Update Nameservers](#section-3b---update-nameservers)
+    - [Update Nameservers for GCP Registered Domains](#update-nameservers-for-gcp-registered-domains)
+  - [Section #3c - Connect to GKE via Connect Gateway](#section-3c---connect-to-gke-via-connect-gateway)
+  - [Section #3d - Setup Keycloak](#section-3d---setup-keycloak)
+  - [Section #3e - Jenkins Access via Keycloak Groups](#section-3e---jenkins-access-via-keycloak-groups)
+  - [Section #3f - Argo CD Access via Keycloak Groups](#section-3f---argo-cd-access-via-keycloak-groups)
+  - [Section #3g - Headlamp Access via Keycloak Groups](#section-3g---headlamp-access-via-keycloak-groups)
+  - [Section #3h - Grafana Access via Keycloak Groups](#section-3h---grafana-access-via-keycloak-groups)
+  - [Section #3i - MCP Gateway Registry Access via Keycloak Groups](#section-3i---mcp-gateway-registry-access-via-keycloak-groups)
+  - [Section #3j - Enable Workloads Modules in Developer Portal](#section-3j---enable-workloads-modules-in-developer-portal)
 - [Section #4 - Run Cluster Apps](#section-4---run-cluster-apps)
   - [Section #4a - Horizon Landing Page](#section-4a---horizon-landing-page)
   - [Section #4b - Argo CD](#section-4b---argo-cd)
@@ -49,6 +65,8 @@ Horizon SDV is designed to simplify the deployment and management of Android wor
   - [Section #6c - Docker permission denied](#section-6c---docker-permission-denied)
   - [Section #6d - Docker Container build resource issues](#section-6d---docker-container-build-resource-issues)
   - [Section #6e - Error creating SslPolicy](#section-6e---error-creating-sslpolicy)
+  - [Section #6f - Homepage not reachable after deployment](#section-6f---homepage-not-reachable-after-deployment)
+  - [Section #6g - Jenkins cannot run pipeline as admin](#section-6g---jenkins-cannot-run-pipeline-as-admin)
 
 ## Technologies
 Technologies being used to provision the infrastructure along with the required applications for the GKE cluster.
@@ -296,7 +314,7 @@ git clone <REPOSITORY_URL>
     - `sdv_keycloak_admin_password`: Plain text value following the required password rules mentioned above.
     - `sdv_keycloak_horizon_admin_password`: Plain text value following the required password rules mentioned above.
   - Optional
-    - `enable_arm64`: ARM64 Support (enable: `true` or disable: `false`).
+    - `enable_arm64_dedicated_subnet`: Create dedicated ARM64 subnet/NAT (`true`) or use primary `sdv-subnet` for ARM64 Cuttlefish (`false`; ARM jobs still enabled but using primary subnet).
     - `sdv_enable_network_policies`: Enable or disable network policies for all workloads. Set to `false` to disable all NetworkPolicy resources (useful for debugging connectivity issues). Default: `true`.
     - `sdv_dns_dnssec_enabled`: Enable DNSSEC for the Cloud DNS zone. Requires domain ownership verification at [Google Search Console](https://search.google.com/search-console). Set to `false` to disable DNSSEC. Default: `true`.
     - `sdv_enable_kms_encryption`: Enable KMS encryption for Kubernetes secrets at rest using customer-managed encryption keys. Set to `false` (default) to skip KMS encryption and allow clean Terraform destroy. Set to `true` to enable application-layer secrets encryption. **Warning:** Once enabled and applied, KMS keyrings cannot be deleted from GCP; the only way to remove them is to delete the entire project.
@@ -346,7 +364,19 @@ Steps to start the Terraform workflow.
 
 ## Section #3 - Post-Deployment Setup
 
-### Section #3a - Update Nameservers
+### Section #3a (Optional) - Domain Setup via GCP
+
+>[!NOTE]
+> **Optional:** Skip this section if you already own `<HORIZON_DOMAIN>` and manage DNS through your own domain registrar or DNS provider. You still must set `sdv_root_domain` to your domain in [Section #2c - Configure Terraform Variables](#section-2c---configure-terraform-variables), then complete [Section #3b - Update Nameservers](#section-3b---update-nameservers) so `<SUB_DOMAIN>.<HORIZON_DOMAIN>` resolves correctly.
+
+If you do not have a domain registered already, you can register one via GCP Cloud Domains.
+
+1. Go to: Network Services → Cloud Domains → Register Domain
+2. Choose a domain name `<HORIZON_DOMAIN>`
+3. Select Cloud DNS and enable DNSSEC
+4. Click Create
+
+### Section #3b - Update Nameservers
 To make your Cloud DNS zone active and reachable on the internet, you must update the Nameservers at your Domain Registrar. You must "point" your domain from the registrar to Google Cloud.
 
 1. Navigate to Network Services, Cloud DNS.
@@ -361,19 +391,64 @@ To make your Cloud DNS zone active and reachable on the internet, you must updat
 
 The process may differ based on your Domain Registrar.
 
+#### Update Nameservers for GCP Registered Domains
+
+Use this subsection when you completed [Section #3a (Optional) - Domain Setup via GCP](#section-3a-optional---domain-setup-via-gcp) and Terraform created a separate Cloud DNS zone for `<SUB_DOMAIN>.<HORIZON_DOMAIN>`. Terraform names that zone `<SUB_DOMAIN>-horizon-sdv-com` (DNS name: `<SUB_DOMAIN>.<HORIZON_DOMAIN>`).
+
+Grab Terraform's name servers:
+
+1. Go to Network Services → Cloud DNS in your console.
+2. Click on the Terraform-managed zone: `<SUB_DOMAIN>-horizon-sdv-com`.
+3. Look for the record with type `NS`.
+4. Under the **Data** column, copy all 4 lines (they look like `ns-cloud-xx.googledomains.com.`).
+
+Link them in your root zone:
+
+1. Go back to your Cloud DNS zones list and click the root zone for `<HORIZON_DOMAIN>` (GCP typically names this zone with dots replaced by hyphens, for example `your-domain-com` for `your-domain.com`).
+2. Click **+ Add Standard** (or **Add Record Set**) at the top.
+3. **DNS Name:** type `<SUB_DOMAIN>` (so the full name below reads `<SUB_DOMAIN>.<HORIZON_DOMAIN>`).
+4. **Resource Record Type:** select `NS`.
+5. **Data:** paste the 4 name server lines you copied earlier.
+6. Click **Create**.
+
 #### DNSSEC implementation details (if enabled)
 
 If you set `sdv_dns_dnssec_enabled = true` in `terraform.tfvars`, Terraform creates a Cloud DNS zone with DNSSEC. The following applies only when DNSSEC is enabled; you can set `sdv_dns_dnssec_enabled = false` to skip these steps.
 
-- **Zone creation and authorization:** When DNSSEC is enabled, Terraform creates a zone during deployment. You must verify that the account is authorized to create that zone. This can be done in [Google Search Console](https://search.google.com/search-console).
+##### Zone creation and authorization
 
-- **DS record (optional):** After the zone is created by Terraform, you can retrieve a **DS** record and add it to the main `horizon-sdv.com` zone to make the domain fully DNSSEC compliant. The setup works even without this step.
+When DNSSEC is enabled, Terraform creates a zone during deployment. You must verify that the account is authorized to create that zone. This can be done in [Google Search Console](https://search.google.com/search-console).
+
+1. In the Domain box on the left, type `<HORIZON_DOMAIN>` and click **Continue**.
+2. If it says "Ownership auto-verified": you are done. You can close the tab.
+3. If it gives you a TXT record to copy:
+   1. Copy the TXT record.
+   2. Go back to your root Cloud DNS zone for `<HORIZON_DOMAIN>`.
+   3. Click **+ Add Standard**. Leave the DNS name blank (so it applies to the root domain), select **TXT** as the type, paste the code, and save it.
+   4. Go back to Search Console and click **Verify**.
+
+##### DS record (optional)
+
+After the zone is created by Terraform, you can retrieve a **DS** record and add it to the root zone for `<HORIZON_DOMAIN>` to make the subdomain fully DNSSEC compliant. The setup works even without this step.
+
+1. Get the key from Terraform:
+   1. Go to Network Services → Cloud DNS.
+   2. Click on the Terraform-managed zone: `<SUB_DOMAIN>-horizon-sdv-com`.
+   3. In the top-right corner, click **Registrar Setup**.
+   4. Under **DS Records**, copy the data.
+2. Paste the key into your root zone:
+   1. Go back to your Cloud DNS zones list and click the root zone for `<HORIZON_DOMAIN>`.
+   2. Click **+ Add Standard** (Add record).
+   3. **DNS Name:** type `<SUB_DOMAIN>`.
+   4. **Resource Record Type:** select `DS`.
+   5. **Data:** paste the DS record data you copied.
+   6. Click **Create**.
 
 - **Verification:** DNSSEC can be verified on the [DNSSEC Debugger](https://dnssec-debugger.verisignlabs.com/) site.
 
 - **Disabling DNSSEC:** DNSSEC can be disabled in `terraform.tfvars`; in that case the steps above are not needed.
 
-### Section #3b - Connect to GKE via Connect Gateway
+### Section #3c - Connect to GKE via Connect Gateway
 Follow the steps mentioned in this section to connect to the GKE cluster using the Connect Gateway.   
 
 1. Install the pre-requisite tools `gcloud` (with `gke-gcloud-auth-plugin` component) and `kubectl` CLI tools.
@@ -390,7 +465,7 @@ Follow the steps mentioned in this section to connect to the GKE cluster using t
     kubectl get nodes
     ```
 
-### Section #3c - Setup Keycloak
+### Section #3d - Setup Keycloak
 Follow the steps mentioned in this section once the cluster is provisioned and is running successfully to configure Keycloak.
 
 #### Login as Horizon admin
@@ -450,7 +525,7 @@ After logging in as the Horizon admin, follow these steps to create a human user
 
 Repeat the above steps to add additional users with the required access privilege level.
 
-### Section #3d - Jenkins Access via Keycloak Groups
+### Section #3e - Jenkins Access via Keycloak Groups
 >[!NOTE]
 >Admin access to Keycloak is required for this section.
 
@@ -501,7 +576,7 @@ Follow the below steps to assign a user to required Keycloak group,
 4. Verify Group Assignment
    - The group should now appear under the user's "Group Membership".
 
-### Section #3e - Argo CD Access via Keycloak Groups
+### Section #3f - Argo CD Access via Keycloak Groups
 This section includes the steps to assign a user to a Keycloak group to enable Argo CD access. Group membership determines the level of access granted to the user.
 
 #### Available Groups
@@ -534,7 +609,7 @@ Follow the below steps to assign a user to required Keycloak group,
 4. Verify Group Assignment
    - The group should now appear under the user's "Group Membership".
 
-### Section #3f - Headlamp Access via Keycloak Groups
+### Section #3g - Headlamp Access via Keycloak Groups
 This section includes the steps to assign a user to a Keycloak group to enable Headlamp access. Group membership determines the level of access granted to the user.
 
 #### Available Groups
@@ -567,7 +642,7 @@ Follow the below steps to assign a user to required Keycloak group,
 4. Verify Group Assignment
    - The group should now appear under the user's "Group Membership".
 
-### Section #3g - Grafana Access via Keycloak Groups
+### Section #3h - Grafana Access via Keycloak Groups
 This section includes the steps to assign a user to a Keycloak group to enable Grafana access. Group membership determines the level of access granted to the user. 
 
 #### Available Groups
@@ -601,7 +676,7 @@ Follow the below steps to assign a user to required Keycloak group,
 4. Verify Group Assignment
    - The group should now appear under the user's "Group Membership".
 
-### Section #3h - MCP Gateway Registry Access via Keycloak Groups
+### Section #3i - MCP Gateway Registry Access via Keycloak Groups
 This section includes the steps to assign a user to a Keycloak group to enable MCP Gateway Registry access. Group membership determines the level of access granted to the user.
 
 #### Available Groups
@@ -636,10 +711,10 @@ Follow the below steps to assign a user to required Keycloak group,
    - The group should now appear under the user's "Group Membership".
 
 
-### Section #3i - Enable Workloads Modules in Developer Portal
+### Section #3j - Enable Workloads Modules in Developer Portal
 
 > [!NOTE]
-> Admin access via Keycloak `administrators` group is required. See [Section #3d - Jenkins Access via Keycloak Groups](#section-3d---jenkins-access-via-keycloak-groups) for group assignment steps.
+> Admin access via Keycloak `administrators` group is required. See [Section #3e - Jenkins Access via Keycloak Groups](#section-3e---jenkins-access-via-keycloak-groups) for group assignment steps.
 
 Where Android workloads are required, enable modules in the **Horizon Developer Portal** so that Jenkins seed jobs and workflow templates work properly:
 
@@ -717,7 +792,7 @@ Keycloak is the Identity and Access Management (IAM) application provides featur
    <img src="images/keycloak_launch.png" width="325" />
 2. Log-in to Keycloak using the credentials configured in [Section #2c - Configure Terraform Variables](#section-2c---configure-terraform-variables).
 
-Refer section [Section #3c - Setup Keycloak](#section-3c---setup-keycloak) for steps to create and manage users.   
+Refer section [Section #3d - Setup Keycloak](#section-3d---setup-keycloak) for steps to create and manage users.   
    
 <img src="images/keycloak_homepage.png" width="750" />
 
@@ -947,3 +1022,34 @@ A manual workaround for this error, run the below command,
 ```shell
 gcloud compute ssl-policies delete gke-ssl-policy --global --project=sdva-2108202401
 ```
+
+### Section #6f - Homepage not reachable after deployment
+
+If you cannot access `https://<SUB_DOMAIN>.<HORIZON_DOMAIN>` but you can access `https://<SUB_DOMAIN>.<HORIZON_DOMAIN>/argocd`, you most likely have a cluster sync issue.
+
+Log in with the Argo CD admin credentials:
+
+- **Username:** `admin`
+- **Password:** Retrieve from GCP Secret Manager under the secret named `argocd-admin-password-b64`. It can also be set via `manual_secrets` key `s5` in `terraform.tfvars` (see the `manual_secrets` block in `terraform/env/terraform.tfvars.sample`).
+  - If the password does not work, set a new value in `terraform.tfvars`: `manual_secrets = { s5 = "<your-password>" ... }` and redeploy.
+- After logging in to Argo CD, check the health state of the `horizon-sdv` application.
+- If it is unhealthy, click **Refresh** and then **Sync**.
+- Wait for the cluster to update and recover to **Healthy** state.
+
+### Section #6g - Jenkins cannot run pipeline as admin
+
+If you cannot run pipelines as admin and see an error about insufficient permissions, try the steps below.
+
+>[!NOTE]
+>Preferred approach: assign Keycloak groups as described in [Section #3e - Jenkins Access via Keycloak Groups](#section-3e---jenkins-access-via-keycloak-groups), then log out and log back in to Jenkins. Use the steps below only if group assignment did not resolve the issue.
+
+1. Go to **Manage Jenkins** → **Manage and Assign Roles** → **Assign Roles**.
+2. Under **Global Roles**:
+   1. In the **User/group to add** box, type the exact email you are logged in with (see your user profile in Jenkins), for example `yourname@yourmail.com`.
+   2. Click **Add**.
+   3. In the new row, check the box for `administrators`.
+3. Under **Item Roles**:
+   1. In the **User/group to add** box, type your exact email again.
+   2. Click **Add**.
+   3. Check the box for `developers`.
+4. Click **Save** at the bottom of the page.

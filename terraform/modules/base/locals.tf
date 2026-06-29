@@ -20,7 +20,7 @@ locals {
     module.sdv_gke_cluster.name
   )
 
-  common_nginx_version = "1.28.1-alpine3.23"
+  common_nginx_version = "1.28.3-alpine3.23"
 
   images = {
     # build_version: version of container images to be built and pushed to Artifact Registry.
@@ -28,8 +28,8 @@ locals {
 
     "landingpage-app" = {
       directory      = "landingpage"
-      build_version  = "1.0.0"
-      deploy_version = "1.0.0"
+      build_version  = "1.0.1"
+      deploy_version = "1.0.1"
       # Optional build args
       build_args = {
         NGINX_VERSION = local.common_nginx_version
@@ -37,68 +37,68 @@ locals {
     }
     "gerrit-mcp-server-app" = {
       directory      = "gerrit-mcp-server"
-      build_version  = "1.0.0"
-      deploy_version = "1.0.0"
+      build_version  = "1.0.1"
+      deploy_version = "1.0.1"
     }
     "gerrit-post" = {
       directory      = "gerrit"
-      build_version  = "1.0.0"
-      deploy_version = "1.0.0"
+      build_version  = "1.0.1"
+      deploy_version = "1.0.1"
     }
     "mtk-connect-post" = {
       directory      = "mtk-connect"
-      build_version  = "1.0.0"
-      deploy_version = "1.0.0"
+      build_version  = "1.0.1"
+      deploy_version = "1.0.1"
     }
     "mtk-connect-post-key" = {
       directory      = "mtk-connect"
-      build_version  = "1.0.0"
-      deploy_version = "1.0.0"
+      build_version  = "1.0.1"
+      deploy_version = "1.0.1"
     }
     "grafana-post" = {
       directory      = "grafana"
-      build_version  = "1.0.0"
-      deploy_version = "1.0.0"
+      build_version  = "1.0.1"
+      deploy_version = "1.0.1"
     }
     "keycloak-post-mcp-gateway-registry" = {
       directory      = "keycloak"
-      build_version  = "1.0.0"
-      deploy_version = "1.0.0"
+      build_version  = "1.0.1"
+      deploy_version = "1.0.1"
     }
     "keycloak-post" = {
       directory      = "keycloak"
-      build_version  = "1.0.0"
-      deploy_version = "1.0.0"
+      build_version  = "1.0.1"
+      deploy_version = "1.0.1"
     }
     "keycloak-post-gerrit" = {
       directory      = "keycloak"
-      build_version  = "1.0.0"
-      deploy_version = "1.0.0"
+      build_version  = "1.0.1"
+      deploy_version = "1.0.1"
     }
     "keycloak-post-jenkins" = {
       directory      = "keycloak"
-      build_version  = "1.0.0"
-      deploy_version = "1.0.0"
+      build_version  = "1.0.1"
+      deploy_version = "1.0.1"
     }
     "keycloak-post-argocd" = {
       directory      = "keycloak"
-      build_version  = "1.0.0"
-      deploy_version = "1.0.0"
+      build_version  = "1.0.1"
+      deploy_version = "1.0.1"
     }
     "keycloak-post-headlamp" = {
       directory      = "keycloak"
-      build_version  = "1.0.0"
-      deploy_version = "1.0.0"
+      build_version  = "1.0.1"
+      deploy_version = "1.0.1"
     }
     "keycloak-post-mtk-connect" = {
       directory      = "keycloak"
-      build_version  = "1.0.0"
-      deploy_version = "1.0.0"
+      build_version  = "1.0.1"
+      deploy_version = "1.0.1"
     }
     "keycloak-post-grafana" = {
       directory      = "keycloak"
-      build_version  = "1.0.0"
-      deploy_version = "1.0.0"
+      build_version  = "1.0.1"
+      deploy_version = "1.0.1"
     }
     "keycloak-post-argo-workflows" = {
       directory      = "keycloak"
@@ -113,15 +113,15 @@ locals {
     # Developer portal (Vite + Go proxy). context_path is set so sdv-container-images trigger hashing skips node_modules/dist (same as former external client tree).
     "horizon-dev-portal" = {
       directory      = "horizon-dev-portal"
-      build_version  = "1.0.0"
-      deploy_version = "1.0.0"
+      build_version  = "1.1.0"
+      deploy_version = "1.1.0"
       context_path   = abspath("${path.module}/../sdv-container-images/images/horizon-dev-portal/horizon-dev-portal")
       platform       = "linux/amd64"
     }
     "module-manager-app" = {
       directory      = "module-manager"
-      build_version  = "1.0.0"
-      deploy_version = "1.0.0"
+      build_version  = "0.3.2"
+      deploy_version = "0.3.2"
     }
     "workflow-namespace-drain-app" = {
       directory      = "workflow-namespace-drain"

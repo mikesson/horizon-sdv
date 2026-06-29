@@ -56,6 +56,13 @@ pipelineJob('Android/Builds/AAOS Builder') {
     }
 
     stringParam {
+      name('AAOS_MANIFEST_NAME')
+      defaultValue('default.xml')
+      description('''<p>Android Manifest filename.</p>''')
+      trim(true)
+    }
+
+    stringParam {
       name('AAOS_LUNCH_TARGET')
       defaultValue('')
       description('''<p>Build Android cuttlefish, virtual devices, Pixel and RPi target to build.</p>''')

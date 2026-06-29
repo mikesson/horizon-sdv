@@ -55,14 +55,13 @@ spec:
                     - name: lunchTarget
                     - name: androidRevision
                     - name: manifestUrl
+                    - name: manifestName
                     - name: cleanBuild
                     - name: buildCtsOnly
                     - name: forceImageBuild
                     - name: storageLabels
                     - name: enableGeminiAiAssistant
                     - name: parallelSyncJobs
-                    - name: pipelineRepoUrl
-                    - name: pipelineRepoRevision
           parameters:
             - src:
                 dependencyName: webhook-dep
@@ -90,33 +89,29 @@ spec:
               dest: spec.arguments.parameters.3.value
             - src:
                 dependencyName: webhook-dep
-                dataKey: body.cleanBuild
+                dataKey: body.manifestName
               dest: spec.arguments.parameters.4.value
             - src:
                 dependencyName: webhook-dep
-                dataKey: body.buildCtsOnly
+                dataKey: body.cleanBuild
               dest: spec.arguments.parameters.5.value
             - src:
                 dependencyName: webhook-dep
-                dataKey: body.forceImageBuild
+                dataKey: body.buildCtsOnly
               dest: spec.arguments.parameters.6.value
             - src:
                 dependencyName: webhook-dep
-                dataKey: body.storageLabels
+                dataKey: body.forceImageBuild
               dest: spec.arguments.parameters.7.value
             - src:
                 dependencyName: webhook-dep
-                dataKey: body.enableGeminiAiAssistant
+                dataKey: body.storageLabels
               dest: spec.arguments.parameters.8.value
             - src:
                 dependencyName: webhook-dep
-                dataKey: body.parallelSyncJobs
+                dataKey: body.enableGeminiAiAssistant
               dest: spec.arguments.parameters.9.value
             - src:
                 dependencyName: webhook-dep
-                dataKey: body.pipelineRepoUrl
+                dataKey: body.parallelSyncJobs
               dest: spec.arguments.parameters.10.value
-            - src:
-                dependencyName: webhook-dep
-                dataKey: body.pipelineRepoRevision
-              dest: spec.arguments.parameters.11.value

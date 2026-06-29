@@ -119,7 +119,7 @@ func autoDisableOneWave(ctx context.Context, apiReader client.Reader, c client.C
 			continue
 		}
 		logger.Info("attempting auto-disable", "module", cand.name, "moduleID", cand.moduleID)
-		if err := PerformModuleDisable(ctx, c, stateStore, catalogStore, argocdNamespace, mmNamespace, cand.name, cand.moduleID, false); err != nil {
+		if err := PerformModuleDisable(ctx, c, stateStore, catalogStore, argocdNamespace, mmNamespace, cand.name, cand.moduleID, false, ""); err != nil {
 			logger.Error(err, "auto-disable failed", "module", cand.name, "moduleID", cand.moduleID)
 			candErrs = append(candErrs, err)
 			continue

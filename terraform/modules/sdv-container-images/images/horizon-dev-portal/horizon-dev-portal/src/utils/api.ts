@@ -29,6 +29,7 @@ async function fetchWithAuth(url: string, init: RequestInit): Promise<Response> 
   const doFetch = () =>
     fetch(url, {
       ...init,
+      cache: 'no-store',
       headers: {
         ...authHeaders(),
         ...init.headers,
@@ -65,11 +66,11 @@ export async function apiMm(path: string, init: RequestInit = {}): Promise<Respo
 export async function apiHorizon(path: string, init: RequestInit = {}): Promise<Response> {
   const originBase = getAppOriginBase();
   const url = `${originBase}/api/horizon${path.startsWith('/') ? path : `/${path}`}`;
-  let resp = await fetch(url, init);
+  let resp = await fetch(url, { ...init, cache: 'no-store' });
   for (let i = 0; i < 3 && resp.status === 401; i++) {
     // Brief pause so the proxy can finish invalidating the CI token before the next fetch.
     await new Promise((r) => setTimeout(r, 120));
-    resp = await fetch(url, init);
+    resp = await fetch(url, { ...init, cache: 'no-store' });
   }
   return resp;
 }

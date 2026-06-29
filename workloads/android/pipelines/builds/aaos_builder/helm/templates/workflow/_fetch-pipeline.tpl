@@ -23,24 +23,15 @@ Argo rejects git artifact path when it equals a volumeMount mountPath; clone to 
 {{- if eq (include "aaos-builder.useSharedPipelineWorkspaceVolume" .) "true" }}
 - name: fetch-pipeline
   podSpecPatch: |
-    affinity:
-      podAffinity:
-        requiredDuringSchedulingIgnoredDuringExecution:
-          - labelSelector:
-              matchExpressions:
-                - key: workflows.argoproj.io/workflow
-                  operator: In
-                  values:
-                    - {{ "{{workflow.name}}" }}
-            topologyKey: kubernetes.io/hostname
+{{- include "aaos-builder.podAffinitySameWorkflow" . | nindent 4 }}
   inputs:
     artifacts:
       - name: pipeline-repo
         # Must not match pipeline-workspace mountPath (/horizon): Argo InvalidArgument "already mounted".
         path: /tmp/pipeline-repo-staging
         git:
-          repo: '{{ "{{" }}workflow.parameters.pipelineRepoUrl{{ "}}" }}'
-          revision: '{{ "{{" }}workflow.parameters.pipelineRepoRevision{{ "}}" }}'
+          repo: {{ .Values.spec.pipelineRepoUrl | quote }}
+          revision: {{ .Values.spec.pipelineRepoRevision | quote }}
 {{- include "aaos-builder.gitArtifactCredsContent" . | nindent 10 }}
   container:
     image: {{ include "aaos-builder.builderImage" . | quote }}

@@ -32,8 +32,8 @@ variable "router_name" {
   type        = string
 }
 
-variable "enable_arm64" {
-  description = "Enable ARM64 networking"
+variable "enable_arm64_dedicated_subnet" {
+  description = "Create dedicated ARM64 subnet and NAT in arm64_region (not required when ARM64 uses primary sdv-subnet)."
   type        = bool
 }
 
@@ -61,5 +61,15 @@ variable "arm64_pods_range" {
 
 variable "arm64_services_range" {
   type = string
+}
+
+variable "arm64_pods_secondary_range_name" {
+  description = "Secondary IP range name for pods on the ARM64 dedicated subnet (must match existing GCP names for brownfield)."
+  type        = string
+}
+
+variable "arm64_services_secondary_range_name" {
+  description = "Secondary IP range name for services on the ARM64 dedicated subnet (must match existing GCP names for brownfield)."
+  type        = string
 }
 

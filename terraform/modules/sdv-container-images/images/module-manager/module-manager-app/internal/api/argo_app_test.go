@@ -90,21 +90,23 @@ func TestCreateApplicationIdempotent_WaitsForDeletingThenCreates(t *testing.T) {
 
 	ctx := context.Background()
 	app := testApplication("mod-sample")
-	c := fake.NewClientBuilder().WithObjects(app.DeepCopy()).Build()
-
-	existing := &unstructured.Unstructured{}
-	existing.SetGroupVersionKind(app.GroupVersionKind())
-	if err := c.Get(ctx, client.ObjectKeyFromObject(app), existing); err != nil {
-		t.Fatalf("seed get: %v", err)
-	}
+	// Seed as terminating: fake client rejects mutating deletionTimestamp via Update (immutable).
+	deleting := app.DeepCopy()
 	ts := metav1.Now()
-	existing.SetDeletionTimestamp(&ts)
-	if err := c.Update(ctx, existing); err != nil {
-		t.Fatalf("seed update deletion timestamp: %v", err)
-	}
+	deleting.SetDeletionTimestamp(&ts)
+	c := fake.NewClientBuilder().WithObjects(deleting).Build()
+
 	go func() {
 		time.Sleep(20 * time.Millisecond)
-		_ = c.Delete(context.Background(), existing.DeepCopy())
+		// Simulate finalizer completion: fake client removes the object when finalizers are
+		// cleared while deletionTimestamp is set (see controller-runtime fake client update).
+		cur := &unstructured.Unstructured{}
+		cur.SetGroupVersionKind(deleting.GroupVersionKind())
+		if err := c.Get(context.Background(), client.ObjectKeyFromObject(deleting), cur); err != nil {
+			return
+		}
+		cur.SetFinalizers(nil)
+		_ = c.Update(context.Background(), cur)
 	}()
 
 	if err := createApplicationIdempotentWithBackoff(ctx, c, testApplication("mod-sample"), wait.Backoff{Duration: 5 * time.Millisecond, Factor: 1, Steps: 20}); err != nil {
@@ -122,18 +124,10 @@ func TestCreateApplicationIdempotent_TimesOutForDeletingObject(t *testing.T) {
 
 	ctx := context.Background()
 	app := testApplication("mod-sample")
-	c := fake.NewClientBuilder().WithObjects(app.DeepCopy()).Build()
-
-	existing := &unstructured.Unstructured{}
-	existing.SetGroupVersionKind(app.GroupVersionKind())
-	if err := c.Get(ctx, client.ObjectKeyFromObject(app), existing); err != nil {
-		t.Fatalf("seed get: %v", err)
-	}
+	deleting := app.DeepCopy()
 	ts := metav1.Now()
-	existing.SetDeletionTimestamp(&ts)
-	if err := c.Update(ctx, existing); err != nil {
-		t.Fatalf("seed update deletion timestamp: %v", err)
-	}
+	deleting.SetDeletionTimestamp(&ts)
+	c := fake.NewClientBuilder().WithObjects(deleting).Build()
 
 	err := createApplicationIdempotentWithBackoff(ctx, c, testApplication("mod-sample"), wait.Backoff{Duration: time.Millisecond, Factor: 1, Steps: 3})
 	if err == nil {

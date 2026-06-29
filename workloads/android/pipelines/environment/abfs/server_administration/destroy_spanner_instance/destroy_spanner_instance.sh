@@ -38,7 +38,12 @@ function destroy_spanner() {
             # Bucket deletion path. Requires ABFS_DB_BUCKET_NAME to be set.
             if [[ -n "${ABFS_DB_BUCKET_NAME:-}" ]]; then
                 echo -e "\033[1;32mDestroying bucket gs://${ABFS_DB_BUCKET_NAME}... please wait as this can take a while!\033[0m"
-                gcloud storage rm --recursive "gs://${ABFS_DB_BUCKET_NAME}/"
+                # rm can exit 1 even when the bucket is removed (e.g. some generation deletes fail under set -e).
+                gcloud storage rm --recursive "gs://${ABFS_DB_BUCKET_NAME}/" || true
+                if gcloud storage buckets describe "gs://${ABFS_DB_BUCKET_NAME}" >/dev/null 2>&1; then
+                    echo -e "\033[1;31mError: bucket gs://${ABFS_DB_BUCKET_NAME} still exists after delete.\033[0m" >&2
+                    exit 1
+                fi
                 echo -e "\033[1;32mDestroyed bucket gs://${ABFS_DB_BUCKET_NAME} successfully.\033[0m"
                 echo -e "\033[1;32mJob completed successfully.\033[0m"
             else

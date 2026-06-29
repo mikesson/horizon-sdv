@@ -43,6 +43,7 @@ set -o pipefail
 
 SCRIPT_DIR="$(dirname "${BASH_SOURCE[0]}")"
 source "${SCRIPT_DIR}"/gemini_environment.sh "$0"
+cd "${GEMINI_ARTIFACT_WRITE_ROOT}" || exit 1
 
 # --- Default prompts when GEMINI_PROMPT_FILE* are unset (AAOS builder sequenced) ---
 REPO_ROOT="${REPO_ROOT:-/workspace}"
@@ -158,7 +159,7 @@ run_one_prompt() {
     # On failure, archive client error JSON for debugging (workspace and GEMINI_ANALYSIS_PATH)
     if [ "${RESULT}" -ne 0 ] && compgen -G "/tmp/gemini-client-error-*.json" > /dev/null; then
         zip -j /tmp/gemini-client-error.zip /tmp/gemini-client-error-*.json 2>/dev/null || true
-        cp /tmp/gemini-client-error.zip "${WORKSPACE}"/gemini-client-error.zip 2>/dev/null || true
+        cp /tmp/gemini-client-error.zip "${GEMINI_ARTIFACT_WRITE_ROOT}"/gemini-client-error.zip 2>/dev/null || true
         # So Argo storage step can archive it (shared aaos-cache volume)
         if [ -n "${GEMINI_ANALYSIS_PATH:-}" ] && [ -d "${GEMINI_ANALYSIS_PATH}" ]; then
             cp /tmp/gemini-client-error.zip "${GEMINI_ANALYSIS_PATH%/}"/gemini-client-error.zip 2>/dev/null || true

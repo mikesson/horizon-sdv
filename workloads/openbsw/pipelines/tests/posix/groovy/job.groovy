@@ -1,4 +1,4 @@
-// Copyright (c) 2025 Accenture, All Rights Reserved.
+// Copyright (c) 2025-2026 Accenture, All Rights Reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -17,59 +17,70 @@
 // POSIX application.
 pipelineJob('OpenBSW/Tests/POSIX') {
   description("""
-    <br/><h2 style="margin-bottom: 10px;">OpenBSW POSIX Test Job</h2>
-    <p>This job allows the user to access the OpenBSW platform to test a prior build of the POSIX application.</p>
-    <h3 style="margin-bottom: 10px;">Job Overview</h3>
-    <p>Devices are initialized and remain active for a specified period, allowing users to interact with them via <a href="http://${HORIZON_DOMAIN}/mtk-connect/portal/testbenches" target="_blank">MTK Connect</a>.<br/>
-    After the <code>POSIX_KEEP_ALIVE_TIME</code> period expires, the devices, testbenches, and test instance are terminated in a controlled manner.</p>
-    <h3 style="margin-bottom: 10px;">Mandatory Parameters</h3>
+    <br/><h3 style="margin-bottom: 10px;">OpenBSW POSIX Test Job</h3>
+    <p>This job is used to test a prior build of the OpenBSW POSIX reference application via <a href="http://${HORIZON_DOMAIN}/mtk-connect/portal/testbenches" target="_blank">MTK Connect</a>.</p>
+    <h4 style="margin-bottom: 10px;">Reference documentation:</h4>
     <ul>
-      <li><code>OPENBSW_DOWNLOAD_URL</code>: The URL of the user's POISX test binaries to install and run.</li>
+      <li><a href="https://eclipse-openbsw.github.io/openbsw/sphinx_docs/doc/dev/index.html" target="_blank">Welcome to Eclipse OpenBSW.</a></li>
+      <li><a href="https://eclipse-openbsw.github.io/openbsw/sphinx_docs/doc/dev/learning/unit_tests/index.html" target="_blank">Building and Running Unit Tests.</a></li>
+      <li><a href="https://eclipse-openbsw.github.io/openbsw/sphinx_docs/doc/dev/learning/setup/setup_posix_build.html#setup-posix-build" target="_blank">POSIX Platform.</a></li>
+      <li><a href="https://eclipse-openbsw.github.io/openbsw/sphinx_docs/doc/dev/learning/setup/setup_s32k148_ubuntu_build.html" target="_blank">S32K148 Platform.</a></li>
+      <li><a href="https://eclipse-openbsw.github.io/openbsw/sphinx_docs/doc/learning/console/index.html" target="_blank">Application Console.</a></li>
     </ul>
-    <h3 style="margin-bottom: 10px;">POSIX Application Test Execution Guide</h3>
-    <p>Use this concise guide to bring up networking, launch the reference app, and run tests.</p>
-    <h4 style="margin-bottom: 10px;">One-Time Setup</h4>
-    <p>Run these once per machine boot (or when networking state is reset):</p>
-    <pre><code class="language-bash"># Bring up Ethernet
-./posix/tools/enet/bring-up-ethernet.sh
+    <h4 style="margin-bottom: 10px;">Job overview</h4>
+    <p>Devices are initialized and remain active for a configured period so you can exercise the application through MTK Connect.<br/>
+    After <code>POSIX_KEEP_ALIVE_TIME</code>, devices, testbenches, and the test instance are stopped in a controlled manner.</p>
+    <h4 style="margin-bottom: 10px;">Mandatory parameters</h4>
+    <ul>
+      <li><code>OPENBSW_DOWNLOAD_URL</code> — GCS path to the POSIX output from <b>BSW Builder</b> (folder that contains <code>posix.tgz</code>). Example: <code>gs://…/OpenBSW/Builds/BSW_Builder/&lt;BUILD_NUMBER&gt;/posix/</code>. For Rust, use an artifact built with <code>RTOS_PLATFORM=rust</code> (tree includes <code>build/posix-rust/…</code>).</li>
+    </ul>
+    <h4 style="margin-bottom: 10px;">POSIX application test execution guide</h4>
+    <p>Use this guide after artifacts are on the host: bring up networking, start the reference ELF, then run pyTest if needed.</p>
+    <p><b>Working directory:</b> run everything below from <code>\${HOME}/posix</code> — that is where this job unpacks <code>posix.tgz</code> (<code>tools/</code>, <code>build/</code>, <code>test/</code> live there). If your shell is in <code>\${HOME}</code> instead, prefix these paths with <code>posix/</code>.</p>
+    <h4 style="margin-bottom: 10px;">One-time setup</h4>
+    <p>Run once per machine boot (or when networking was reset). Use <code>sudo</code> if the host requires it for <code>ip link</code> / CAN:</p>
+    <pre><code class="language-bash">cd "\${HOME}/posix"
+# Bring up Ethernet
+./tools/enet/bring-up-ethernet.sh
 # Bring up virtual CAN on vcan0
-./posix/tools/can/bring-up-vcan0.sh</code></pre>
-    <h4 style="margin-bottom: 10px;">Launch the Reference Application:</h4>
-    <p>Starts the POSIX reference application console:</p>
-    <b>posix-freertos</b><br/>
-    <pre><code class="language-bash">./posix/build/posix-freertos/executables/referenceApp/application/Release/app.referenceApp.elf</code></pre>
-    <b>posix-threadx</b><br/>
-    <pre><code class="language-bash">./posix/build/posix-threadx/executables/referenceApp/application/Release/app.referenceApp.elf</code></pre>
+./tools/can/bring-up-vcan0.sh</code></pre>
+    <h4 style="margin-bottom: 10px;">Launch the reference application</h4>
+    <p>Starts the POSIX reference application console (match the preset you built in BSW Builder):</p>
+    <p><b>posix-freertos</b></p>
+    <pre><code class="language-bash">./build/posix-freertos/executables/referenceApp/application/Release/app.referenceApp.elf</code></pre>
+    <p><b>posix-threadx</b></p>
+    <pre><code class="language-bash">./build/posix-threadx/executables/referenceApp/application/Release/app.referenceApp.elf</code></pre>
+    <p><b>posix-rust</b></p>
+    <pre><code class="language-bash">./build/posix-rust/executables/referenceApp/application/Release/app.referenceApp.elf</code></pre>
     <ul>
       <li>Keep this running while testing.</li>
       <li>Stop with Ctrl+C when done.</li>
     </ul>
-    <h4 style="margin-bottom: 10px;">Run POSIX pyTest:</h4>
-    <p>Execute pyTests targeting the POSIX build::</p></br><br/>
-    <b>posix-freertos</b><br/>
-    <pre><code>cd posix/test/pyTest/ && pytest --target=posix --app=freertos</code></pre>
-    <b>posix-threadx</b><br/>
-    <pre><code>cd posix/test/pyTest/ && pytest --target=posix --app=threadx</code></pre>
-    <h3>Reference documentation:</h3>
-    <ul>
-      <li><a href="https://eclipse-openbsw.github.io/openbsw/sphinx_docs/doc/learning/console/index.html" target="_blank">Application Console.</a></li>
-    </ul>
+    <h4 style="margin-bottom: 10px;">Run POSIX pyTest</h4>
+    <p>From <code>\${HOME}/posix/test/pyTest</code> (after <code>cd "\${HOME}/posix"</code>):</p>
+    <p><b>posix-freertos</b></p>
+    <pre><code>cd "\${HOME}/posix/test/pyTest" && pytest --target=posix --app=freertos</code></pre>
+    <p><b>posix-threadx</b></p>
+    <pre><code>cd "\${HOME}/posix/test/pyTest" && pytest --target=posix --app=threadx</code></pre>
+    <p><b>posix-rust</b></p>
+    <pre><code>cd "\${HOME}/posix/test/pyTest" && pytest --target=posix --app=rust</code></pre>
     <br/><div style="border-top: 1px solid #ccc; width: 100%;"></div><br/>""")
 
   parameters {
     stringParam {
       name('OPENBSW_DOWNLOAD_URL')
       defaultValue('')
-      description("""<p>Storage URL pointing to the location of the test image, e.g.<br/>gs://${OPENBSW_BUILD_BUCKET_ROOT_NAME}/OpenBSW/Builds/BSW_Builder/&lt;BUILD_NUMBER&gt;/posix/<br/><br/>
+      description("""<p>Storage URL pointing to the POSIX artifact folder (contains <code>posix.tgz</code>), e.g.<br/>
+        <code>gs://${OPENBSW_BUILD_BUCKET_ROOT_NAME}/OpenBSW/Builds/BSW_Builder/&lt;BUILD_NUMBER&gt;/posix/</code><br/><br/>
         <b>Note:</b>
-          <ul><li>if build number is less than 2 digits, then zero pad , i.e. 1 to 9 must be 01 to 09.</li></ul)</p>""")
+          <ul><li>If the build number is a single digit, zero-pad it (e.g. <code>01</code>–<code>09</code>) where your bucket layout requires it.</li></ul></p>""")
       trim(true)
     }
 
     stringParam {
       name('IMAGE_TAG')
       defaultValue("${OPENBSW_IMAGE_TAG}")
-      description('''<p>Docker image template to use.<p>
+      description('''<p>Docker image template to use.</p>
         <p>Note: tag may only contain 'abcdefghijklmnopqrstuvwxyz0123456789_-./'</p>''')
       trim(true)
     }
@@ -83,7 +94,7 @@ pipelineJob('OpenBSW/Tests/POSIX') {
     stringParam {
       name('NUM_HOST_INSTANCES')
       defaultValue('2')
-      description('''<p>Number of host instances to create.<p>
+      description('''<p>Number of host instances to create.</p>
         <p>i.e. the number of devices to create in MTK Connect testbench.</p>''')
       trim(true)
     }

@@ -115,7 +115,9 @@ limitations under the License. -->
         <p>
           <code>workloads-android</code> lists this module as a <strong>hard dependency</strong>. Enable
           <code>workloads-common</code> first so AAOS builder, runtime image, and related pipelines can resolve shared
-          templates and credentials automation in a consistent namespace.
+          templates and credentials automation in a consistent namespace. <strong>Disable order:</strong> you
+          cannot turn off <code>workloads-common</code> while <code>workloads-android</code> is still enabled;
+          disable Android first (Module Manager rejects the disable while that hard dependency is active).
         </p>
       </article>
       <article class="card">

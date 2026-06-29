@@ -157,6 +157,26 @@ func (h *Handler) listModuleManagedArgoApplications(ctx context.Context, moduleN
 	return out, nil
 }
 
+// countRemainingModuleApplications returns len(managed) plus the parent mod-* Application when it still exists
+// but is missing from the label-filtered list (label drift). An accurate remaining count avoids GET /modules/{name}/status
+// reporting remaining=0 while the parent CR is still live, which confused the Developer Portal after disable.
+func countRemainingModuleApplications(parentErr error, parent *unstructured.Unstructured, managed []unstructured.Unstructured) int {
+	n := len(managed)
+	if parentErr != nil || parent == nil {
+		return n
+	}
+	pname := parent.GetName()
+	if pname == "" {
+		return n
+	}
+	for i := range managed {
+		if managed[i].GetName() == pname {
+			return n
+		}
+	}
+	return n + 1
+}
+
 func (h *Handler) mergedApplicationsForModule(ctx context.Context, moduleName string, catalogApps []controller.CatalogApplication) []ModuleApplication {
 	cat := catalogApplicationsToResponse(catalogApps)
 	argo, err := h.discoverApplicationsFromArgoChildApps(ctx, moduleName)

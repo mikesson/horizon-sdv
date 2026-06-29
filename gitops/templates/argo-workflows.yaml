@@ -325,6 +325,97 @@ spec:
 
 {{- end }}
 ---
+# Allow workflow pods egress to Gerrit (parity with allow-jenkins-controller-egress-to-gerrit)
+{{- if .Values.config.enableNetworkPolicies }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-workflow-pods-egress-to-gerrit
+  namespace: {{ .Values.config.namespacePrefix }}workflows
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  podSelector:
+    matchExpressions:
+      - key: workflows.argoproj.io/workflow
+        operator: Exists
+  policyTypes:
+  - Egress
+  egress:
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: {{ .Values.config.namespacePrefix }}gerrit
+    ports:
+    - protocol: TCP
+      port: 29418  # Gerrit SSH Git protocol
+    - protocol: TCP
+      port: 8080   # Gerrit HTTP API
+
+{{- end }}
+---
+# Allow workflow pods SSH to Cuttlefish VMs (parity with allow-jenkins-agent-egress-ssh-to-cuttlefish)
+{{- if .Values.config.enableNetworkPolicies }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-workflow-pods-egress-ssh-to-cuttlefish
+  namespace: {{ .Values.config.namespacePrefix }}workflows
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  podSelector:
+    matchExpressions:
+      - key: workflows.argoproj.io/workflow
+        operator: Exists
+  policyTypes:
+  - Egress
+  egress:
+  - to:
+    - ipBlock:
+        cidr: 10.1.0.0/24   # GKE node / Cuttlefish VM primary subnet
+    - ipBlock:
+        cidr: 10.2.0.0/24   # ARM64 Cuttlefish VM subnet
+    ports:
+    - protocol: TCP
+      port: 22
+
+{{- end }}
+---
+# Allow workflow pods to MTK Connect in-cluster (router / WAMP / websockets; public gateway uses 443 only)
+{{- if .Values.config.enableNetworkPolicies }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-workflow-pods-egress-to-mtk-connect
+  namespace: {{ .Values.config.namespacePrefix }}workflows
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  podSelector:
+    matchExpressions:
+      - key: workflows.argoproj.io/workflow
+        operator: Exists
+  policyTypes:
+  - Egress
+  egress:
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: {{ .Values.config.namespacePrefix }}mtk-connect
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: mtk-connect
+    ports:
+    - protocol: TCP
+      port: 8081   # MTK Connect router (HTTP API /mtk-connect)
+    - protocol: TCP
+      port: 8080   # WAMP router
+    - protocol: TCP
+      port: 8086   # websockets / live
+
+{{- end }}
+---
 # Allow workflow pods to access Kubernetes API
 {{- if .Values.config.enableNetworkPolicies }}
 apiVersion: networking.k8s.io/v1

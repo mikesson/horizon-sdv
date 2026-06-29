@@ -17,6 +17,7 @@ package controller
 import (
 	"context"
 	"fmt"
+	"os"
 	"sort"
 
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -38,6 +39,13 @@ type APIGroupLister interface {
 
 // ModuleManagerManagedLabelKey identifies Applications created by Module Manager for teardown.
 const ModuleManagerManagedLabelKey = "horizon-sdv.io/module-manager-managed"
+
+// ModuleManagerAppRoleLabelKey distinguishes parent Applications (single spec.source, MODULE_CONFIG helm sync)
+// from child multi-source Applications rendered by module charts (spec.sources only).
+const ModuleManagerAppRoleLabelKey = "horizon-sdv.io/app-role"
+
+// ModuleManagerAppRoleParent is the label value for module parent Applications created by the enable API.
+const ModuleManagerAppRoleParent = "parent"
 
 // PlatformDrainer performs ordered disable of all modules (root Application finalizer path).
 type PlatformDrainer struct {
@@ -122,6 +130,9 @@ func (p *PlatformDrainer) hardDepsForModule(ctx context.Context, moduleName stri
 	return nil
 }
 
+// disableOne removes one enabled module during platform drain. Unlike PerformModuleDisable (REST/Portal
+// single-module disable), it deletes the parent mod-* Application before updating ModuleManagerState—ordering
+// is optimized for whole-platform teardown, not per-module Portal UX.
 func (p *PlatformDrainer) disableOne(ctx context.Context, moduleName string) error {
 	state, err := p.StateStore.Get(ctx)
 	if err != nil {
@@ -136,12 +147,19 @@ func (p *PlatformDrainer) disableOne(ctx context.Context, moduleName string) err
 		return nil
 	}
 
+	if err := TeardownPrefixedModuleChildApplication(ctx, p.Client, p.ArgoCDNamespace, os.Getenv("MODULE_CONFIG"), moduleName); err != nil {
+		return err
+	}
+
 	appName := ApplicationName(moduleName)
 	app := &unstructured.Unstructured{}
 	app.SetGroupVersionKind(schema.GroupVersionKind{Group: "argoproj.io", Version: "v1alpha1", Kind: "Application"})
 	app.SetNamespace(p.ArgoCDNamespace)
 	app.SetName(appName)
 	if err := p.Client.Delete(ctx, app); err != nil && !errors.IsNotFound(err) {
+		// Teardown may have set skip-reconcile on mod-*; clear so the cluster is not left with a frozen parent
+		// if delete fails (platform drain does not update state until after delete).
+		clearParentSkipReconcileIfPrefixedModule(ctx, p.Client, p.ArgoCDNamespace, moduleName)
 		return err
 	}
 	var newEnabled []string

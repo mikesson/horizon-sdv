@@ -1,11 +1,27 @@
+<!-- Copyright (c) 2026 Accenture, All Rights Reserved.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+        http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License. -->
+
 # AAOS Builder Image Helm Chart
 
 This chart installs the AAOS builder image WorkflowTemplate and references the
 shared ClusterWorkflowTemplate (`common-docker-image-build`), Run with `argo submit --from workflowtemplate/aaos-builder-runtime-image -n <namespace>` or via Argo CD.
 
-**Pipeline repo (non-local):** Git clone options are **`spec.pipelineRepoUrl`**, **`spec.pipelineRepoRevision`**, and **`scm.authMethod`** / **`spec.pipelineRepoSecret`**. **userpass** and **app** (remote) both use **ClusterWorkflowTemplate** **`prepare-pipeline-git-creds`**, which either copies the static pipeline Secret into **`{{workflow.uid}}-pipeline-git-creds`** (**userpass**) or delegates to **`prepare-github-app-git-creds`** (**app**). Platform GitOps deploys this chart as a **`spec.sources`** entry on **`workloads-android`** (`gitops/modules/workloads-android` via Module Manager). **ClusterWorkflowTemplate** **`common-docker-image-build`** comes from Module Manager module **`workloads-common`** when enabled. **`ai-review`** is a namespaced WorkflowTemplate on **`workloads-android`** (gemini chart).
+**Pipeline repo (non-local):** Git clone options are **`spec.pipelineRepoUrl`**, **`spec.pipelineRepoRevision`**, and **`scm.authMethod`** / **`spec.pipelineRepoSecret`**. **userpass** and **app** (remote) both use **ClusterWorkflowTemplate** **`prepare-pipeline-git-creds`**, which either copies the static pipeline Secret into **`{{workflow.uid}}-pipeline-git-creds`** (**userpass**) or delegates to **`prepare-github-app-git-creds`** (**app**). Platform GitOps deploys this chart as a **`spec.sources`** entry on **`workloads-android`** (`gitops/modules/workloads-android` via Module Manager). **ClusterWorkflowTemplate** **`common-docker-image-build`** comes from Module Manager module **`workloads-common`** when enabled.
 
-**GCP project / region / zone:** With **`cloudEnvConfigMapName`** set (default **`horizon-workflow-cloud-env`**, same as aaos-builder’s platform env), **`cloudProject`**, **`cloudRegion`**, and **`cloudZone`** are **WorkflowTemplate** parameters resolved from **`valueFrom.configMapKeyRef`** on keys **`CLOUD_PROJECT`**, **`CLOUD_REGION`**, **`CLOUD_ZONE`** (from **`gitops/templates/argo-workflows-init.yaml`**). Set **`cloudEnvConfigMapName: ""`** for local clusters without that ConfigMap and use **`spec.cloudProject`** / **`spec.cloudRegion`** / **`spec.cloudZone`** instead.
+**GCP project / region / zone:** these are **deploy-time defaults** (Helm values / platform environment) and are **not submit-time parameters**. The workflow passes `cloudProject` / `cloudRegion` internally to the shared `common-docker-image-build` ClusterWorkflowTemplate, but they are hidden from the Argo Submit UI and webhook Sensor payload.
+
+**Hidden defaults:** `dockerfileDir`, `buildArgs`, and `platform` are fixed at deploy time (Helm values) and are not exposed as WorkflowTemplate submit parameters.
 
 ## What’s in this chart
 
@@ -57,6 +73,10 @@ If a WorkflowTemplate name changed, re-submit workflows afterward.
 ```bash
 argo submit --from workflowtemplate/aaos-builder-runtime-image -n workflows   # or -n dev-workflows if namespacePrefix=dev-
 ```
+
+## Concurrency
+
+This chart sets **`spec.synchronization.mutex`** by default (value **`aaosBuilderRuntimeImageConcurrencyMutexName`**) so only **one** `aaos-builder-runtime-image` build workflow runs at a time. Set `aaosBuilderRuntimeImageConcurrencyMutexName: ""` to disable.
 
 ## Local repo configuration
 

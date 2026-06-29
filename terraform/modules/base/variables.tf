@@ -128,8 +128,14 @@ variable "sdv_cluster_name" {
 }
 
 variable "sdv_cluster_version" {
-  description = "GKE cluster control plane version (e.g. 1.33.5-gke.2172001). Replaces release_channel so node pools can set auto_upgrade = false (e.g. ABFS for CASFS kernel)."
+  description = "Cluster control plane min_master_version (floor; live master may be newer; not a downgrade pin)."
   type        = string
+}
+
+variable "sdv_cluster_release_channel" {
+  description = "GKE cluster release_channel."
+  type        = string
+  default     = "UNSPECIFIED"
 }
 
 variable "sdv_cluster_node_pool_name" {
@@ -270,8 +276,37 @@ variable "sdv_abfs_build_node_pool_max_node_count" {
 }
 
 variable "sdv_abfs_build_node_pool_version" {
-  description = "Kubernetes version for the ABFS build node pool (e.g. 1.32.7-gke.1079000). Pins the node pool to this GKE version."
+  description = "Kubernetes version for the ABFS build node pool (GKE node version string)."
   type        = string
+}
+
+variable "sdv_cluster_maintenance_recurring_window_start_time" {
+  description = "GKE cluster recurring maintenance window start time."
+  type        = string
+  default     = "2025-01-04T00:00:00Z"
+}
+
+variable "sdv_cluster_maintenance_recurring_window_end_time" {
+  description = "GKE cluster recurring maintenance window end time."
+  type        = string
+  default     = "2050-01-05T00:00:00Z"
+}
+
+variable "sdv_cluster_maintenance_recurring_window_recurrence" {
+  description = "GKE cluster recurring maintenance window recurrence rule."
+  type        = string
+  default     = "FREQ=WEEKLY;BYDAY=SA,SU"
+}
+
+variable "sdv_cluster_maintenance_exclusions" {
+  description = "GKE cluster maintenance exclusions (exclusion_name, start_time, end_time, scope)."
+  type = list(object({
+    exclusion_name = string
+    start_time     = string
+    end_time       = string
+    scope          = string
+  }))
+  default = []
 }
 
 variable "sdv_openbsw_build_node_pool_name" {
@@ -375,8 +410,8 @@ variable "sdv_gcp_parameters_map" {
   type        = any
 }
 
-variable "enable_arm64" {
-  description = "Enable or disable ARM64 networking resources"
+variable "enable_arm64_dedicated_subnet" {
+  description = "When true, create dedicated ARM64 subnet and NAT in arm64_region. When false, ARM64 Cuttlefish uses primary sdv-subnet; ARM workloads are still supported."
   type        = bool
 }
 
@@ -386,10 +421,16 @@ variable "arm64_region" {
   default     = "us-central1"
 }
 
+variable "arm64_zone" {
+  description = "ARM64 zone for Cuttlefish builds and Jenkins GCE clouds (must be in arm64_region)"
+  type        = string
+  default     = "us-central1-b"
+}
+
 variable "arm64_subnetwork" {
   description = "ARM64 subnet name"
   type        = string
-  default     = "sdv-subnet-us"
+  default     = "sdv-subnet-arm64"
 }
 
 variable "nodes_range" {
@@ -425,6 +466,18 @@ variable "arm64_services_range" {
   description = "ARM64 service CIDR"
   type        = string
   default     = "10.22.0.0/16"
+}
+
+variable "arm64_pods_secondary_range_name" {
+  description = "Secondary IP range name for pods on the ARM64 dedicated subnet (GCP must already use this name; override in terraform.tfvars only if non-standard)."
+  type        = string
+  default     = "pods-range-arm64"
+}
+
+variable "arm64_services_secondary_range_name" {
+  description = "Secondary IP range name for services on the ARM64 dedicated subnet (GCP must already use this name; override in terraform.tfvars only if non-standard)."
+  type        = string
+  default     = "services-range-arm64"
 }
 
 variable "sdv_enable_network_policies" {

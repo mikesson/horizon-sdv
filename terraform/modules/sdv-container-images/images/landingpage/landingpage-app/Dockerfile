@@ -14,4 +14,7 @@
 
 ARG NGINX_VERSION
 FROM --platform=linux/amd64 nginx:${NGINX_VERSION}
+# Patch OS packages (curl, expat, libpng, openssl, etc.) flagged by ISD security scan.
+USER root
+RUN apk --no-cache upgrade
 COPY --chown=nginx:nginx html /usr/share/nginx/html

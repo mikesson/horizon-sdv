@@ -28,7 +28,7 @@ func StartedBy(u *unstructured.Unstructured) string {
 		return ""
 	}
 	if ann := u.GetAnnotations(); ann != nil {
-		if v := strings.TrimSpace(ann["horizon-sdv.io/submitted-by"]); v != "" {
+		if v := strings.TrimSpace(ann[LabelSubmittedBy]); v != "" {
 			return v
 		}
 	}

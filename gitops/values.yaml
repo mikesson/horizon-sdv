@@ -70,6 +70,7 @@ config:
     webhookMonitor:
       thresholdSeconds: 2592000   # 30 days
       cooldownSeconds: 86400      # 24 hours
+
   workloads:
     android:
       helm:

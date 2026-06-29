@@ -35,9 +35,9 @@ Dependencies: uses shared ClusterWorkflowTemplate (build template).
         arguments:
           parameters:
             - name: scmAuthMethod
-              value: '{{ "{{" }}workflow.parameters.scmAuthMethod{{ "}}" }}'
+              value: {{ include "aaos-builder-runtime-image.scmAuthMethod" . | trim | quote }}
             - name: pipelineStaticGitSecretName
-              value: '{{ "{{" }}workflow.parameters.pipelineStaticGitSecretName{{ "}}" }}'
+              value: {{ .Values.spec.pipelineRepoSecret | default "workflow-pipeline-git-creds" | quote }}
             - name: horizonSubmittedFrom
               value: '{{ "{{" }}workflow.parameters.horizonSubmittedFrom{{ "}}" }}'
 {{- end }}
@@ -63,9 +63,9 @@ Dependencies: uses shared ClusterWorkflowTemplate (build template).
             - name: horizonSubmittedFrom
               value: '{{ "{{" }}workflow.parameters.horizonSubmittedFrom{{ "}}" }}'
             - name: cloudProject
-              value: "{{ "{{" }}workflow.parameters.cloudProject{{ "}}" }}"
+              value: {{ .Values.spec.cloudProject | quote }}
             - name: cloudRegion
-              value: "{{ "{{" }}workflow.parameters.cloudRegion{{ "}}" }}"
+              value: {{ .Values.spec.cloudRegion | quote }}
             - name: dockerArtifactPathName
               value: "{{ "{{" }}workflow.parameters.dockerArtifactPathName{{ "}}" }}"
             - name: imageTag
@@ -73,7 +73,7 @@ Dependencies: uses shared ClusterWorkflowTemplate (build template).
             - name: dryRun
               value: "{{ "{{" }}workflow.parameters.dryRun{{ "}}" }}"
             - name: dockerfileDir
-              value: "{{ "{{" }}workflow.parameters.dockerfileDir{{ "}}" }}"
+              value: {{ .Values.spec.dockerfileDir | quote }}
             - name: buildArgs
               value: |
                 ABFS="false"
@@ -103,9 +103,9 @@ Dependencies: uses shared ClusterWorkflowTemplate (build template).
         arguments:
           parameters:
             - name: scmAuthMethod
-              value: '{{ "{{" }}workflow.parameters.scmAuthMethod{{ "}}" }}'
+              value: {{ include "aaos-builder-runtime-image.scmAuthMethod" . | trim | quote }}
             - name: pipelineStaticGitSecretName
-              value: '{{ "{{" }}workflow.parameters.pipelineStaticGitSecretName{{ "}}" }}'
+              value: {{ .Values.spec.pipelineRepoSecret | default "workflow-pipeline-git-creds" | quote }}
             - name: horizonSubmittedFrom
               value: '{{ "{{" }}workflow.parameters.horizonSubmittedFrom{{ "}}" }}'
 {{- end }}

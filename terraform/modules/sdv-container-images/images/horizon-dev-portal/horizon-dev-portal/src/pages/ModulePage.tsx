@@ -15,6 +15,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import CloudOutlinedIcon from '@mui/icons-material/CloudOutlined';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
+import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
 import DownloadOutlinedIcon from '@mui/icons-material/DownloadOutlined';
 import Inventory2OutlinedIcon from '@mui/icons-material/Inventory2Outlined';
 import OpenInNewOutlinedIcon from '@mui/icons-material/OpenInNewOutlined';
@@ -32,6 +33,8 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
+  IconButton,
+  InputAdornment,
   Stack,
   Tab,
   Table,
@@ -49,6 +52,7 @@ import {
 import { useTheme } from '@mui/material/styles';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { apiHorizon, apiMm } from '../utils/api';
+import { authService } from '../utils/auth';
 import { config } from '../utils/config';
 import {
   DIALOG_LAYOUT_COOKIE_WORKFLOW_DETAIL,
@@ -228,35 +232,44 @@ export function ModulePage() {
       return;
     }
     let cancelled = false;
-    setModuleMetaLoaded(false);
-    setOverviewInCluster(false);
-    setOverviewErr(null);
-    (async () => {
-      try {
-        const r = await apiMm(`/modules/${encodeURIComponent(moduleName)}`);
-        if (!r.ok || cancelled) {
-          return;
-        }
-        const m = (await r.json()) as ModuleResponse;
-        if (!cancelled) {
-          const svc = (m.overviewService ?? '').trim();
-          const ns = (m.overviewServiceNamespace ?? '').trim();
-          setOverviewInCluster(!!(svc && ns));
-          setModuleApplications(m.applications ?? []);
-        }
-      } catch {
-        if (!cancelled) {
-          setOverviewInCluster(false);
-          setModuleApplications([]);
-        }
-      } finally {
-        if (!cancelled) {
-          setModuleMetaLoaded(true);
-        }
+
+    const loadModuleMeta = (initial: boolean) => {
+      if (initial) {
+        setModuleMetaLoaded(false);
+        setOverviewInCluster(false);
+        setOverviewErr(null);
       }
-    })();
+      void (async () => {
+        try {
+          const r = await apiMm(`/modules/${encodeURIComponent(moduleName)}`);
+          if (!r.ok || cancelled) {
+            return;
+          }
+          const m = (await r.json()) as ModuleResponse;
+          if (!cancelled) {
+            const svc = (m.overviewService ?? '').trim();
+            const ns = (m.overviewServiceNamespace ?? '').trim();
+            setOverviewInCluster(!!(svc && ns));
+            setModuleApplications(m.applications ?? []);
+          }
+        } catch {
+          if (!cancelled && initial) {
+            setOverviewInCluster(false);
+            setModuleApplications([]);
+          }
+        } finally {
+          if (!cancelled && initial) {
+            setModuleMetaLoaded(true);
+          }
+        }
+      })();
+    };
+
+    loadModuleMeta(true);
+    const pollId = window.setInterval(() => loadModuleMeta(false), 15000);
     return () => {
       cancelled = true;
+      window.clearInterval(pollId);
     };
   }, [moduleName]);
 
@@ -669,6 +682,12 @@ function formatSubmittedFromLabel(v: string | undefined): string {
   return raw;
 }
 
+/** Keycloak username (Portal) or Argo creator label; empty when unknown. */
+function formatStartedByLabel(v: string | undefined): string {
+  const raw = (v ?? '').trim();
+  return raw || '—';
+}
+
 function sortWorkflowsForRunning(items: WorkflowSummary[]): WorkflowSummary[] {
   return [...items].sort((a, b) => {
     const sb = parseIsoMs(b.startedAt);
@@ -717,6 +736,7 @@ function RunningTab({
             <TableCell>Started</TableCell>
             <TableCell>Duration</TableCell>
             <TableCell>Triggered from</TableCell>
+            <TableCell>Submitted by</TableCell>
             <TableCell>Phase</TableCell>
           </TableRow>
         </TableHead>
@@ -735,6 +755,21 @@ function RunningTab({
               <TableCell>{formatLocaleDateTime(w.startedAt)}</TableCell>
               <TableCell>{formatDurationBetween(w.startedAt, w.finishedAt, true)}</TableCell>
               <TableCell>{formatSubmittedFromLabel(w.submittedFrom)}</TableCell>
+              <TableCell title={formatStartedByLabel(w.startedBy)}>
+                <Typography
+                  variant="body2"
+                  sx={{
+                    fontFamily: 'monospace',
+                    fontSize: 12,
+                    maxWidth: 220,
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {formatStartedByLabel(w.startedBy)}
+                </Typography>
+              </TableCell>
               <TableCell>
                 <Chip
                   size="small"
@@ -774,6 +809,7 @@ function HistoryTab({
             <TableCell>Finished</TableCell>
             <TableCell>Duration</TableCell>
             <TableCell>Triggered from</TableCell>
+            <TableCell>Submitted by</TableCell>
             <TableCell>Result</TableCell>
           </TableRow>
         </TableHead>
@@ -798,6 +834,21 @@ function HistoryTab({
               <TableCell>{formatLocaleDateTime(w.finishedAt)}</TableCell>
               <TableCell>{formatDurationBetween(w.startedAt, w.finishedAt, false)}</TableCell>
               <TableCell>{formatSubmittedFromLabel(w.submittedFrom)}</TableCell>
+              <TableCell title={formatStartedByLabel(w.startedBy)}>
+                <Typography
+                  variant="body2"
+                  sx={{
+                    fontFamily: 'monospace',
+                    fontSize: 12,
+                    maxWidth: 220,
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {formatStartedByLabel(w.startedBy)}
+                </Typography>
+              </TableCell>
               <TableCell>
                 {deletingNames?.[w.name] ? (
                   <Chip size="small" label="Deletion in progress" color="default" variant="outlined" disabled />
@@ -846,13 +897,23 @@ function SubmitDialog({
     const tid = window.setTimeout(() => ctrl.abort(), 45000);
     try {
       const path = `/v1/modules/${encodeURIComponent(moduleName)}/workflowTemplates/${encodeURIComponent(entry.templateName)}/submit`;
+      const submitParams = { ...params };
+      const username = authService.getUsername();
+      const hasSubmittedBy = entry.parameters.some((p) => p.name === 'submittedBy');
+      if (hasSubmittedBy && username) {
+        submitParams.submittedBy = username;
+      }
+      const submitHeaders: Record<string, string> = {
+        'Content-Type': 'application/json',
+        'X-Horizon-Submitted-From': 'developer-portal',
+      };
+      if (username) {
+        submitHeaders['X-Horizon-Submitted-By'] = username;
+      }
       const r = await apiHorizon(path, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Horizon-Submitted-From': 'developer-portal',
-        },
-        body: JSON.stringify({ parameters: params }),
+        headers: submitHeaders,
+        body: JSON.stringify({ parameters: submitParams }),
         signal: ctrl.signal,
       });
       if (!r.ok) {
@@ -876,17 +937,47 @@ function SubmitDialog({
     <Dialog open onClose={onClose} maxWidth="sm" fullWidth>
       <DialogTitle>Submit: {entry.templateName}</DialogTitle>
       <DialogContent>
-        {entry.parameters.map((p) => (
+        {entry.parameters
+          .filter((p) => p.name !== 'submittedBy')
+          .map((p) => (
           <TextField
             key={p.name}
             margin="dense"
             label={p.name}
-            helperText={p.description}
+            helperText={
+              p.description && p.description.length <= 72 ? p.description : undefined
+            }
             fullWidth
             required={!p.default}
             value={params[p.name] ?? ''}
             onChange={(e) =>
               setParams((prev) => ({ ...prev, [p.name]: e.target.value }))
+            }
+            InputProps={
+              p.description && p.description.length > 72
+                ? {
+                    endAdornment: (
+                      <InputAdornment position="end">
+                        <Tooltip
+                          title={p.description}
+                          placement="left"
+                          slotProps={{
+                            tooltip: { sx: { maxWidth: 320, whiteSpace: 'normal' } },
+                          }}
+                        >
+                          <IconButton
+                            size="small"
+                            edge="end"
+                            aria-label={`Help for ${p.name}`}
+                            tabIndex={-1}
+                          >
+                            <HelpOutlineIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      </InputAdornment>
+                    ),
+                  }
+                : undefined
             }
           />
         ))}
@@ -1424,6 +1515,19 @@ function WorkflowDetailSections({
           {detail.workflowTemplate ?? '—'}
         </Typography>
       </Stack>
+
+      <Typography variant="body2" color="text.secondary">
+        Triggered from: <strong>{formatSubmittedFromLabel(detail.submittedFrom)}</strong>
+        {' · '}
+        Submitted by:{' '}
+        <Box
+          component="code"
+          title={formatStartedByLabel(detail.startedBy)}
+          sx={{ fontSize: 12, wordBreak: 'break-all' }}
+        >
+          {formatStartedByLabel(detail.startedBy)}
+        </Box>
+      </Typography>
 
       <Card variant="outlined" sx={{ bgcolor: 'action.hover' }}>
         <CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}>

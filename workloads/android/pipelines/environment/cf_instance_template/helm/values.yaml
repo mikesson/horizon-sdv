@@ -1,0 +1,220 @@
+# Copyright (c) 2026 Accenture, All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#         http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# Default values for cf_instance_template Argo charts.
+# GitOps: workloads-android Application (gitops/modules/workloads-android) adds this path as a Helm source.
+namespacePrefix: ""
+namespace: ""
+# Set by GitOps (userpass | app | none). Remote git uses prepare-pipeline-git-creds before clone.
+git:
+  authMethod: ""
+scm:
+  authMethod: ""
+# When set, the run step reads CLOUD_PROJECT / CLOUD_REGION / CLOUD_ZONE from this ConfigMap via container env (same keys as aaos-builder-runtime-image).
+cloudEnvConfigMapName: "horizon-workflow-cloud-env"
+# ARM64 placement: overridden by workloads-android Application inline values (Terraform config.arm64 via MODULE_CONFIG).
+arm64:
+  region: ""
+  zone: ""
+  subnetwork: ""
+# Cluster mutex name shared by x86 and arm64 WorkflowTemplates — at most one cf-instance-template Workflow runs at a time.
+# Set to "" to disable.
+cfInstanceTemplateConcurrencyMutexName: cf-instance-template
+podGcStrategy: OnWorkflowCompletion
+workflowTtlSecondsAfterCompletion:
+
+# Webhook / workflow-dispatch body fields mapped to WorkflowTemplate parameters (Sensors).
+# Sensors target parameters by name (GJSON #(name=="…")), not array index — safe to reorder WorkflowTemplate parameters.
+# arm64Only: included only for workflowProfiles with exposeNetworkSubnet: true (cf-instance-template-arm64).
+webhookWorkflowParameters:
+  - name: horizonSubmittedFrom
+    bodyKey: horizonSubmittedFrom
+  - name: cuttlefishRevision
+    bodyKey: cuttlefishRevision
+  - name: cuttlefishUrl
+    bodyKey: cuttlefishUrl
+  - name: cuttlefishPostCommand
+    bodyKey: cuttlefishPostCommand
+  - name: cuttlefishInstanceName
+    bodyKey: cuttlefishInstanceName
+  - name: updateSshAuthorizedKeys
+    bodyKey: updateSshAuthorizedKeys
+  - name: delete
+    bodyKey: delete
+  - name: machineType
+    bodyKey: machineType
+  - name: customVmType
+    bodyKey: customVmType
+  - name: customCpu
+    bodyKey: customCpu
+  - name: customMemory
+    bodyKey: customMemory
+  - name: osVersion
+    bodyKey: osVersion
+  - name: osProject
+    bodyKey: osProject
+  - name: javaVersion
+    bodyKey: javaVersion
+  - name: nodejsVersion
+    bodyKey: nodejsVersion
+  - name: waitonVersion
+    bodyKey: waitonVersion
+  - name: axiosVersion
+    bodyKey: axiosVersion
+  - name: additionalNetworking
+    bodyKey: additionalNetworking
+  - name: bootDiskSize
+    bodyKey: bootDiskSize
+  - name: bootDiskType
+    bodyKey: bootDiskType
+  - name: maxRunDuration
+    bodyKey: maxRunDuration
+  - name: ctsAndroid16Url
+    bodyKey: ctsAndroid16Url
+  - name: ctsAndroid15Url
+    bodyKey: ctsAndroid15Url
+  - name: ctsAndroid14Url
+    bodyKey: ctsAndroid14Url
+  # subnet/region/zone: not webhook-mapped — use WorkflowTemplate defaults from GitOps arm64.* (Portal has no placement UI).
+  - name: forceImageBuild
+    bodyKey: forceImageBuild
+  - name: repoUsername
+    bodyKey: repoUsername
+  - name: repoPassword
+    bodyKey: repoPassword
+
+# KCC publisher prerequisites (relocated from gitops/workloads/android/*).
+kcc:
+  instanceTemplates:
+    enabled: true
+    # Namespaced-mode Config Connector uses a GSA from ConfigConnectorContext in the workflows namespace.
+    # Default matches other charts: gke-config-connector-sa@<project>.iam.gserviceaccount.com
+    configConnectorGoogleServiceAccount: ""
+    # Cross-namespace publisher for cuttlefish-kcc-publisher RoleBinding (NOT the Argo workflow pod SA).
+    # Argo steps use spec.serviceAccountName / useElevatedWorkflowIam (workflow-executor*); platform
+    # argo-workflows-init grants those SAs computeinstancetemplates RBAC. This block binds another SA
+    # (default jenkins-sa in namespacePrefix+"jenkins") so e.g. Jenkins K8s agents can kubectl the same CRs.
+    # namespace: omit or "" => namespacePrefix + "jenkins" (where Cuttlefish SSH secrets usually live).
+    publisherIdentity:
+      namespace: ""
+      serviceAccountName: jenkins-sa
+
+# AAOS builder container image (same as Jenkins CF jobs): Packer/gcloud run inside this image.
+spec:
+  cloudProject: ""
+  cloudRegion: ""
+  cloudZone: ""
+  dockerArtifactPathName: horizon-sdv/aaos-builder
+  # Align with aaos-builder-runtime-image chart default imageTag (not a shared :latest in Artifact Registry).
+  builderImageTag: argowf-latest
+  # WorkflowTemplate for optional runtime image build (DAG templateRef build-defaults; same as aaos-builder).
+  aaosBuilderImageWorkflowTemplateName: aaos-builder-runtime-image
+  # KCC PreDelete hook Job only (kubectl + gcloud); not used by workflow DAG.
+  cnrmPresDeleteImage: "gcr.io/google.com/cloudsdktool/cloud-sdk:461.0.0"
+  pipelineRepoUrl: ""
+  pipelineRepoRevision: ""
+  pipelineRepoSecret: workflow-pipeline-git-creds
+  # cf_create_instance_template.sh stage (1 bake+template, 2 SSH metadata, 3 delete). GitOps-only override.
+  defaultRunStage: "1"
+  serviceAccountName: workflow-executor
+  # Default true: Packer + gcloud compute require Compute API permissions (e.g. compute.zones.get). The elevated KSA
+  # maps to gke-argo-workflows-elevated-sa (Terraform argo_workflows_elevated). Set false only for tighter IAM (then
+  # extend gke-argo-workflows-sa with Compute roles in Terraform instead).
+  useElevatedWorkflowIam: true
+  # Optional node placement (match Jenkins android pool).
+  nodeSelector:
+    workloadLabel: android
+  tolerations:
+    - key: workloadType
+      operator: Equal
+      value: android
+      effect: NoSchedule
+  # run-cf-template pod: align with cf_instance_template/Jenkinsfile agent kubernetes yaml (single builder container).
+  cfRunPodLabels:
+    aaos_pod: "true"
+  cfRunPodAnnotations:
+    cluster-autoscaler.kubernetes.io/safe-to-evict: "false"
+  cfRunPodHostname: jenkins-aaos-cf-build-pod
+  cfRunPodAffinity:
+    podAntiAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        - labelSelector:
+            matchExpressions:
+              - key: aaos_pod
+                operator: Exists
+          topologyKey: kubernetes.io/hostname
+  cfRunPodResources:
+    requests:
+      cpu: "98000m"
+      memory: "180000Mi"
+    limits:
+      cpu: "98000m"
+      memory: "180000Mi"
+
+# One WorkflowTemplate (+ matching Sensor webhook-<name>) per profile. Defaults align with Jenkins
+# job.groovy (x86) and job_arm.groovy (ARM64); cf_create_instance_template.sh derives ARCHITECTURE from OS_VERSION.
+# exposeNetworkSubnet: job.groovy has no SUBNET/REGION/ZONE workflow-style params (script defaults apply). For ARM64,
+# job_arm.groovy exposes SUBNET, REGION, and ZONE — we mirror those as workflow parameters (not NETWORK; script default NETWORK applies).
+workflowProfiles:
+  - workflowTemplateName: cf-instance-template-x86
+    exposeNetworkSubnet: false
+    defaults:
+      osVersion: debian-12-bookworm-v20260114
+      osProject: debian-cloud
+      javaVersion: temurin-21-jdk
+      machineType: n2-standard-32
+      additionalNetworking: ""
+      # groovy/job.groovy BOOT_DISK_TYPE default.
+      bootDiskType: pd-balanced
+      # groovy/job.groovy BOOT_DISK_SIZE; maxRunDuration = MAX_RUN_DURATION for Cuttlefish VMs from the template (12h). Not Packer builder (PACKER_BUILD_MAX_RUN_DURATION, default 4h in script).
+      bootDiskSize: "250GB"
+      maxRunDuration: "12h"
+      # Packer googlecompute IAP + SSH waits (PACKER_USE_IAP / PACKER_SSH_TIMEOUT / PACKER_IAP_TUNNEL_LAUNCH_WAIT).
+      packerUseIap: true
+      packerSshTimeout: "15m"
+      packerIapTunnelLaunchWait: 300
+      # cf_create_instance_template.sh defaults for Packer npm toolchain (job.groovy NODEJS_VERSION / WAITON_VERSION / AXIOS_VERSION from pipeline globals).
+      nodejsVersion: "20.9.0"
+      waitonVersion: "9.0.4"
+      axiosVersion: "1.15.0"
+      # groovy/job.groovy CTS_ANDROID_*_URL defaults (linux_x86-x86).
+      ctsAndroid16Url: "https://dl.google.com/dl/android/cts/android-cts-16_r5-linux_x86-x86.zip"
+      ctsAndroid15Url: "https://dl.google.com/dl/android/cts/android-cts-15_r8-linux_x86-x86.zip"
+      ctsAndroid14Url: "https://dl.google.com/dl/android/cts/android-cts-14_r12-linux_x86-x86.zip"
+  - workflowTemplateName: cf-instance-template-arm64
+    exposeNetworkSubnet: true
+    defaults:
+      osVersion: ubuntu-2204-jammy-arm64-v20251212
+      osProject: ubuntu-os-cloud
+      javaVersion: openjdk-21-jdk-headless
+      # Align with groovy/job_arm.groovy MACHINE_TYPE default (c4a-highmem-96-metal), not t2a.
+      machineType: c4a-highmem-96-metal
+      additionalNetworking: nic-type=IDPF
+      # groovy/job_arm.groovy BOOT_DISK_TYPE; pd-balanced is invalid for c4a-*-metal (use Hyperdisk).
+      bootDiskType: hyperdisk-balanced
+      bootDiskSize: "250GB"
+      # MAX_RUN_DURATION for Cuttlefish VMs from template (12h); not Packer builder (PACKER_BUILD_MAX_RUN_DURATION).
+      maxRunDuration: "12h"
+      packerUseIap: true
+      packerSshTimeout: "15m"
+      packerIapTunnelLaunchWait: 300
+      nodejsVersion: "20.9.0"
+      waitonVersion: "9.0.4"
+      axiosVersion: "1.15.0"
+      # subnet/region/zone: WorkflowTemplate defaults come from chart arm64.* (GitOps config.arm64).
+      # groovy/job_arm.groovy CTS_ANDROID_*_URL defaults (linux_x86-arm).
+      ctsAndroid16Url: "https://dl.google.com/dl/android/cts/android-cts-16_r5-linux_x86-arm.zip"
+      ctsAndroid15Url: "https://dl.google.com/dl/android/cts/android-cts-15_r8-linux_x86-arm.zip"
+      ctsAndroid14Url: "https://dl.google.com/dl/android/cts/android-cts-14_r12-linux_x86-arm.zip"
+

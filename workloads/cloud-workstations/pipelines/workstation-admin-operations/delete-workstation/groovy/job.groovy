@@ -40,6 +40,14 @@ pipelineJob('Cloud-Workstations/Workstation-Admin-Operations/Delete Existing Wor
     booleanParam('CONFIRM_DELETE', false, '<b>REQUIRED: Check this box to confirm deletion. This action is irreversible.</b>')
   }
 
+  // Block build if certain jobs are running.
+  blockOn('Cloud-Workstations/.*/(Create|Update|Delete|Add|Remove|Start|Stop).*') {
+    // Possible values are 'GLOBAL' and 'NODE' (default).
+    blockLevel('GLOBAL')
+    // Possible values are 'ALL', 'BUILDABLE' and 'DISABLED' (default).
+    scanQueueFor('BUILDABLE')
+  }
+
   definition {
     cpsScm {
       lightweight()

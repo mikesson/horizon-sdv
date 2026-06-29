@@ -26,6 +26,7 @@ Workflow template fragments for aaos-builder.
 {{ include "aaos-builder.template.clean" $ctx }}
 {{ include "aaos-builder.template.init" $ctx }}
 {{ include "aaos-builder.template.build" $ctx }}
+{{ include "aaos-builder.template.gemini-review" $ctx }}
 {{ include "aaos-builder.template.storage" $ctx }}
 {{ include "aaos-builder.template.fail-workflow" $ctx }}
 {{- end }}

@@ -14,6 +14,32 @@
 
 data "google_project" "project" {}
 
+# Plan-time guard: GKE only accepts NO_MINOR_UPGRADES and NO_MINOR_OR_NODE_UPGRADES
+# exclusion scopes on clusters enrolled in a release channel. With release_channel =
+# "UNSPECIFIED" the API rejects anything other than NO_UPGRADES, so fail fast at
+# `terraform plan` instead of partway through `apply`.
+resource "terraform_data" "validate_maintenance_exclusion_scopes" {
+  lifecycle {
+    precondition {
+      condition = (
+        var.release_channel != "UNSPECIFIED" || alltrue([
+          for e in var.maintenance_exclusions : e.scope == "NO_UPGRADES"
+        ])
+      )
+      error_message = <<-EOT
+        Invalid maintenance_exclusions for release_channel = "UNSPECIFIED".
+
+        GKE only accepts NO_MINOR_UPGRADES and NO_MINOR_OR_NODE_UPGRADES exclusion
+        scopes on clusters enrolled in a release channel. On UNSPECIFIED clusters
+        the API rejects them with an error.
+
+        Either set release_channel to RAPID, REGULAR, STABLE, or EXTENDED, or change every
+        maintenance_exclusions[*].scope to "NO_UPGRADES".
+      EOT
+    }
+  }
+}
+
 resource "google_container_cluster" "sdv_cluster" {
   project                  = data.google_project.project.project_id
   name                     = var.cluster_name
@@ -54,20 +80,31 @@ resource "google_container_cluster" "sdv_cluster" {
     enabled = true
   }
 
-  # Explicitly opt out of any release channel so Terraform can pin min_master_version
-  # and node pools can set auto_upgrade = false for CASFS kernel module compatibility.
+  # Release channel is configurable (RAPID / REGULAR / STABLE / EXTENDED / UNSPECIFIED).
   release_channel {
-    channel = "UNSPECIFIED"
+    channel = var.release_channel
   }
 
   min_master_version = var.cluster_version
 
-  # The maintenance policy to use for the cluster - when updates can occur
+  # Maintenance windows + exclusions (cluster-level) for scheduling/deferring upgrades
   maintenance_policy {
     recurring_window {
-      start_time = "2025-01-01T00:00:00Z"
-      end_time   = "2050-01-01T00:00:00Z"
-      recurrence = "FREQ=WEEKLY;BYDAY=SA,SU"
+      start_time = var.maintenance_recurring_window_start_time
+      end_time   = var.maintenance_recurring_window_end_time
+      recurrence = var.maintenance_recurring_window_recurrence
+    }
+
+    dynamic "maintenance_exclusion" {
+      for_each = var.maintenance_exclusions
+      content {
+        exclusion_name = maintenance_exclusion.value.exclusion_name
+        start_time     = maintenance_exclusion.value.start_time
+        end_time       = maintenance_exclusion.value.end_time
+        exclusion_options {
+          scope = maintenance_exclusion.value.scope
+        }
+      }
     }
   }
 
@@ -307,10 +344,20 @@ resource "google_container_node_pool" "sdv_abfs_build_node_pool" {
     max_node_count = var.abfs_build_node_pool_max_node_count
   }
 
-  # Block auto-upgrade so pool stays on pinned version (CASFS kernel module compatibility).
+  # ABFS pool management policy is coupled to the cluster release channel:
+  #
+  # - release_channel = "UNSPECIFIED": auto_upgrade = false. Pins this pool to
+  #   var.abfs_build_node_pool_version for CASFS kernel-module compatibility.
+  #   Use cluster maintenance windows / exclusions (NO_UPGRADES scope) to defer
+  #   any other cluster maintenance.
+  # - release_channel = RAPID / REGULAR / STABLE / EXTENDED: auto_upgrade = true is REQUIRED
+  #   by the GKE API on every node pool of a channel-enrolled cluster
+  #   (auto_upgrade = false is rejected at apply time). The CASFS version pin is
+  #   therefore not enforced; rely on NO_MINOR_OR_NODE_UPGRADES exclusions to
+  #   defer minor/node upgrades during CASFS-sensitive periods.
   management {
     auto_repair  = true
-    auto_upgrade = false
+    auto_upgrade = var.release_channel != "UNSPECIFIED"
   }
 }
 

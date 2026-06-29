@@ -1,3 +1,17 @@
+<!-- Copyright (c) 2026 Accenture, All Rights Reserved.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+        http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License. -->
+
 # Android Build Filesystem (ABFS) Builder
 
 ## Table of contents
@@ -40,6 +54,10 @@ One-time setup requirements.
 The Android revision, i.e. branch or tag to build. Tested versions are below:
 
 - `android-16.0.0_r3` (bp3a)
+
+### `AAOS_MANIFEST_NAME`
+
+Manifest XML filename inside the manifest repository. Defaults to `default.xml` when unset.
 
 ### `AAOS_LUNCH_TARGET` <a name="targets"></a>
 

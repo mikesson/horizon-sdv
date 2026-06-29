@@ -1,10 +1,34 @@
+<!-- Copyright (c) 2026 Accenture, All Rights Reserved.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+        http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License. -->
+
 # Gemini CLI integration
 
 Scripts and environment for running the [Gemini CLI](https://geminicli.com/docs/cli/headless/) in headless mode (e.g. from Jenkins or Argo). Used by the AAOS Builder AI review step and the Gemini AI Assistant utility.
 
-## Argo Workflows (`ai-review`)
+## Argo Workflows and Jenkins
 
-The WorkflowTemplate is named **`ai-review`** (resource name and template name inside the manifest; Helm manifest **`templates/workflowtemplates.yaml`**). Its Helm chart lives next to these scripts: **`workloads/common/agentic-ai/gemini/helm/`** (chart name `common-ai-review`). Platform GitOps deploys it as a source on the **`workloads-android`** Module Manager Application. Apply manually with `helm template common-ai-review workloads/common/agentic-ai/gemini/helm | kubectl apply -f - -n <workflows-namespace>`.
+**Entrypoint:** **`workloads/common/agentic-ai/gemini/run_ai_review.sh`** — same contract for **Argo** (**aaos-builder** inline **`gemini-review`**), **Jenkins** (AAOS, ABFS, OpenBSW, **`gemini_ai_assistant`**), and **CVD/CTS** (**`cvdPipeline.groovy`**). Callers set **`PIPELINE_REPO_ROOT`** (or **`WORKSPACE`** / **`REPO_ROOT`**), **`GEMINI_*`**, **`CLOUD_*`**, optional **`GEMINI_HOOK_DIR`** / **`GEMINI_HOOK_PROFILE`**, optional **`GEMINI_ARTIFACTS_COMMAND`** / **`GEMINI_POST_REVIEW_COMMAND`**, and **`GEMINI_SKIP_MOVE_ARTIFACTS`** when outputs already live under **`WORKSPACE`**.
+
+**Argo Workflows:** **aaos-builder**, **cvd-launcher**, and **cts-execution** run **`run_ai_review.sh`** from an inline **`gemini-review`** template in each workflow chart (native **`volumeMounts`** for workflow PVCs — **`templateRef`** does not merge per-step mounts on this controller). CVD/CTS first run **`gemini_argo_prepare_staging.sh`** on PVC **`gemini-test-results`**, then **`gemini-review`** with **`GEMINI_SKIP_MOVE_ARTIFACTS=1`** and profile **`cvd`** / **`cts`** post-hooks. See **[tests README](../../../../workloads/android/pipelines/tests/README.md)** and chart READMEs under **`workloads/android/pipelines/tests/*/helm/`**.
+
+### Argo integration (inline templates)
+
+| Step | Where |
+|------|--------|
+| Prepare staging (CVD/CTS) | **`workloads/android/pipelines/tests/gemini_argo_prepare_staging.sh`** — **`prepare-gemini-cvd`** / **`prepare-gemini-cts`** in each chart’s **`_gemini.tpl`** |
+| **`gemini-review`** pod | Inline in **`aaos_builder/helm/templates/workflow/_gemini-review.tpl`**, **`cvd_launcher/helm/.../_gemini.tpl`**, **`cts_execution/helm/.../_gemini.tpl`** — all call **`run_ai_review.sh`** |
+| Cluster **`ai-review`** + **`templateRef`** | Not used (AAOS, CVD, and CTS inline only on this controller) — see **[AI review reuse options](../../../guides/ai_review_reuse_options.md)** |
 
 ## Scripts
 
@@ -13,9 +37,21 @@ The WorkflowTemplate is named **`ai-review`** (resource name and template name i
 | `gemini_environment.sh` | Sets and exports variables (prompt file, command line, artifact path, preview/location). Source this before other scripts. |
 | `gemini_initialise.sh` | Cleans artifacts, installs/upgrades gemini-cli, writes `.gemini/settings.json`. If skills.yaml is found (`GEMINI_SKILLS_YAML` or `skills.yaml` next to prompt path), runs `gemini_skills_from_yaml.py` to populate `.gemini/skills/`. Skills file is always named `skills.yaml`. In Jenkins / `CI=true` / Argo workflow runs, copies every `*.toml` under `gemini/policies/` into `.gemini/policies/` (see [Workspace policy files](#workspace-policy-files-toml)). |
 | `gemini_analysis.sh` | One prompt → single run. Two or three prompts → **sequenced**: **one Gemini CLI invocation per step**, each with its own JSON output file (`headless_output_stepN_<timestamp>_<random>.json`). Prior-step context is file-based (`stepN_output.md`). Step 3 includes **both** `step1_output.md` and `step2_output.md` when present (optional byte caps). Set `GEMINI_PROMPT_FILE` (step 1), optionally `GEMINI_PROMPT_FILE_2` and `GEMINI_PROMPT_FILE_3`. Default when unset: AAOS three-step. Requires `jq` for extraction. See [Sequenced analysis](#sequenced-analysis). |
+| `run_ai_review.sh` | **Shared runner:** reads **`GEMINI_*`**, **`CLOUD_*`**, repo root (**`PIPELINE_REPO_ROOT`** / **`WORKSPACE`** / **`REPO_ROOT`**), optional hooks, **`gemini_initialise.sh`** + **`gemini_analysis.sh`**, optional **`move_gemini_artifacts`**, client-error zip handling. |
+| `workloads/android/pipelines/tests/gemini_argo_prepare_staging.sh` | **Argo only (CVD/CTS):** merge ephemeral VM artifacts into **`/workspace/test-results`** on the **`gemini-test-results`** PVC before **`gemini-review`**. Set **`GEMINI_PREPARE_MODE`** to **`cvd`** or **`cts`**. Invoked from **`prepare-gemini-cvd`** / **`prepare-gemini-cts`** in chart **`_gemini.tpl`**. |
+| `review-pre-<profile>.sh`, `review-post-<profile>.sh` | Optional hooks under **`${REPO_ROOT}/${GEMINI_HOOK_DIR}`** when **`GEMINI_HOOK_DIR`** is set. **`run_ai_review.sh`** dispatches by **`GEMINI_HOOK_PROFILE`**. **AAOS** uses profile **`aaos`**; **CVD/CTS Argo** use **`cvd`** / **`cts`** (**`review-post-*.sh`** under **`cvd_launcher/hooks`** and **`cts_execution/hooks`** runs **`gemini_storage.sh`** after analysis). |
 
 ## Key environment variables
 
+- **PIPELINE_REPO_ROOT** / **WORKSPACE** / **REPO_ROOT** – Monorepo root for **`run_ai_review.sh`**; **`PIPELINE_REPO_ROOT`** is preferred in Argo, **`WORKSPACE`** in Jenkins.
+- **GEMINI_ANALYSIS_PATH** – Working directory for Gemini analysis (default `/workspace` in the script).
+- **GEMINI_HOOK_DIR**, **GEMINI_HOOK_PROFILE** – Optional pre/post hooks (see Scripts table); AAOS uses **`workloads/android/pipelines/builds/aaos_builder/hooks`** and profile **`aaos`**.
+- **GEMINI_ARTIFACTS_COMMAND** – Optional shell snippet **`eval`**’d at the start of **`run_ai_review.sh`** (e.g. unzip Cuttlefish logs for CVD).
+- **GEMINI_POST_REVIEW_COMMAND** – Optional snippet **`eval`**’d after move / empty JSON cleanup, before **`gemini-client-error.zip`** handling (e.g. **`gemini_storage.sh`** for CTS).
+- **GEMINI_SKIP_MOVE_ARTIFACTS** – Set to **`1`** to skip **`move_gemini_artifacts`** when outputs are already under **`WORKSPACE`** (Argo CVD/CTS set this after **`gemini_argo_prepare_staging.sh`**).
+- **GEMINI_PREPARE_MODE** – **`cvd`** or **`cts`** for **`gemini_argo_prepare_staging.sh`** only (Argo prepare step).
+- **GEMINI_AI_EXECUTION_TIMEOUT_HOURS** – Hours for **`gemini_analysis.sh`**; falls back to **`GEMINI_AI_EXECUTION_TIMEOUT`** or **`2`**.
+- **GEMINI_AAOS_LOG_TAIL_MODE** – **`tail`** (default) or **`fullcopy`** for **`aaos-build.log`** → **`aaos-build.log.tail`** in **`review-pre-aaos.sh`** (ABFS uses **`fullcopy`**).
 - **GEMINI_PROMPT_FILE** – Step 1 prompt file path or base64-encoded content.
 - **GEMINI_PROMPT_FILE_2** – Optional step 2 prompt; required only for sequenced (two or three steps).
 - **GEMINI_PROMPT_FILE_3** – Optional step 3 prompt (do not reorder).

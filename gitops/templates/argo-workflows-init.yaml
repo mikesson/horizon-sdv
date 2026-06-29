@@ -30,6 +30,10 @@ data:
   CLOUD_REGION: {{ .Values.config.region | quote }}
   CLOUD_ZONE: {{ .Values.config.zone | quote }}
   HORIZON_DOMAIN: {{ .Values.config.domain | quote }}
+  {{- $ar := .Values.config.arm64 | default dict }}
+  ARM64_REGION: {{ $ar.region | quote }}
+  ARM64_ZONE: {{ $ar.zone | quote }}
+  ARM64_SUBNETWORK: {{ $ar.subnetwork | quote }}
 ---
 apiVersion: v1
 kind: ServiceAccount
@@ -316,6 +320,10 @@ rules:
         "update",
         "watch",
       ]
+  # Namespaced KCC: same verbs as elevated ClusterRole; Role metadata.namespace scopes to workflows.
+  - apiGroups: ["compute.cnrm.cloud.google.com"]
+    resources: ["computeinstancetemplates", "computeinstances"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
@@ -400,6 +408,10 @@ rules:
         "update",
         "patch",
       ]
+  # Cuttlefish (Argo): KCC ComputeInstanceTemplate (CF publish) and ComputeInstance (CVD/CTS ephemeral GCE).
+  - apiGroups: ["compute.cnrm.cloud.google.com"]
+    resources: ["computeinstancetemplates", "computeinstances"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -435,6 +447,30 @@ spec:
           clusterName: sdv-cluster
           serviceAccountRef:
             name: workflow-executor
+# MTK Connect for CVD/CTS: Secret workflow-mtk-connect-apikey (keys username, password) is created by
+# mtk-connect-post configure.sh (same MTK service account key as jenkins-mtk-connect-apikey).
+# Same GSM key and target Secret name as jenkins-init (jenkins-cuttlefish-vm-ssh-private-key).
+---
+apiVersion: external-secrets.io/v1beta1
+kind: ExternalSecret
+metadata:
+  name: workflows-cuttlefish-vm-ssh-private-key-secret
+  namespace: {{ .Values.config.namespacePrefix }}workflows
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  refreshInterval: 10s
+  secretStoreRef:
+    kind: SecretStore
+    name: workflows-secret-store
+  target:
+    name: jenkins-cuttlefish-vm-ssh-private-key
+    creationPolicy: Owner
+  data:
+    - secretKey: privateKey
+      remoteRef:
+        key: {{ .Values.config.namespacePrefix }}jenkins-cuttlefish-ssh-key-b64
+        decodingStrategy: Base64
 {{- end }}
 {{- if eq .Values.scm.authMethod "userpass" }}
 # HTTPS username/password for Argo git artifacts (same GSM key as Jenkins scm-password-b64).

@@ -39,6 +39,12 @@ ARG TREEFMT_URL
 ARG ENABLE_GEMINI_AI_ASSISTANT="false"
 ARG GEMINI_CLI_VERSION="latest"
 
+# Rust (posix-rust, s32k148-rust-gcc): defaults align with eclipse-openbsw/openbsw docker/development/Dockerfile
+ARG RUST_DEFAULT_TOOLCHAIN=1.90.0
+ARG RUSTUP_PROFILE=minimal
+ARG RUST_EMBEDDED_TARGET=thumbv7em-none-eabihf
+ARG CBINDGEN_VERSION=0.27.0
+
 # Install packages required for building OpenBSW targets.
 RUN apt-get update -y && \
     apt-get install -y --no-install-recommends apt-utils && \
@@ -83,7 +89,15 @@ RUN echo "\033[1;32mInstall ${ARM_TOOLCHAIN_URL}\033[0m" \
     && echo 'export HISTFILE=/root/.bash_history/history' >> /root/.bashrc
 
 RUN gem install esr-rim
-ENV PATH="/opt/arm-gnu-toolchain/bin:/opt/llvm-et-arm/bin:${PATH}"
+
+ENV RUSTUP_HOME=/opt/rustup
+ENV CARGO_HOME=/opt/cargo
+ENV PATH="/opt/cargo/bin:/opt/arm-gnu-toolchain/bin:/opt/llvm-et-arm/bin:${PATH}"
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y \
+    --default-toolchain "${RUST_DEFAULT_TOOLCHAIN}" \
+    --profile "${RUSTUP_PROFILE}" \
+    && rustup target add "${RUST_EMBEDDED_TARGET}" \
+    && cargo install cbindgen --version "${CBINDGEN_VERSION}" --locked
 
 # The following installs gcloud sdk required for uploading
 # artifacts to Google Cloud Storage. Remove if using alternative storage.
@@ -114,7 +128,7 @@ USER ${USER}
 WORKDIR /home/${USER}
 
 # Paths
-ENV PATH="/home/${USER}/.local/bin:/home/${USER}/bin:/home/${USER}/venv/bin:/usr/local/bin:/usr/bin:/opt/arm-gnu-toolchain/bin:/opt/llvm-et-arm/bin:${PATH}"
+ENV PATH="/home/${USER}/.local/bin:/home/${USER}/bin:/home/${USER}/venv/bin:/usr/local/bin:/usr/bin:/opt/cargo/bin:/opt/arm-gnu-toolchain/bin:/opt/llvm-et-arm/bin:${PATH}"
 RUN echo "PATH=$PATH" >> /home/${USER}/.bash_aliases
 
 # Configure git config (fake details)

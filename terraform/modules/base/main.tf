@@ -86,11 +86,13 @@ module "sdv_network" {
   router_name          = var.sdv_network_egress_router_name
   pods_range           = var.pods_range
   services_range       = var.services_range
-  enable_arm64         = var.enable_arm64
+  enable_arm64_dedicated_subnet         = var.enable_arm64_dedicated_subnet
   arm64_region         = var.arm64_region
-  arm64_subnetwork     = var.arm64_subnetwork
-  arm64_pods_range     = var.arm64_pods_range
-  arm64_services_range = var.arm64_services_range
+  arm64_subnetwork                    = var.arm64_subnetwork
+  arm64_pods_range                    = var.arm64_pods_range
+  arm64_services_range                = var.arm64_services_range
+  arm64_pods_secondary_range_name     = var.arm64_pods_secondary_range_name
+  arm64_services_secondary_range_name = var.arm64_services_secondary_range_name
 }
 
 module "sdv_artifact_registry" {
@@ -146,6 +148,7 @@ module "sdv_gke_cluster" {
   project_id      = data.google_project.project.project_id
   cluster_name    = var.sdv_cluster_name
   cluster_version = var.sdv_cluster_version
+  release_channel = var.sdv_cluster_release_channel
   location        = var.sdv_location
   network         = var.sdv_network
   subnetwork      = var.sdv_subnetwork
@@ -173,6 +176,11 @@ module "sdv_gke_cluster" {
   abfs_build_node_pool_min_node_count = var.sdv_abfs_build_node_pool_min_node_count
   abfs_build_node_pool_max_node_count = var.sdv_abfs_build_node_pool_max_node_count
   abfs_build_node_pool_version        = var.sdv_abfs_build_node_pool_version
+
+  maintenance_recurring_window_start_time = var.sdv_cluster_maintenance_recurring_window_start_time
+  maintenance_recurring_window_end_time   = var.sdv_cluster_maintenance_recurring_window_end_time
+  maintenance_recurring_window_recurrence = var.sdv_cluster_maintenance_recurring_window_recurrence
+  maintenance_exclusions                  = var.sdv_cluster_maintenance_exclusions
 
   # OpenBSW node pool configuration
   openbsw_build_node_pool_name           = var.sdv_openbsw_build_node_pool_name
@@ -238,6 +246,12 @@ module "sdv_gke_apps" {
       version   = image.deploy_version
     }
   }
+
+  enable_arm64_dedicated_subnet       = var.enable_arm64_dedicated_subnet
+  arm64_region       = var.arm64_region
+  arm64_zone         = var.arm64_zone
+  arm64_subnetwork   = var.arm64_subnetwork
+  primary_subnetwork = var.sdv_subnetwork
 }
 
 module "sdv_certificate_manager" {
@@ -392,8 +406,8 @@ resource "google_compute_firewall" "allow_tcp_22" {
     ["35.235.240.0/20"], # Google Identity-Aware Proxy (IAP): required for IAP SSH
     [var.nodes_range],   # GKE node primary subnet (e.g. Jenkins agent SNAT'd to node)
     [var.pods_range],    # GKE pods secondary range
-    var.enable_arm64 ? [var.arm64_nodes_range] : [],
-    var.enable_arm64 ? [var.arm64_pods_range] : [] # ARM64 pods secondary range
+    var.enable_arm64_dedicated_subnet ? [var.arm64_nodes_range] : [],
+    var.enable_arm64_dedicated_subnet ? [var.arm64_pods_range] : [] # ARM64 pods secondary range
   )
 
   target_service_accounts = [var.sdv_gcp_compute_sa_email]
@@ -487,8 +501,8 @@ resource "google_compute_firewall" "allow_internal_egress" {
     ["10.0.0.0/8"],                                 # Internal VPC ranges
     [var.pods_range],                               # GKE pods range
     [var.services_range],                           # GKE services range
-    var.enable_arm64 ? [var.arm64_pods_range] : [], # ARM64 pods range if enabled
-    var.enable_arm64 ? [var.arm64_services_range] : []
+    var.enable_arm64_dedicated_subnet ? [var.arm64_pods_range] : [], # ARM64 pods range if enabled
+    var.enable_arm64_dedicated_subnet ? [var.arm64_services_range] : []
   )
 
   depends_on = [

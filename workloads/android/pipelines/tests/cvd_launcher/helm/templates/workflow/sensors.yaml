@@ -1,0 +1,163 @@
+# Copyright (c) 2026 Accenture, All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#         http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# Argo Events Sensor: Developer Portal / webhook-dispatch → CVD Launcher workflow.
+{{- $root := . }}
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Sensor
+metadata:
+  name: webhook-{{ $root.Values.workflowTemplateName }}
+  namespace: {{ $root.Values.namespacePrefix }}argo-events
+  annotations:
+    argocd.argoproj.io/sync-wave: "9"
+spec:
+  eventBusName: default
+  template:
+    serviceAccountName: sensor-submit-workflow
+  dependencies:
+    - name: webhook-dep
+      eventSourceName: webhook
+      eventName: workflow-dispatch
+      filters:
+        data:
+          - path: body.workflowTemplateName
+            type: string
+            value:
+              - {{ $root.Values.workflowTemplateName | quote }}
+  triggers:
+    - template:
+        name: submit-{{ $root.Values.workflowTemplateName }}
+        argoWorkflow:
+          operation: submit
+          source:
+            resource:
+              apiVersion: argoproj.io/v1alpha1
+              kind: Workflow
+              metadata:
+                generateName: webhook-{{ $root.Values.workflowTemplateName }}-
+                namespace: {{ include "cvd-launcher.workflowNamespace" $root | quote }}
+              spec:
+                # Same as WorkflowTemplate spec.serviceAccountName — explicit so workflow-controller workflowDefaults cannot substitute workflow-executor for webhook submits.
+                serviceAccountName: {{ include "cvd-launcher.workflowServiceAccountName" $root | quote }}
+                workflowTemplateRef:
+                  name: {{ $root.Values.workflowTemplateName | quote }}
+                arguments:
+                  parameters:
+                    - name: horizonSubmittedFrom
+                    - name: instanceTemplateName
+                      value: {{ $root.Values.spec.instanceTemplateName | quote }}
+                    - name: cuttlefishDownloadUrl
+                    - name: cuttlefishInstallWifi
+                    - name: cuttlefishMaxBootTime
+                    - name: cuttlefishKeepAliveTime
+                    - name: numInstances
+                    - name: vmCpus
+                    - name: vmMemoryMb
+                    - name: mtkConnectPublic
+                    - name: mtkConnectTunnelPort
+                    - name: cvdCommandLine
+                    - name: enableGeminiAiAssistant
+                      value: {{ $root.Values.spec.enableGeminiAiAssistant | default "true" | quote }}
+                    - name: geminiAnalyseOnSuccess
+                    - name: ctsArtifactStorageSolution
+                    - name: storageBucketDestination
+                    - name: storageLabels
+                    - name: submittedBy
+          parameters:
+            - src:
+                dependencyName: webhook-dep
+                dataKey: body.horizonSubmittedBy
+              dest: metadata.annotations.horizon-sdv\.io/submitted-by
+            - src:
+                dependencyName: webhook-dep
+                dataKey: body.horizonSubmittedFrom
+              dest: metadata.labels.horizon-sdv\.io/submitted-from
+            - src:
+                dependencyName: webhook-dep
+                dataKey: body.horizonSubmittedFrom
+              dest: spec.arguments.parameters.0.value
+            - src:
+                dependencyName: webhook-dep
+                dataKey: body.instanceTemplateName
+              dest: spec.arguments.parameters.1.value
+            - src:
+                dependencyName: webhook-dep
+                dataKey: body.cuttlefishDownloadUrl
+              dest: spec.arguments.parameters.2.value
+            - src:
+                dependencyName: webhook-dep
+                dataKey: body.cuttlefishInstallWifi
+              dest: spec.arguments.parameters.3.value
+            - src:
+                dependencyName: webhook-dep
+                dataKey: body.cuttlefishMaxBootTime
+              dest: spec.arguments.parameters.4.value
+            - src:
+                dependencyName: webhook-dep
+                dataKey: body.cuttlefishKeepAliveTime
+              dest: spec.arguments.parameters.5.value
+            - src:
+                dependencyName: webhook-dep
+                dataKey: body.numInstances
+              dest: spec.arguments.parameters.6.value
+            - src:
+                dependencyName: webhook-dep
+                dataKey: body.vmCpus
+              dest: spec.arguments.parameters.7.value
+            - src:
+                dependencyName: webhook-dep
+                dataKey: body.vmMemoryMb
+              dest: spec.arguments.parameters.8.value
+            - src:
+                dependencyName: webhook-dep
+                dataKey: body.mtkConnectPublic
+              dest: spec.arguments.parameters.9.value
+            - src:
+                dependencyName: webhook-dep
+                dataKey: body.mtkConnectTunnelPort
+              dest: spec.arguments.parameters.10.value
+            - src:
+                dependencyName: webhook-dep
+                dataKey: body.cvdCommandLine
+              dest: spec.arguments.parameters.11.value
+            - src:
+                dependencyName: webhook-dep
+                dataKey: body.enableGeminiAiAssistant
+              dest: spec.arguments.parameters.12.value
+            - src:
+                dependencyName: webhook-dep
+                dataKey: body.geminiAnalyseOnSuccess
+                value: {{ $root.Values.spec.geminiAnalyseOnSuccess | default "false" | quote }}
+              dest: spec.arguments.parameters.13.value
+            - src:
+                dependencyName: webhook-dep
+                dataKey: body.ctsArtifactStorageSolution
+              dest: spec.arguments.parameters.14.value
+            - src:
+                dependencyName: webhook-dep
+                dataKey: body.storageBucketDestination
+              dest: spec.arguments.parameters.15.value
+            - src:
+                dependencyName: webhook-dep
+                dataKey: body.storageLabels
+              dest: spec.arguments.parameters.16.value
+            - src:
+                dependencyName: webhook-dep
+                dataKey: body.submittedBy
+              dest: spec.arguments.parameters.17.value
+            - src:
+                dependencyName: webhook-dep
+                dataKey: body.horizonSubmittedBy
+              dest: spec.arguments.parameters.17.value

@@ -14,6 +14,8 @@
 #
 # Child Application: shared ClusterWorkflowTemplates (common-docker-image-build + prepare-github-app-git-creds); Sensors in those charts.
 # Deployed via Module Manager enable (mod-workloads-common). Sync wave 2 before workloads-android (wave 3).
+# Module Manager uses the same prefixed child Application teardown path as workloads-android but only
+# workloads-android disable removes Cuttlefish KCC ComputeInstanceTemplate CRs in {prefix}workflows.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -51,6 +53,10 @@ spec:
     server: https://kubernetes.default.svc
     namespace: {{ .Values.config.namespacePrefix }}workflows
   syncPolicy:
+    # Same as workloads-android child Application: automated.prune only; self-heal defaults to false and must
+    # not be set explicitly (see workloads-android template). Cascading delete under
+    # resources-finalizer.argocd.argoproj.io must not race automated self-heal (Deleting→Sync wedge).
     syncOptions:
       - CreateNamespace=true
-    automated: {}
+    automated:
+      prune: true

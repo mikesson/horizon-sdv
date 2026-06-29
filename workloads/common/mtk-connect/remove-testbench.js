@@ -52,12 +52,18 @@ axios.defaults.auth = {
   password: MTK_CONNECT_PASSWORD
 };
 
+/** dotenv loads "false" as a string; treat only explicit true/1 as enabled. */
+function envFlagTrue(name) {
+  const v = process.env[name];
+  return v === 'true' || v === '1';
+}
+
 /**
  * Remove MTK Connect agent based on registration and offline testbenches.
  */
 async function removeAgent() {
 
-  if (MTK_CONNECT_DELETE_OFFLINE_TESTBENCHES) {
+  if (envFlagTrue('MTK_CONNECT_DELETE_OFFLINE_TESTBENCHES')) {
     let response = await axios.get('/api/v1/agents');
 
     if (response.status === 200) {

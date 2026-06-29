@@ -73,6 +73,8 @@ type ModuleResponse struct {
 	TargetRevision string `json:"targetRevision,omitempty"`
 	// ClusterTargetRevision is the Module Manager process default (--target-revision).
 	ClusterTargetRevision string `json:"clusterTargetRevision,omitempty"`
+	// Pinned is true when the module has an explicit Git ref in ModuleManagerState (not following the platform default).
+	Pinned bool `json:"pinned,omitempty"`
 }
 
 // WorkflowsVisibilityDTO is the JSON body for GET/PUT /settings/workflows-visibility.
@@ -89,10 +91,18 @@ type StatusResponse struct {
 	OperationPhase  string `json:"operationPhase,omitempty"`
 	DesiredRevision string `json:"desiredRevision,omitempty"`
 	SyncRevision    string `json:"syncRevision,omitempty"`
-	// ApplicationDeletionTimestamp is set when the Argo CD Application has metadata.deletionTimestamp (uninstall in progress).
+	// ApplicationDeletionTimestamp is set when the parent or any module-managed Application has metadata.deletionTimestamp.
 	ApplicationDeletionTimestamp string `json:"applicationDeletionTimestamp,omitempty"`
 	// RemainingManagedApplications is set only when the module is disabled: count of parent+child Argo CD Applications still present for this module.
 	RemainingManagedApplications *int `json:"remainingManagedApplications,omitempty"`
+	// ManagedApplicationCount is set when the module is enabled and listing managed Applications succeeded: parent+child count (labeled horizon-sdv.io/app-role).
+	ManagedApplicationCount *int `json:"managedApplicationCount,omitempty"`
+	// ExpectedManagedApplicationCount is 2 for modules with a prefixed child Application (workloads-android, workloads-common).
+	ExpectedManagedApplicationCount *int `json:"expectedManagedApplicationCount,omitempty"`
+	// ManagedChildApplicationPresent is false when the labeled child Application is absent (disable teardown or enable not finished).
+	ManagedChildApplicationPresent *bool `json:"managedChildApplicationPresent,omitempty"`
+	// ParentSkipReconcile is true when the mod-* parent has argocd.argoproj.io/skip-reconcile (set during prefixed-module disable).
+	ParentSkipReconcile *bool `json:"parentSkipReconcile,omitempty"`
 }
 
 func fillArgoAppStatus(app *unstructured.Unstructured, status *StatusResponse) {
@@ -111,9 +121,26 @@ func fillArgoAppStatus(app *unstructured.Unstructured, status *StatusResponse) {
 	if s, _, _ := unstructured.NestedString(app.Object, "status", "sync", "revision"); s != "" {
 		status.SyncRevision = s
 	}
-	if ts, _, _ := unstructured.NestedString(app.Object, "metadata", "deletionTimestamp"); ts != "" {
+	if ts := metadataDeletionTimestampRFC3339(app); ts != "" {
 		status.ApplicationDeletionTimestamp = ts
 	}
+}
+
+// anyManagedApplicationDeletionTimestamp returns metadata.deletionTimestamp from the parent Application or any
+// module-managed Argo CD Application (parent/child). During disable the child is often deleted before the parent
+// while ModuleManagerState still reports enabled; exposing this timestamp keeps UI from treating prune as install.
+func anyManagedApplicationDeletionTimestamp(parentErr error, parent *unstructured.Unstructured, managed []unstructured.Unstructured) string {
+	if parentErr == nil && parent != nil {
+		if ts := metadataDeletionTimestampRFC3339(parent); ts != "" {
+			return ts
+		}
+	}
+	for i := range managed {
+		if ts := metadataDeletionTimestampRFC3339(&managed[i]); ts != "" {
+			return ts
+		}
+	}
+	return ""
 }
 
 // Handler implements the REST API for the Module Manager.
@@ -164,6 +191,7 @@ func (h *Handler) Routes() *http.ServeMux {
 	mux.HandleFunc("GET /modules/{idOrName}/status", h.getModuleStatus)
 	mux.HandleFunc("GET /modules/{idOrName}/overview", h.getModuleOverview)
 	mux.HandleFunc("PUT /modules/{idOrName}/target-revision", h.putModuleTargetRevision)
+	mux.HandleFunc("DELETE /modules/{idOrName}/target-revision", h.deleteModuleTargetRevision)
 	mux.HandleFunc("POST /modules/{idOrName}/enable", h.enableModule)
 	mux.HandleFunc("DELETE /modules/{idOrName}/disable", h.disableModule)
 	mux.HandleFunc("GET /modules/{idOrName}", h.getModule)
@@ -439,13 +467,33 @@ func (h *Handler) getModuleStatus(w http.ResponseWriter, r *http.Request) {
 			status.OperationPhase = op
 			status.DesiredRevision = parentOnly.DesiredRevision
 			status.SyncRevision = parentOnly.SyncRevision
-			status.ApplicationDeletionTimestamp = parentOnly.ApplicationDeletionTimestamp
 		}
 	}
 
-	if !mod.Enabled && listErr == nil {
-		n := len(managed)
-		status.RemainingManagedApplications = &n
+	if ts := anyManagedApplicationDeletionTimestamp(parentErr, parentApp, managed); ts != "" {
+		status.ApplicationDeletionTimestamp = ts
+	}
+
+	fillPrefixedModuleStackStatus(mod.Name, mod.Enabled, parentErr, parentApp, listErr, managed, &status)
+
+	if listErr == nil {
+		n := countRemainingModuleApplications(parentErr, parentApp, managed)
+		zero := 0
+		if mod.Enabled {
+			status.ManagedApplicationCount = &n
+		} else {
+			if n == 0 {
+				ts := status.ApplicationDeletionTimestamp
+				status = StatusResponse{
+					RemainingManagedApplications: &zero,
+				}
+				if ts != "" {
+					status.ApplicationDeletionTimestamp = ts
+				}
+			} else {
+				status.RemainingManagedApplications = &n
+			}
+		}
 	}
 
 	writeJSON(w, status)
@@ -579,6 +627,70 @@ func (h *Handler) putModuleTargetRevision(w http.ResponseWriter, r *http.Request
 	writeJSON(w, map[string]string{"status": "ok"})
 }
 
+func (h *Handler) deleteModuleTargetRevision(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodDelete {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	idOrName := r.PathValue("idOrName")
+	if idOrName == "" {
+		http.Error(w, "idOrName required", http.StatusBadRequest)
+		return
+	}
+	ctx := r.Context()
+	mod, err := h.resolveModule(ctx, idOrName)
+	if err != nil || mod == nil {
+		http.Error(w, "module not found", http.StatusNotFound)
+		return
+	}
+	if !mod.Enabled || mod.ApplicationName == "" || mod.ApplicationNamespace == "" {
+		http.Error(w, "module is not enabled", http.StatusConflict)
+		return
+	}
+
+	state, err := h.stateStore.Get(ctx)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	oldRev := ""
+	if state.ModuleTargetRevisions != nil {
+		oldRev = state.ModuleTargetRevisions[mod.Name]
+	}
+	if state.ModuleTargetRevisions != nil {
+		delete(state.ModuleTargetRevisions, mod.Name)
+		if len(state.ModuleTargetRevisions) == 0 {
+			state.ModuleTargetRevisions = nil
+		}
+	}
+	if err := h.stateStore.Update(ctx, state); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	defaultRev := strings.TrimSpace(h.targetRevision)
+	parentONS := ""
+	if e := h.getCatalogEntry(ctx, mod.Name); e != nil {
+		parentONS = h.parentHelmOverviewNamespace(e)
+	}
+	if err := PatchApplicationTargetRevision(ctx, h.client, mod.ApplicationNamespace, mod.ApplicationName, h.repoURL, defaultRev, mod.Name, h.moduleConfig, parentONS); err != nil {
+		state2, gerr := h.stateStore.Get(ctx)
+		if gerr == nil {
+			if oldRev != "" {
+				if state2.ModuleTargetRevisions == nil {
+					state2.ModuleTargetRevisions = make(map[string]string)
+				}
+				state2.ModuleTargetRevisions[mod.Name] = oldRev
+			}
+			_ = h.stateStore.Update(ctx, state2)
+		}
+		h.stateStore.InvalidateCache()
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	h.stateStore.InvalidateCache()
+	writeJSON(w, map[string]string{"status": "ok"})
+}
+
 func (h *Handler) enableModule(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -615,6 +727,7 @@ func (h *Handler) enableModule(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	explicitPin := strings.TrimSpace(enableBody.TargetRevision) != ""
 	rev := strings.TrimSpace(enableBody.TargetRevision)
 	if rev == "" {
 		rev = defaultRev
@@ -624,7 +737,7 @@ func (h *Handler) enableModule(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.enableOneModule(ctx, mod.Name, rev); err != nil {
+	if err := h.enableOneModule(ctx, mod.Name, rev, explicitPin); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -642,7 +755,8 @@ func (h *Handler) enableModule(w http.ResponseWriter, r *http.Request) {
 
 // enableOneModule enables a single module by name, recursively enabling its hard dependencies first.
 // targetRevision is the Git ref for this module's Argo CD Application (branch, tag, or commit).
-func (h *Handler) enableOneModule(ctx context.Context, moduleName, targetRevision string) error {
+// When pinned is false the module follows the cluster default (no moduleTargetRevisions entry).
+func (h *Handler) enableOneModule(ctx context.Context, moduleName, targetRevision string, pinned bool) error {
 	targetRevision = strings.TrimSpace(targetRevision)
 	if targetRevision == "" {
 		return fmt.Errorf("targetRevision cannot be empty")
@@ -687,7 +801,7 @@ func (h *Handler) enableOneModule(ctx context.Context, moduleName, targetRevisio
 		if depID != "" && enabledSet[depID] {
 			continue
 		}
-		if err := h.enableOneModule(ctx, dep, depDefaultRev); err != nil {
+		if err := h.enableOneModule(ctx, dep, depDefaultRev, false); err != nil {
 			return err
 		}
 		state, err = h.stateStore.Get(ctx)
@@ -698,6 +812,13 @@ func (h *Handler) enableOneModule(ctx context.Context, moduleName, targetRevisio
 		for _, id := range state.EnabledModules {
 			enabledSet[id] = true
 		}
+	}
+
+	if err := controller.WaitPrefixedModuleChildApplicationAbsent(ctx, h.client, h.argocdNamespace, h.moduleConfig, moduleName); err != nil {
+		return err
+	}
+	if err := controller.WaitWorkflowsConfigConnectorContextAbsentOrNotTerminating(ctx, h.client, h.moduleConfig, moduleName); err != nil {
+		return err
 	}
 
 	appName := controller.ApplicationName(moduleName)
@@ -728,10 +849,17 @@ func (h *Handler) enableOneModule(ctx context.Context, moduleName, targetRevisio
 		state.ModuleIDs = make(map[string]string)
 	}
 	state.ModuleIDs[moduleName] = id
-	if state.ModuleTargetRevisions == nil {
-		state.ModuleTargetRevisions = make(map[string]string)
+	if pinned {
+		if state.ModuleTargetRevisions == nil {
+			state.ModuleTargetRevisions = make(map[string]string)
+		}
+		state.ModuleTargetRevisions[moduleName] = targetRevision
+	} else if state.ModuleTargetRevisions != nil {
+		delete(state.ModuleTargetRevisions, moduleName)
+		if len(state.ModuleTargetRevisions) == 0 {
+			state.ModuleTargetRevisions = nil
+		}
 	}
-	state.ModuleTargetRevisions[moduleName] = targetRevision
 	found := false
 	for _, eid := range state.EnabledModules {
 		if eid == id {
@@ -856,7 +984,13 @@ func (h *Handler) disableModule(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := controller.DisableModuleAndRefresh(ctx, h.apiReader, h.client, h.stateStore, h.catalogStore, h.argocdNamespace, h.namespace, mod.Name, mod.ID, true); err != nil {
+	// Synchronous disable: state is flipped to disabled inside PerformModuleDisable before parent delete so
+	// GET /modules and Portal polling show UNINSTALL IN PROGRESS during long Argo/KCC teardown. We do not
+	// return 202 Accepted here: the Portal and API clients expect 200 with status disabled today, and async
+	// disable would require releasing ModuleOpsMutex early and idempotent job semantics. workloads-android
+	// disable can take many minutes (child Application wait, ComputeInstanceTemplate, ConfigConnectorContext);
+	// ensure ingress/proxy timeouts exceed that path or disable via automation that tolerates slow responses.
+	if err := controller.DisableModuleAndRefresh(ctx, h.apiReader, h.client, h.stateStore, h.catalogStore, h.argocdNamespace, h.namespace, mod.Name, mod.ID, true, h.moduleConfig); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -900,6 +1034,7 @@ func (h *Handler) attachRevisionInfo(mod *ModuleResponse, state *controller.Stat
 	def := strings.TrimSpace(h.targetRevision)
 	mod.ClusterTargetRevision = def
 	mod.TargetRevision = controller.EffectiveTargetRevision(state, mod.Name, def)
+	mod.Pinned = controller.IsModulePinned(state, mod.Name)
 }
 
 func (h *Handler) moduleFromName(ctx context.Context, name string, state *controller.State) (*ModuleResponse, error) {

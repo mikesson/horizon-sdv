@@ -131,9 +131,11 @@ spec:
             REGISTRY="${CLOUD_REGION}-docker.pkg.dev"
             DESTINATION="${REGISTRY}/${CLOUD_PROJECT}/${DOCKER_ARTIFACT_PATH_NAME}"
             PUSH="true"
-            if [ "${NO_PUSH}" = "true" ]; then
-              PUSH="false"
-            fi
+            # dryRun/NO_PUSH can arrive as "true", "True", etc. Normalize to avoid accidental pushes.
+            case "${NO_PUSH}" in
+              1|[Tt][Rr][Uu][Ee]|[Yy][Ee][Ss]) PUSH="false" ;;
+            esac
+            echo "common-docker-image-build: dryRun(NO_PUSH)='${NO_PUSH}' -> push='${PUSH}'"
             if [ -z "${DOCKER_CREDENTIALS_URL}" ]; then
               DOCKER_CREDENTIALS_URL="{{ default .Values.defaults.dockerCredentialsUrl .Values.spec.dockerCredentialsUrl }}"
             fi

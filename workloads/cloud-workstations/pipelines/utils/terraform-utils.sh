@@ -721,11 +721,101 @@ list_detailed_workstations() {
 
 export TF_IN_AUTOMATION=1
 
+# Release a stranded GCS state lock left by a previous Jenkins pod that was
+# killed mid-apply. Runs BEFORE 'terraform init' because the gcs backend
+# acquires a write-lock during init-time state load: a pre-existing stale
+# lock object fails the If-Generation-Match: 0 precondition and breaks init
+# itself, so any post-init recovery would be unreachable.
+#
+# Safe to remove the lock when ALL of these hold:
+#   1. Cloud-WS write Jenkinsfiles use disableConcurrentBuilds + buildBlocker,
+#      so no other Cloud-WS write op can be running concurrently.
+#   2. Lock age exceeds TF_STALE_LOCK_AFTER_SECONDS (default 1800s = 30 min,
+#      well above the ~15-20 min worst case for cluster create/delete).
+#   3. The lock-owner pod (Terraform writes 'Who: <user>@<hostname>'; admin
+#      pod hostname == pod name since Jenkinsfiles no longer hard-code it) is
+#      no longer present in the namespace.
+# If any signal is uncertain we fail-safe and leave the lock in place.
+#
+# We delete the GCS lock object directly via 'gcloud storage rm' (semantically
+# identical to 'terraform force-unlock' but doesn't require an initialised
+# backend).
+#
+release_stale_terraform_lock() {
+  local backend_bucket="$1"
+  local stale_after_seconds="${TF_STALE_LOCK_AFTER_SECONDS:-1800}"
+
+  # Discover the backend prefix from the module's backend.tf (always present in
+  # the cwd because the caller cd's into the module before calling us).
+  local backend_tf="backend.tf"
+  if [[ ! -f "$backend_tf" ]]; then
+    log_warning "${backend_tf} not found in $(pwd); skipping stale-lock check."
+    return 0
+  fi
+  local backend_prefix
+  backend_prefix=$(awk -F'"' '/^[[:space:]]*prefix[[:space:]]*=/{print $2; exit}' "$backend_tf")
+  if [[ -z "$backend_prefix" ]]; then
+    log_warning "Backend prefix not found in ${backend_tf}; skipping stale-lock check."
+    return 0
+  fi
+
+  local lock_uri="gs://${backend_bucket}/${backend_prefix}/default.tflock"
+  local lock_json
+  # No lock object present -> nothing to do (normal path).
+  lock_json=$(gcloud storage cat "${lock_uri}" 2>/dev/null) || return 0
+
+  local lock_id created_iso who operation
+  lock_id=$(jq -r '.ID // empty'        <<<"$lock_json")
+  created_iso=$(jq -r '.Created // empty' <<<"$lock_json")
+  who=$(jq -r '.Who // empty'           <<<"$lock_json")
+  operation=$(jq -r '.Operation // empty'<<<"$lock_json")
+
+  if [[ -z "$lock_id" || -z "$created_iso" ]]; then
+    log_warning "Lock object ${lock_uri} missing expected fields; skipping stale-lock check."
+    return 0
+  fi
+
+  # Guard 1: lock age must clearly exceed the worst legitimate apply time.
+  local created_epoch now_epoch age
+  if ! created_epoch=$(date -u -d "$created_iso" +%s 2>/dev/null); then
+    log_warning "Could not parse lock Created='${created_iso}'; skipping stale-lock check."
+    return 0
+  fi
+  now_epoch=$(date -u +%s)
+  age=$(( now_epoch - created_epoch ))
+  if (( age < stale_after_seconds )); then
+    log_warning "TF state lock present (ID=${lock_id}, Op=${operation}, Who=${who}, age=${age}s) but younger than ${stale_after_seconds}s threshold. Not unlocking - could still be a legitimate in-progress run."
+    return 0
+  fi
+
+  # Guard 2: the lock-owner pod must no longer exist. Defends against the rare
+  # case of an orphan pod still applying (e.g. after a Jenkins controller crash).
+  local owner_pod
+  owner_pod=$(awk -F'@' 'NF>1{print $2}' <<<"$who")
+  if [[ -z "$owner_pod" ]]; then
+    log_warning "Could not derive owner pod from Who='${who}'; not unlocking."
+    return 0
+  fi
+  # kubectl uses in-cluster config (jenkins-sa) and defaults to the pod's own namespace.
+  if kubectl get pod "$owner_pod" >/dev/null 2>&1; then
+    log_warning "Lock owner pod '${owner_pod}' still exists; not unlocking despite age=${age}s."
+    return 0
+  fi
+
+  log_warning "Stale TF state lock detected (ID=${lock_id}, Op=${operation}, Who=${who}, age=${age}s > ${stale_after_seconds}s; owner pod '${owner_pod}' not found). Removing ${lock_uri}; safe because disableConcurrentBuilds + buildBlocker rules out a concurrent owner."
+  gcloud storage rm "${lock_uri}" >/dev/null 2>&1 || log_error "Failed to remove stale lock object ${lock_uri}."
+  log_success "Stale TF state lock ${lock_id} released."
+}
+
 run_terraform_init() {
   local backend_bucket=$1
 
+  # Recover from a stranded lock BEFORE init: the gcs backend's init-time state
+  # load locks the state, so a stale lock would otherwise break init itself.
+  release_stale_terraform_lock "$backend_bucket"
+
   log_info "Initializing Terraform..."
-  terraform init -backend-config="bucket=${backend_bucket}" || log_error "Terraform init failed"
+  terraform init -backend-config="bucket=${backend_bucket}" -input=false || log_error "Terraform init failed"
 }
 
 # Check if the cluster is already deleted
@@ -741,11 +831,13 @@ run_terraform_apply() {
   local tfvars_file=$1
 
   log_info "Applying changes..."
-  terraform apply -auto-approve -var-file="${tfvars_file}" || log_error "Terraform apply failed."
+  # -lock-timeout absorbs brief buildBlocker handover races; real concurrency is
+  # already prevented by Jenkins disableConcurrentBuilds + buildBlocker.
+  terraform apply -auto-approve -input=false -lock-timeout=120s -var-file="${tfvars_file}" || log_error "Terraform apply failed."
 }
 
 run_terraform_destroy() {
   local tfvars_file=$1
   log_info "Running Terraform destroy..."
-  terraform destroy -auto-approve -var-file="${tfvars_file}" || log_error "Terraform destroy failed."
+  terraform destroy -auto-approve -input=false -lock-timeout=120s -var-file="${tfvars_file}" || log_error "Terraform destroy failed."
 }

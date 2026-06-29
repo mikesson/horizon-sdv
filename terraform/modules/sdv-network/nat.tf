@@ -47,7 +47,7 @@ resource "google_compute_router_nat" "vpc_nat" {
 }
 
 resource "google_compute_router" "arm64_router" {
-  count   = var.enable_arm64 ? 1 : 0
+  count   = var.enable_arm64_dedicated_subnet ? 1 : 0
   project = data.google_project.project.project_id
   name    = "${var.network}-${var.arm64_region}-arm64-nat-router"
   region  = var.arm64_region
@@ -55,7 +55,7 @@ resource "google_compute_router" "arm64_router" {
 }
 
 resource "google_compute_router_nat" "arm64_nat" {
-  count   = var.enable_arm64 ? 1 : 0
+  count   = var.enable_arm64_dedicated_subnet ? 1 : 0
   project = data.google_project.project.project_id
   name    = "${var.network}-${var.arm64_region}-arm64-egress-nat"
   region  = var.arm64_region

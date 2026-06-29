@@ -72,12 +72,11 @@ CURL_UPDATE_COMMAND=${CURL_UPDATE_COMMAND:-}
 # NodeJS Version
 NODEJS_VERSION=${NODEJS_VERSION:-20.9.0}
 
-# Support local vs Jenkins.
-if [ -z "${WORKSPACE}" ]; then
-    CF_SCRIPT_PATH=.
-else
-    CF_SCRIPT_PATH=workloads/android/pipelines/environment/cf_instance_template
-fi
+# Absolute path to this directory (cf_create_instance_template.sh, Packer, Helm, cf_compute_rest.py).
+# Do not derive CF_SCRIPT_PATH from WORKSPACE alone: Argo sets WORKSPACE=/workspace and the workflow
+# already cd's into workloads/android/pipelines/environment/cf_instance_template before exec; a
+# WORKSPACE-relative path would wrongly resolve to …/cf_instance_template/workloads/…/packer (missing files).
+CF_SCRIPT_PATH="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CUTTLEFISH_LATEST_SHA1_FILENAME="android-cuttlefish-sha1.txt"
 
 # Show variables.

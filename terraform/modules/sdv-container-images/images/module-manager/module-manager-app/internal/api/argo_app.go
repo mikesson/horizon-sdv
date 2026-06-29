@@ -91,7 +91,12 @@ func BuildArgoCDApplication(name, moduleName, argocdNamespace, project, destinat
 		},
 		"syncPolicy": map[string]interface{}{
 			"syncOptions": []interface{}{"CreateNamespace=true"},
-			"automated":   map[string]interface{}{},
+			// Match gitops child Applications (workloads-android/common): avoid selfHeal during
+			// resources-finalizer delete (Deleting → Sync wedge on disable/enable cycles).
+			"automated": map[string]interface{}{
+				"prune":    true,
+				"selfHeal": false,
+			},
 		},
 	}
 	return app

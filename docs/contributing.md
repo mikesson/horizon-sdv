@@ -1,3 +1,17 @@
+<!-- Copyright (c) 2026 Accenture, All Rights Reserved.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+        http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License. -->
+
 # **How to Contribute**
 
 We would love to accept your patches and contributions to the Horizon SDV project.
@@ -15,6 +29,42 @@ Visit [https://cla.developers.google.com/](https://cla.developers.google.com/) t
 ### **Review our Community Guidelines**
 
 This project follows [Google’s Open Source Community Guidelines](https://opensource.google/conduct/).
+
+## **Prerequisites: Self-Deployment**
+
+Before submitting any code, documentation, or configuration changes, you must have a functional, self-deployed instance of Horizon SDV running on your own Google Cloud Platform (GCP) project.
+
+This requirement ensures that contributors have first-hand experience with the deployment workflow, can test their changes in a live environment, and verify that their contributions do not break existing platform functionality.
+
+* **Follow the Deployment Guide:** Refer to the [Deployment Guide](deployment_guide.md) to set up your own environment.
+* **Verify your Instance:** Ensure your deployment is healthy and that you can access the core services before beginning your development work.
+* **Local Testing:** Use your deployed instance to test your changes. We generally require proof that your changes have been successfully applied and verified in a live environment.
+
+## **Pull Request Workflow & Release Cycle**
+
+Horizon SDV follows a structured release cycle. To maintain quality and compatibility, we manage contributions by incorporating them into specific future releases.
+
+### **How to Submit a PR**
+
+* **Targeting Releases:** When you open a Pull Request, please indicate which feature set or fix you are addressing.
+* **Communication:** Our maintainers will review your PR and determine the appropriate release version for your changes. We will communicate this target release directly within the PR thread.
+* **Testing:** Please provide logs, screenshots, or testing steps performed on your self-deployed instance to demonstrate that your changes work as expected. Alternatively, a virtual meet can be scheduled to walk through your changes.
+
+## **Contribution Checklist**
+
+When submitting a Pull Request, confirm the following:
+
+* [ ] I have deployed Horizon SDV on my own GCP project.
+* [ ] I have tested my changes on my deployed instance.
+* [ ] My PR description clearly states the purpose of the change.
+* [ ] I understand that my PR will be reviewed and assigned to a specific Horizon SDV release cycle.
+
+## **Getting Help**
+
+If you encounter issues during your initial deployment or have questions about the development workflow, please:
+
+* Review the [Troubleshooting](deployment_guide.md#section-6---troubleshooting) section in the documentation.
+* Reach out to the team at [horizon-sdv@google.com](mailto:horizon-sdv@google.com) for consultation regarding setup or specific technical blockers.
 
 # **Contribution process**
 

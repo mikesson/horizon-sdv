@@ -164,12 +164,38 @@ func OpenAPISpec() []byte {
           "409": { "description": "Module not enabled" },
           "500": { "description": "Cluster update failed" }
         }
+      },
+      "delete": {
+        "summary": "Clear module Git target revision pin",
+        "description": "Removes the per-module pin so the module follows the Module Manager cluster default (--target-revision). Patches the module's Argo CD Application to the cluster default. Module must be enabled.",
+        "operationId": "deleteModuleTargetRevision",
+        "parameters": [
+          {
+            "name": "idOrName",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Pin cleared; module now follows platform branch",
+            "content": {
+              "application/json": {
+                "schema": { "type": "object", "properties": { "status": { "type": "string", "example": "ok" } } }
+              }
+            }
+          },
+          "404": { "description": "Module not found" },
+          "409": { "description": "Module not enabled" },
+          "500": { "description": "Cluster update failed" }
+        }
       }
     },
     "/modules/{idOrName}/status": {
       "get": {
         "summary": "Get module status",
-        "description": "Returns Argo CD sync, health, and operation state aggregated across the module parent Application and child Applications (labels horizon-sdv.io/module and horizon-sdv.io/app-role parent or child). desiredRevision, syncRevision, and applicationDeletionTimestamp reflect the parent Application only. When the module is disabled, remainingManagedApplications counts how many of those Applications still exist (Developer Portal uses this so uninstall stays in progress until all are gone).",
+        "description": "Returns Argo CD sync, health, and operation state aggregated across the module parent Application and child Applications (labels horizon-sdv.io/module and horizon-sdv.io/app-role parent or child). desiredRevision and syncRevision reflect the parent Application. applicationDeletionTimestamp is set if the parent or any managed Application has metadata.deletionTimestamp (e.g. child deleting during disable before state flips). When the module is disabled, remainingManagedApplications counts how many of those Applications still exist (Developer Portal uses this so uninstall stays in progress until all are gone). When the module is enabled and listing succeeds, managedApplicationCount is that same parent+child count (Portal uses it to detect teardown while GET /modules still reports enabled).",
         "operationId": "getModuleStatus",
         "parameters": [
           {
@@ -223,7 +249,7 @@ func OpenAPISpec() []byte {
     "/modules/{idOrName}/enable": {
       "post": {
         "summary": "Enable module",
-        "description": "Creates the ArgoCD Application for the module so it is deployed. Fails if hard dependencies are not enabled.",
+        "description": "Creates the ArgoCD Application for the module so it is deployed. Fails if hard dependencies are not enabled. When targetRevision is omitted the module follows the cluster default (unpinned). When targetRevision is set the module is pinned to that ref.",
         "operationId": "enableModule",
         "parameters": [
           {
@@ -242,7 +268,7 @@ func OpenAPISpec() []byte {
                 "properties": {
                   "targetRevision": {
                     "type": "string",
-                    "description": "Optional Git ref for this module; defaults to Module Manager cluster target revision"
+                    "description": "Optional Git ref to pin this module. When omitted the module follows the cluster default (unpinned)."
                   }
                 }
               }
@@ -352,7 +378,8 @@ func OpenAPISpec() []byte {
           "softDependents": { "type": "array", "items": { "type": "string" }, "description": "Names of those soft dependent modules (sorted)" },
           "autoDisableWhenUnused": { "type": "boolean", "description": "When true, ModuleCatalog entry allows auto-disable when both hard and soft dependent counts drop to zero" },
           "targetRevision": { "type": "string", "description": "Effective Git ref for the module Application" },
-          "clusterTargetRevision": { "type": "string", "description": "Module Manager default Git ref (--target-revision)" }
+          "clusterTargetRevision": { "type": "string", "description": "Module Manager default Git ref (--target-revision)" },
+          "pinned": { "type": "boolean", "description": "True when the module has an explicit Git ref pin; false when following the cluster default" }
         }
       },
       "ModuleStatus": {
@@ -363,11 +390,29 @@ func OpenAPISpec() []byte {
           "operationPhase": { "type": "string", "description": "Argo CD operation phase (e.g. Running, Pending); aggregated across parent + children" },
           "desiredRevision": { "type": "string", "description": "spec.source.targetRevision (parent Application only)" },
           "syncRevision": { "type": "string", "description": "Resolved revision from status.sync.revision (parent Application only)" },
-          "applicationDeletionTimestamp": { "type": "string", "description": "RFC3339 time when the parent Argo CD Application has metadata.deletionTimestamp (uninstall in progress)" },
+          "applicationDeletionTimestamp": { "type": "string", "description": "RFC3339 time when the parent or any module-managed Argo CD Application has metadata.deletionTimestamp (uninstall in progress)" },
           "remainingManagedApplications": {
             "type": "integer",
             "minimum": 0,
             "description": "Present only when the module is disabled: number of parent+child Argo CD Applications still on the cluster for this module"
+          },
+          "managedApplicationCount": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Present only when the module is enabled and listing succeeded: number of labeled parent+child Argo CD Applications for this module"
+          },
+          "expectedManagedApplicationCount": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "2 for workloads-android and workloads-common (mod-* parent plus prefixed child Application); used by the Developer Portal to avoid READY when only the parent exists"
+          },
+          "managedChildApplicationPresent": {
+            "type": "boolean",
+            "description": "When the module uses a prefixed child Application: false if the labeled child Argo CD Application is not on the cluster"
+          },
+          "parentSkipReconcile": {
+            "type": "boolean",
+            "description": "True when the mod-* parent Application has argocd.argoproj.io/skip-reconcile (prefixed-module disable teardown)"
           }
         }
       },

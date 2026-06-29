@@ -1,0 +1,100 @@
+# Copyright (c) 2026 Accenture, All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#         http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+namespacePrefix: ""
+namespace: ""
+# One git clone per workflow into pipeline-workspace PVC; run/sync/prepare mount /horizon (aaos-builder parity).
+sharedPipelineWorkspace: true
+git:
+  authMethod: ""
+scm:
+  authMethod: ""
+cloudEnvConfigMapName: "horizon-workflow-cloud-env"
+workflowTemplateName: cvd-launcher-on-gce
+podGcStrategy: OnWorkflowCompletion
+workflowTtlSecondsAfterCompletion:
+
+spec:
+  cloudProject: ""
+  cloudRegion: ""
+  cloudZone: ""
+  # Default x86 Cuttlefish GCE template (CF Instance Template publish for revision main).
+  instanceTemplateName: instance-template-cuttlefish-vm-main
+  dockerArtifactPathName: horizon-sdv/aaos-builder
+  builderImageTag: argowf-latest
+  pipelineRepoUrl: ""
+  pipelineRepoRevision: ""
+  pipelineRepoSecret: workflow-pipeline-git-creds
+  serviceAccountName: workflow-executor
+  useElevatedWorkflowIam: true
+  # MTK Connect: mirrors Jenkins jenkins-mtk-connect-apikey (username/password keys). Created by
+  # mtk-connect-post-job configure.sh in the workflows namespace; rotated by mtk-connect-post-key.
+  mtkConnectSecretName: "workflow-mtk-connect-apikey"
+  mtkConnectUsernameKey: "username"
+  mtkConnectPasswordKey: "password"
+  nodeSelector:
+    workloadLabel: android
+  tolerations:
+    - key: workloadType
+      operator: Equal
+      value: android
+      effect: NoSchedule
+  runPodLabels:
+    aaos_pod: "true"
+  runPodAnnotations:
+    cluster-autoscaler.kubernetes.io/safe-to-evict: "false"
+  # Path B ephemeral GCE: KCC ComputeInstance + GCS guest I/O (no IAP ssh/scp from the workflow pod).
+  pipelineWorkspaceStorageSize: 5Gi
+  pipelineWorkspaceStorageClassName: pipeline-workspace-delete
+  guestPollSeconds: 45
+  guestPollFirstSeconds: 30
+  # serial (default): app stdout on GCE serial port 2 — see cvd_argo_gce/README.md
+  # cloud | both — optional Cloud Logging (Ops Agent on CF image)
+  guestLogSink: serial
+  # GCE serial port for app stdout/stderr (2 = /dev/ttyS1; 1 = kernel console).
+  guestSerialPort: 2
+  kccInstanceWaitTimeout: 20m
+  # Wait for zonal VM in Compute API after KCC Ready (serial/logging).
+  gcpInstanceWaitTimeout: 15m
+  remoteUser: "jenkins"
+  runPodResources:
+    requests:
+      cpu: "8000m"
+      memory: "16Gi"
+    limits:
+      cpu: "32000m"
+      memory: "64Gi"
+  # Gemini AI Review (aaos-builder parity): enableGeminiAiAssistant and geminiAnalyseOnSuccess are workflow/webhook parameters (defaults here).
+  # Model/command: non-empty geminiModel builds gemini --model <name> --yolo --output-format json for gemini-review;
+  # if geminiModel is empty, geminiCommandLine is passed through unchanged.
+  enableGeminiAiAssistant: "true"
+  geminiModel: "gemini-2.5-pro"
+  geminiAnalyseOnSuccess: "false"
+  geminiCommandLine: "gemini --yolo --output-format json"
+  geminiPreviewFeatures: "true"
+  geminiLocationGlobal: "true"
+  geminiStagingStorageSize: "5Gi"
+  geminiAiExecutionTimeoutHours: "2"
+  # Bucket name only (no gs://) for gemini_storage.sh final Gemini outputs. If empty and cloudProject is set, defaults to "<cloudProject>-aaos".
+  # workflow.parameters.storageBucketDestination defaults to parent gs://<cloudProject>-aaos/Android/Tests/<androidTestsWorkflowArtifactFolder>; DAG step compute-test-results-staging-uri appends /<YYYY-MM-DD-HHMMSS>_<workflow.name> (aaos-builder parity).
+  geminiArtifactRootName: ""
+  # Path segment under gs://<cloudProject>-aaos/Android/Tests/ for workflow test-result / Gemini staging (not a WorkflowTemplate submit parameter).
+  androidTestsWorkflowArtifactFolder: CVD_Launcher_Workflows
+  geminiPodResources:
+    requests:
+      cpu: "16000m"
+      memory: "48Gi"
+    limits:
+      cpu: "32000m"
+      memory: "96Gi"

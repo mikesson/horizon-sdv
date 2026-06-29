@@ -23,6 +23,10 @@ namespace: ""
 git:
   authMethod: ""
 workflowTemplateName: aaos-builder-runtime-image
+# Synchronization mutex name for Argo Workflows.
+# When set, only one workflow using this chart's WorkflowTemplate can run at a time.
+# Set to "" to disable concurrency blocking.
+aaosBuilderRuntimeImageConcurrencyMutexName: aaos-builder-runtime-image
 # Argo Events Sensor: templates/workflow/sensors.yaml.
 # Name of the shared ClusterWorkflowTemplate (from workloads/common/common_docker_image).
 clusterWorkflowTemplateName: common-docker-image-build

@@ -16,6 +16,7 @@ FROM --platform=linux/amd64 debian:12.13
 ADD configure.sh /root
 ADD secret-jenkins.json /root
 ADD secret-mtk-connect.json /root
+ADD secret-workflows.json /root
 # Add security repository and upgrade all packages to fix CVEs
 RUN echo "deb http://security.debian.org/debian-security bookworm-security main" > /etc/apt/sources.list.d/security.list && \
     apt update -y && apt upgrade -y && \

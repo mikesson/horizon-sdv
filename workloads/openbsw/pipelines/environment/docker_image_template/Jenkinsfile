@@ -116,6 +116,10 @@ pipeline {
                    --opt build-arg:POST_GIT_CLONE_COMMAND="${POST_GIT_CLONE_COMMAND}" \
                    --opt build-arg:PYTHON_VERSION=${PYTHON_VERSION} \
                    --opt build-arg:TREEFMT_URL=${TREEFMT_URL} \
+                   --opt build-arg:RUST_DEFAULT_TOOLCHAIN="${RUST_DEFAULT_TOOLCHAIN}" \
+                   --opt build-arg:RUSTUP_PROFILE="${RUSTUP_PROFILE}" \
+                   --opt build-arg:RUST_EMBEDDED_TARGET="${RUST_EMBEDDED_TARGET}" \
+                   --opt build-arg:CBINDGEN_VERSION="${CBINDGEN_VERSION}" \
                    --opt build-arg:ENABLE_GEMINI_AI_ASSISTANT="${ENABLE_GEMINI_AI_ASSISTANT}" \
                    --opt build-arg:GEMINI_CLI_VERSION="${GEMINI_CLI_VERSION}" \
                    --opt platform=linux/amd64 \

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# Copyright (c) 2025 Accenture, All Rights Reserved.
+# Copyright (c) 2025-2026 Accenture, All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -29,9 +29,19 @@
 #   This script is intended to be invoked as part of a CI/CD pipeline or
 #   manually to perform builds and tests for OpenBSW.
 #
-# Include common functions and variables.
+# Remember where this script lives before sourcing bsw_environment.sh. That file switches the shell into ${HOME}/bsw-builds;
+# if we waited until after that to resolve paths like ./workloads/.../bsw_build.sh, those paths would no longer exist from there.
 # shellcheck disable=SC1091
-source "$(dirname "${BASH_SOURCE[0]}")"/bsw_environment.sh "$0"
+BSW_BUILD_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "${BSW_BUILD_SCRIPT_DIR}/bsw_environment.sh" "$0"
+
+# Upstream exposes only s32k148-rust-gcc (no s32k148-rust-clang); normalize when RTOS_PLATFORM=rust.
+if [[ "${RTOS_PLATFORM:-}" == "rust" ]] && [[ "${BUILD_NXP_S32K148:-false}" == "true" ]]; then
+    NXP_S32K148_BUILD_CMDLINE="cmake --preset s32k148-rust-gcc && cmake --build --preset s32k148-rust-gcc -j${CMAKE_SYNC_JOBS}"
+    NXP_S32K148_ARTIFACT=${NXP_S32K148_ARTIFACT:-build/s32k148-rust-gcc/executables/referenceApp/application/RelWithDebInfo/app.referenceApp.elf}
+    export NXP_CC="/opt/arm-gnu-toolchain/bin/arm-none-eabi-gcc"
+    export NXP_CXX="/opt/arm-gnu-toolchain/bin/arm-none-eabi-g++"
+fi
 
 # Function to build the POSIX target
 function build_posix_target() {
@@ -43,11 +53,67 @@ function build_posix_target() {
     fi
 }
 
+# Append default [rust.target_process] when fragment files are missing (sparse checkout, partial workspace).
+# Keep in sync with workloads/openbsw/pipelines/tests/posix/target_posix_rust.fragment.toml (functional lines only).
+function _append_embedded_rust_target_fragment() {
+    local toml="$1"
+    cat >> "${toml}" <<'RUST_TARGET_FRAGMENT_EOF'
+
+[rust.target_process]
+command_line = "../../build/posix-rust/executables/referenceApp/application/Release/app.referenceApp.elf < /tmp/pty_forwarder > /tmp/pty_forwarder"
+restart_if_exited = true
+kill_at_end = true
+RUST_TARGET_FRAGMENT_EOF
+}
+
+# Ensure Rust is listed in the POSIX test config (upstream often omits it) so --app=rust knows which binary to start.
+# Merge when RTOS_PLATFORM=rust OR the pytest command explicitly uses --app=rust (Jenkins does not always export RTOS_PLATFORM into the shell).
+function merge_posix_rust_pytest_target_toml() {
+    if [[ "${RTOS_PLATFORM:-}" != "rust" ]] && [[ "${POSIX_PYTEST_CMDLINE:-}" != *"--app=rust"* ]]; then
+        return 0
+    fi
+    local frag="" frag_ws="" frag_script=""
+    if [[ -n "${ORIG_WORKSPACE:-}" ]]; then
+        frag_ws="${ORIG_WORKSPACE}/workloads/openbsw/pipelines/tests/posix/target_posix_rust.fragment.toml"
+    else
+        frag_ws="(ORIG_WORKSPACE unset)"
+    fi
+    frag_script="${BSW_BUILD_SCRIPT_DIR}/../../tests/posix/target_posix_rust.fragment.toml"
+    if [[ -f "${frag_ws}" ]]; then
+        frag="${frag_ws}"
+    elif [[ -f "${frag_script}" ]]; then
+        frag="${frag_script}"
+    fi
+
+    local toml="test/pyTest/target_posix.toml"
+    if [[ ! -f "${toml}" ]]; then
+        echo "WARNING: skip Rust pyTest TOML merge: missing OpenBSW file ${PWD}/${toml} (OPENBSW_GIT_DIR=${OPENBSW_GIT_DIR:-})"
+        return 0
+    fi
+    if grep -q '^\[rust\.target_process\]' "${toml}"; then
+        return 0
+    fi
+
+    echo "Appending Horizon Rust target stanza to ${toml}"
+    printf '\n' >> "${toml}"
+    if [[ -n "${frag}" ]]; then
+        cat "${frag}" >> "${toml}"
+    else
+        echo "NOTE: target_posix_rust.fragment.toml not found (tried ${frag_ws} and ${frag_script}); using embedded stanza"
+        _append_embedded_rust_target_fragment "${toml}"
+    fi
+}
+
 # Function to run pytest for POSIX target
 function run_pytest_posix_target() {
     echo "Running POSIX pytest"
     eval "${POSIX_PYTEST_CMDLINE}" | tee -a "${PYTEST_RESULTS_FILE}"
-    if [ "${PIPESTATUS[0]}" -ne 0 ]; then
+    local pytest_st="${PIPESTATUS[0]}"
+    # Failed runs exit before post-build copy; still copy the test log to the Jenkins workspace so people (and AI Review) can open it there.
+    if [[ -n "${ORIG_WORKSPACE:-}" ]] && [[ -f "${PYTEST_RESULTS_FILE}" ]]; then
+        cp -f "${PYTEST_RESULTS_FILE}" "${ORIG_WORKSPACE}/" || true
+    fi
+    if [ "${pytest_st}" -ne 0 ]; then
         echo "ERROR: ${POSIX_PYTEST_CMDLINE} failed"
         exit 1
     fi
@@ -133,10 +199,15 @@ fi
 # Build the POSIX target if enabled
 if ${BUILD_POSIX}; then
     build_posix_target
+    # Merge [rust.target_process] into target_posix.toml for RTOS_PLATFORM=rust so
+    # posix.tgz (post-build tar includes test/pyTest) supports pytest --app=rust even
+    # when POSIX_PYTEST is disabled in CI.
+    merge_posix_rust_pytest_target_toml
 fi
 
-# Run POSIX pytest if enabled
+# Run POSIX pytest if enabled (merge again here: Jenkins runs this in a separate stage with BUILD_POSIX=false)
 if ${POSIX_PYTEST}; then
+    merge_posix_rust_pytest_target_toml
     run_pytest_posix_target
 fi
 

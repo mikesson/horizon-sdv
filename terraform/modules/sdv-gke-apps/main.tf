@@ -13,6 +13,12 @@
 # limitations under the License.
 
 locals {
+  # Cuttlefish ARM64 placement for GitOps/Jenkins/Argo (always published). When enable_arm64_dedicated_subnet is false,
+  # metal uses the primary platform region/zone/subnet; when true, uses dedicated arm64_* tfvars.
+  arm64_placement_region     = var.enable_arm64_dedicated_subnet ? var.arm64_region : var.gcp_cloud_region
+  arm64_placement_zone       = var.enable_arm64_dedicated_subnet ? var.arm64_zone : var.gcp_cloud_zone
+  arm64_placement_subnetwork = var.enable_arm64_dedicated_subnet ? var.arm64_subnetwork : var.primary_subnetwork
+
   all_environments = merge(
     {
       "main" = {
@@ -411,6 +417,8 @@ resource "kubectl_manifest" "argocd_application" {
   # Avoid "metadata.resourceVersion: Invalid value: 0x0: must be specified for an update" on
   # Application CRD updates (e.g. after out-of-band kubectl apply) by using server-side apply.
   server_side_apply = true
+  # Argo CD (argocd-server) also updates spec.source.targetRevision; allow Terraform to set scm_repo_branch.
+  force_conflicts = true
 
   yaml_body = <<-EOT
     apiVersion: argoproj.io/v1alpha1
@@ -450,6 +458,10 @@ resource "kubectl_manifest" "argocd_application" {
               environmentName: "${each.value.env_name}"
               enableNetworkPolicies: ${var.enable_network_policies}
               useStaticDnsARecords: ${var.use_static_dns_a_records}
+              arm64:
+                region: ${local.arm64_placement_region}
+                zone: ${local.arm64_placement_zone}
+                subnetwork: ${local.arm64_placement_subnetwork}
               containerImages:
                 landingpage: ${var.gcp_cloud_region}-docker.pkg.dev/${var.gcp_project_id}/${var.gcp_registry_id}/landingpage-app:${var.images["landingpage-app"].version}
                 kccWebhookCertMonitor: ${var.gcp_cloud_region}-docker.pkg.dev/${var.gcp_project_id}/${var.gcp_registry_id}/kcc-webhook-cert-monitor:${var.images["kcc-webhook-cert-monitor"].version}

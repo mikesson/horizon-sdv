@@ -16,7 +16,7 @@ limitations under the License.
 Description:
 Artifact collection step for aaos-builder.
 Order: 10/10.
-Dependencies: runs after build tasks and optional ai-review.
+Dependencies: runs after build tasks and optional gemini-review.
 Storage maps workflow.parameters.enableGeminiAiAssistant → ENABLE_GEMINI_AI_ASSISTANT
 (via commonEnv) so aaos_environment.sh / aaos_storage.sh can derive Gemini artifacts.
 */ -}}
@@ -25,16 +25,7 @@ Storage maps workflow.parameters.enableGeminiAiAssistant → ENABLE_GEMINI_AI_AS
 - name: storage
   # Keep storage pod on the same node as other workflow pods that use the cache PVC.
   podSpecPatch: |
-    affinity:
-      podAffinity:
-        requiredDuringSchedulingIgnoredDuringExecution:
-          - labelSelector:
-              matchExpressions:
-                - key: workflows.argoproj.io/workflow
-                  operator: In
-                  values:
-                    - {{ "{{workflow.name}}" }}
-            topologyKey: kubernetes.io/hostname
+{{- include "aaos-builder.podAffinitySameWorkflow" . | nindent 4 }}
   inputs:
     parameters:
       - name: sdkAndroidVersion
@@ -49,8 +40,8 @@ Storage maps workflow.parameters.enableGeminiAiAssistant → ENABLE_GEMINI_AI_AS
       - name: pipeline-repo
         path: /workspace
         git:
-          repo: '{{ "{{" }}workflow.parameters.pipelineRepoUrl{{ "}}" }}'
-          revision: '{{ "{{" }}workflow.parameters.pipelineRepoRevision{{ "}}" }}'
+          repo: {{ .Values.spec.pipelineRepoUrl | quote }}
+          revision: {{ .Values.spec.pipelineRepoRevision | quote }}
 {{- include "aaos-builder.gitArtifactCredsContent" . | nindent 10 }}
 {{- end }}
   # outputs:

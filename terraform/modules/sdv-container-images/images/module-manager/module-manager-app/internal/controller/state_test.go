@@ -34,3 +34,21 @@ func TestEffectiveTargetRevision(t *testing.T) {
 		t.Fatalf("nil state: got %q", got)
 	}
 }
+
+func TestIsModulePinned(t *testing.T) {
+	st := &State{
+		ModuleTargetRevisions: map[string]string{"pinned": "main", "empty": "  "},
+	}
+	if !IsModulePinned(st, "pinned") {
+		t.Fatal("expected pinned")
+	}
+	if IsModulePinned(st, "missing") {
+		t.Fatal("expected not pinned for missing key")
+	}
+	if IsModulePinned(st, "empty") {
+		t.Fatal("expected whitespace-only ref to be unpinned")
+	}
+	if IsModulePinned(nil, "x") {
+		t.Fatal("expected nil state to be unpinned")
+	}
+}

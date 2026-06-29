@@ -61,7 +61,7 @@ const CONCEPT_CARDS: ConceptCard[] = [
     icon: <AccountTreeIcon sx={{ fontSize: 40, color: 'primary.main' }} aria-hidden />,
     title: 'Modules & workflows',
     body:
-      'Under Administration → Modules, turn workloads on or off. Administration → Settings holds global options such as workflow visibility by submit source. Each READY module exposes overview, workflow templates, running workflows, and history.',
+      'Under Administration → Modules, turn workloads on or off. Administration → Settings holds global options such as workflow visibility by submit source. Each READY module exposes overview, workflow templates, running workflows, and history.\n\nDo not reload or close the browser while a module enable, disable, or Git ref apply is running. A reload can cancel the in-flight request while the cluster may still be changing.',
   },
   {
     icon: <RocketLaunchIcon sx={{ fontSize: 40, color: 'primary.main' }} aria-hidden />,
@@ -169,7 +169,7 @@ export function WelcomePage() {
                   <Typography variant="h6" component="h2">
                     {card.title}
                   </Typography>
-                  <Typography variant="body2" color="text.secondary">
+                  <Typography variant="body2" color="text.secondary" sx={{ whiteSpace: 'pre-line' }}>
                     {card.body}
                   </Typography>
                 </Stack>

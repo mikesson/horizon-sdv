@@ -137,13 +137,117 @@ sdv_keycloak_admin_password = "Change_Me_123"
 # Keycloak Horizon Realm Admin Password (Plain text)
 sdv_keycloak_horizon_admin_password = "Change_Me_123"
 
-# Optional Overrides
-enable_arm64 = true
+# ========================================
+# ARM64 Cuttlefish
+# ========================================
+# enable_arm64_dedicated_subnet was previously enable_arm64. See upgrade_guide_4_0_0_to_4_1_0.md §2b.
+# Brownfield = existing 4.0 dedicated ARM64 (true + block below). Greenfield = new env (true + greenfield block).
+# Brownfield→greenfield = apply false (brownfield), then apply true (greenfield). false = comment out arm64_*.
+enable_arm64_dedicated_subnet = true
 
-# GKE cluster: explicit version (replaces release_channel; set to current master version when migrating)
-sdv_cluster_version = "1.33.5-gke.2172001"
+#
+# --- Brownfield: <=4.0,0 to 4.1.0 upgrade - existing dedicated ARM64 (match your GCP) ---
+arm64_region                          = "us-central1"
+arm64_zone                            = "us-central1-b"
+arm64_subnetwork                      = "sdv-subnet-us"
+arm64_pods_secondary_range_name       = "pods-range-us"
+arm64_services_secondary_range_name   = "services-range-us"
+#
+# --- Greenfield: new env (comment out brownfield above).
+#     Brownfield -> Greenfield
+#         - Switch: enable_arm64_dedicated_subnet=false.
+#         - Uncomment Brownfield defaults variables and apply,
+#         - Switch: enable_arm64_dedicated_subnet=true
+#         - Comment out Brownfield, uncomment Greenfield below and apply . ---
+# arm64_region must be allowed by org policy (resourceLocations). Example:
+# arm64_region                          = "us-central1"
+# arm64_zone                            = "us-central1-c"
+# arm64_subnetwork                      = "sdv-subnet-arm64"
+# arm64_pods_secondary_range_name       = "pods-range-arm64"      # optional; same as Terraform default
+# arm64_services_secondary_range_name   = "services-range-arm64"  # optional; same as Terraform default
 
-# ABFS build node pool: pin GKE version for CASFS kernel compatibility (auto_upgrade = false on this pool only)
+# ========================================
+# GKE cluster
+# ========================================
+
+# ----------------------------------------
+# GKE: release channel & version
+# ----------------------------------------
+# `sdv_cluster_version` — control plane min_master_version (GKE version string). This is
+# a minimum (floor), not an exact pin: the API-reported master version can be higher
+# (e.g. after GKE updated the control plane, or on a release channel). Setting a lower
+# value here does not downgrade an already-newer control plane. See GKE version policy.
+#
+# `sdv_cluster_release_channel` — GKE release channel: RAPID, REGULAR, STABLE, EXTENDED,
+# or UNSPECIFIED. Default UNSPECIFIED. Invalid values fail on plan/apply (provider API),
+# not from a Terraform enum. Overview:
+#   https://docs.cloud.google.com/kubernetes-engine/docs/concepts/release-channels
+#
+# The ABFS pool's management.auto_upgrade is derived from this variable inside
+# the sdv-gke-cluster module:
+#   UNSPECIFIED                    → auto_upgrade = false  (CASFS kernel-module pin)
+#   RAPID / REGULAR / STABLE / EXTENDED
+#                                  → auto_upgrade = true   (required by GKE on
+#                                    channel-enrolled clusters; auto_upgrade = false
+#                                    is rejected at apply time).
+#
+# Maintenance exclusions (which scopes the API will accept for this channel):
+#   UNSPECIFIED                    → scope = NO_UPGRADES only.
+#   RAPID / REGULAR / STABLE / EXTENDED
+#                                  → NO_UPGRADES, NO_MINOR_UPGRADES, and
+#                                    NO_MINOR_OR_NODE_UPGRADES all available.
+#
+# Choose carefully: switching channels changes upgrade cadence, node-pool upgrade
+# policy (ABFS in particular), and which exclusion scopes the API will accept.
+#
+# "EXTENDED + KCC (Config Connector)": GKE does not allow the "Config Connector" add-on
+# on EXTENDED clusters. This repo keeps `config_connector_config.enabled = true` in
+# `terraform/modules/sdv-gke-cluster/main.tf` — "EXTENDED" is therefore incompatible with
+# the "default wiring" unless you change that add-on (or run KCC outside the GKE add-on).
+# Do not set `sdv_cluster_release_channel = "EXTENDED"` here without addressing that.
+#   https://cloud.google.com/config-connector/docs/overview
+sdv_cluster_version         = "1.33.11-gke.1013000"
+
+# For channel-based clusters (RAPID/REGULAR/STABLE), use maintenance exclusions to temporarily block auto-upgrades.
+sdv_cluster_release_channel = "STABLE"
+
+# ----------------------------------------
+# GKE: recurring maintenance window
+# ----------------------------------------
+# When GKE may run control-plane auto-upgrades (RRULE, UTC). Details:
+#   https://docs.cloud.google.com/kubernetes-engine/docs/concepts/maintenance-windows-and-exclusions#maintenance_windows
+sdv_cluster_maintenance_recurring_window_start_time = "2025-01-04T00:00:00Z"
+sdv_cluster_maintenance_recurring_window_end_time   = "2050-01-05T00:00:00Z"
+sdv_cluster_maintenance_recurring_window_recurrence = "FREQ=WEEKLY;BYDAY=SA,SU"
+
+# ----------------------------------------
+# GKE: maintenance exclusions
+# ----------------------------------------
+# Optional windows that block some automatic upgrades. Scopes/limits are defined by GKE:
+#   https://docs.cloud.google.com/kubernetes-engine/docs/concepts/maintenance-windows-and-exclusions
+#
+# Key rule: when moving from `UNSPECIFIED` to a release channel and you want `NO_MINOR_*`,
+# do it in "two applies":
+#   1) set `sdv_cluster_release_channel` (and keep `sdv_cluster_maintenance_exclusions = []`)
+#   2) add the `NO_MINOR_*` exclusions
+#
+# Example: `NO_MINOR_OR_NODE_UPGRADES` (valid only when on RAPID/REGULAR/STABLE/EXTENDED):
+#
+# Update the exclusion start/end dates to match your planned maintenance window before applying.
+ sdv_cluster_maintenance_exclusions = [
+   {
+     exclusion_name = "sdv-summer-2026-defer-minor-and-node-upgrades"
+     start_time     = "2026-04-01T00:00:00Z"
+     end_time       = "2026-08-02T00:00:00Z"
+     scope          = "NO_MINOR_OR_NODE_UPGRADES"
+   }
+ ]
+
+# ----------------------------------------
+# GKE: ABFS build node pool (CASFS)
+# ----------------------------------------
+# `sdv_abfs_build_node_pool_version` — Kubernetes (node) version for the pool; see
+# release channel & version above for how that interacts with `sdv_cluster_release_channel`.
 sdv_abfs_build_node_pool_version = "1.32.7-gke.1079000"
 
 # ========================================

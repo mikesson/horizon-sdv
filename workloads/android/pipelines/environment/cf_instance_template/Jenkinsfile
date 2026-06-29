@@ -113,10 +113,14 @@ pipeline {
               NODEJS_VERSION="${NODEJS_VERSION}" \
               OS_PROJECT="${OS_PROJECT}" \
               OS_VERSION="${OS_VERSION}" \
+              PACKER_USE_IAP=true \
+              PACKER_SSH_TIMEOUT=15m \
+              PACKER_IAP_TUNNEL_LAUNCH_WAIT=300 \
               PROJECT=${CLOUD_PROJECT} \
               REGION=${REGION:-${CLOUD_REGION}} \
               REPO_USERNAME="${REPO_USERNAME}" \
               REPO_PASSWORD="${REPO_PASSWORD}" \
+              WORKFLOWS_NAMESPACE="${WORKFLOWS_NAMESPACE:-workflows}" \
               SUBNET=${SUBNET} \
               ZONE=${ZONE:-${CLOUD_ZONE}} \
               ./workloads/android/pipelines/environment/cf_instance_template/cf_create_instance_template.sh 1
@@ -157,6 +161,7 @@ pipeline {
             REGION=${REGION:-${CLOUD_REGION}} \
             SUBNET=${SUBNET} \
             UPDATE_SSH_AUTHORIZED_KEYS="${UPDATE_SSH_AUTHORIZED_KEYS}" \
+            WORKFLOWS_NAMESPACE="${WORKFLOWS_NAMESPACE:-workflows}" \
             ZONE=${ZONE:-${CLOUD_ZONE}} \
             ./workloads/android/pipelines/environment/cf_instance_template/cf_create_instance_template.sh 2
           '''
@@ -181,10 +186,22 @@ pipeline {
             currentBuild.description = "Stage: Delete artifacts" + "<br/>" + "Target: ${env.TEMPLATE_TARGET}" + "<br/>" + "$BUILD_USER"
           }
           sh '''
+            ADDITIONAL_NETWORKING="${ADDITIONAL_NETWORKING}" \
+            BOOT_DISK_SIZE="${BOOT_DISK_SIZE}" \
+            BOOT_DISK_TYPE="${BOOT_DISK_TYPE}" \
             CUTTLEFISH_REVISION="${ANDROID_CUTTLEFISH_REVISION}" \
+            CUTTLEFISH_URL="${ANDROID_CUTTLEFISH_REPO_URL}" \
+            CUTTLEFISH_INSTANCE_NAME="${CUTTLEFISH_INSTANCE_NAME}" \
+            CUSTOM_VM_TYPE="${CUSTOM_VM_TYPE}" \
+            CUSTOM_CPU="${CUSTOM_CPU}" \
+            CUSTOM_MEMORY="${CUSTOM_MEMORY}" \
+            MACHINE_TYPE="${MACHINE_TYPE}" \
+            MAX_RUN_DURATION="${MAX_RUN_DURATION}" \
+            OS_PROJECT="${OS_PROJECT}" \
+            OS_VERSION="${OS_VERSION}" \
             PROJECT=${CLOUD_PROJECT} \
             REGION=${REGION:-${CLOUD_REGION}} \
-            CUTTLEFISH_INSTANCE_NAME="${CUTTLEFISH_INSTANCE_NAME}" \
+            WORKFLOWS_NAMESPACE="${WORKFLOWS_NAMESPACE:-workflows}" \
             SUBNET=${SUBNET} \
             ZONE=${ZONE:-${CLOUD_ZONE}} \
             ./workloads/android/pipelines/environment/cf_instance_template/cf_create_instance_template.sh 3

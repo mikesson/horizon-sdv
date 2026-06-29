@@ -17,6 +17,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"embed"
 	"encoding/base64"
@@ -249,7 +250,8 @@ func (t *retryCI401Transport) RoundTrip(req *http.Request) (*http.Response, erro
 	if base == nil {
 		base = http.DefaultTransport
 	}
-	if req.Method != http.MethodGet && req.Method != http.MethodHead {
+	retry401 := req.Method == http.MethodGet || req.Method == http.MethodHead || req.GetBody != nil
+	if !retry401 {
 		return base.RoundTrip(req)
 	}
 	const max401Attempts = 2
@@ -262,12 +264,12 @@ func (t *retryCI401Transport) RoundTrip(req *http.Request) (*http.Response, erro
 		if resp.StatusCode != http.StatusUnauthorized {
 			return resp, err
 		}
-		t.ci.invalidate()
-		_, _ = io.Copy(io.Discard, resp.Body)
-		_ = resp.Body.Close()
 		if attempt == max401Attempts-1 {
 			return resp, err
 		}
+		t.ci.invalidate()
+		_, _ = io.Copy(io.Discard, resp.Body)
+		_ = resp.Body.Close()
 		tok, err := t.ci.get(req.Context())
 		if err != nil {
 			return nil, err
@@ -277,6 +279,15 @@ func (t *retryCI401Transport) RoundTrip(req *http.Request) (*http.Response, erro
 			r2.Header = r2.Header.Clone()
 		}
 		r2.Header.Set("Authorization", "Bearer "+tok)
+		if req.Method == http.MethodGet || req.Method == http.MethodHead {
+			r2.Body = nil
+		} else {
+			body, err := req.GetBody()
+			if err != nil {
+				return nil, err
+			}
+			r2.Body = body
+		}
 		cur = r2
 	}
 	return nil, fmt.Errorf("retryCI401Transport: internal")
@@ -307,6 +318,34 @@ func newHorizonProxy(upstream *url.URL, ci *ciTokenSource) http.Handler {
 		r2 := r.Clone(r.Context())
 		r2.Header.Del("Authorization")
 		r2.Header.Set("Authorization", "Bearer "+tok)
+
+		// Allow retryCI401Transport to replay POST/PUT/PATCH/DELETE after refreshing the CI token (same as GET catalog).
+		if r2.Body != nil && (r2.Method == http.MethodPost || r2.Method == http.MethodPut || r2.Method == http.MethodPatch || r2.Method == http.MethodDelete) {
+			const maxBody = 4 << 20
+			b, err := io.ReadAll(io.LimitReader(r2.Body, maxBody+1))
+			_ = r2.Body.Close()
+			if err != nil {
+				http.Error(w, "read body", http.StatusBadRequest)
+				return
+			}
+			if len(b) > maxBody {
+				http.Error(w, "body too large", http.StatusRequestEntityTooLarge)
+				return
+			}
+			buf := bytes.Clone(b)
+			r2.GetBody = func() (io.ReadCloser, error) {
+				return io.NopCloser(bytes.NewReader(buf)), nil
+			}
+			body, err := r2.GetBody()
+			if err != nil {
+				http.Error(w, "body", http.StatusInternalServerError)
+				return
+			}
+			r2.Body = body
+			r2.ContentLength = int64(len(buf))
+			r2.Header.Del("Transfer-Encoding")
+		}
+
 		rp.ServeHTTP(w, r2)
 	})
 }

@@ -150,7 +150,7 @@ pipeline {
           }
           steps {
             script {
-              currentBuild.description = "${env.AAOS_LUNCH_TARGET}" + "<br/>" + "${env.AAOS_REVISION}" + "<br/>" + "Persist: ${env.ABFS_CACHED_BUILD}" + "<br/>" + "$BUILD_USER"
+              currentBuild.description = "${env.AAOS_LUNCH_TARGET}" + "<br/>" + "${env.AAOS_REVISION}" + "<br/>" + "${env.AAOS_MANIFEST_NAME}" + "<br/>" + "Persist: ${env.ABFS_CACHED_BUILD}" + "<br/>" + "$BUILD_USER"
             }
             container(name: 'builder') {
               catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
@@ -168,6 +168,7 @@ pipeline {
 
                     AAOS_REVISION="${AAOS_REVISION}" \
                     AAOS_LUNCH_TARGET="${AAOS_LUNCH_TARGET}" \
+                    AAOS_MANIFEST_NAME="${AAOS_MANIFEST_NAME}" \
                     ABFS_BUILDER="true" \
                     ABFS_VERSION="${ABFS_VERSION}" \
                     ABFS_CASFS_VERSION="${ABFS_CASFS_VERSION}" \
@@ -230,14 +231,10 @@ pipeline {
                 sh '''
                   set +ex
                   if [ "${ABFS_CACHED_BUILD}" = "true" ]; then export GEMINI_ANALYSIS_PATH="/aaos-cache/abfs"; else export GEMINI_ANALYSIS_PATH="/abfs"; fi
-                  echo "Analysis path: ${GEMINI_ANALYSIS_PATH}"
-                  # Copy artifacts so Gemini can analyse the source in situ (avoid workspace security issues).
-                  cp -f aaos-build*.* "${GEMINI_ANALYSIS_PATH%/}/" || true
-                  cd "${GEMINI_ANALYSIS_PATH%/}" || true
-                  # AI Review: reuse the same artifact name as AAOS triage (aaos-build.log.tail). ABFS uses a full
-                  # copy of aaos-build.log here so early failures (e.g. #error) are not dropped above a short tail.
-                  # skills.yaml: grep-first on huge logs; AAOS jobs still use bounded tail / prepare script.
-                  [ -f aaos-build.log ] && cp -f aaos-build.log aaos-build.log.tail || true
+                  export PIPELINE_REPO_ROOT="${WORKSPACE}"
+                  export GEMINI_HOOK_PROFILE="aaos"
+                  export GEMINI_HOOK_DIR="workloads/android/pipelines/builds/aaos_builder/hooks"
+                  export GEMINI_AAOS_LOG_TAIL_MODE="fullcopy"
                   export GEMINI_PROMPT_FILE="${WORKSPACE}/workloads/android/pipelines/builds/aaos_builder/prompt/sequenced/step1_triage.txt"
                   export GEMINI_PROMPT_FILE_2="${WORKSPACE}/workloads/android/pipelines/builds/aaos_builder/prompt/sequenced/step2_rca.txt"
                   export GEMINI_PROMPT_FILE_3="${WORKSPACE}/workloads/android/pipelines/builds/aaos_builder/prompt/sequenced/step3_fixes.txt"
@@ -246,32 +243,8 @@ pipeline {
                   [ "$GEMINI_LOCATION_GLOBAL" = "true" ] && export GOOGLE_CLOUD_LOCATION="global" || export GOOGLE_CLOUD_LOCATION="${CLOUD_REGION}"
                   export GOOGLE_CLOUD_PROJECT="${CLOUD_PROJECT}"
                   export GEMINI_COMMAND_LINE="${GEMINI_COMMAND_LINE}"
-                    "${WORKSPACE}"/workloads/common/agentic-ai/gemini/gemini_initialise.sh
-                    timeout "${GEMINI_AI_EXECUTION_TIMEOUT}"h "${WORKSPACE}"/workloads/common/agentic-ai/gemini/gemini_analysis.sh
-                    GEMINI_EXIT_CODE=$?
-
-                    echo "Check artifacts create in gemini-assist"
-                    ls -la ${GEMINI_ANALYSIS_PATH}/gemini-assist || true
-
-                    # Restore order to cache/PV and workspace.
-                    # Avoid gemini deafness and it applying changes, cleanup!
-                    repo forall -c 'git checkout -- .; git clean -xfd;' >/dev/null 2>&1
-                    rm -f aaos-build*.*
-
-                    cd - || true
-                    bash -c 'source \"${WORKSPACE}/workloads/common/agentic-ai/gemini/gemini_environment.sh\" && \
-                             move_gemini_artifacts \"${GEMINI_ANALYSIS_PATH%/}\" \"${WORKSPACE}\"' || true
-
-                    find . -type f -name "headless*.json" -size 0 -delete
-
-                    # Fail stage if gemini-client-error.zip exists (CLI error even when exit code was 0)
-                    if [ -f "${GEMINI_ANALYSIS_PATH}/gemini-client-error.zip" ] || [ -f "${WORKSPACE}/gemini-client-error.zip" ]; then
-                      echo "ERROR: Gemini AI assistant reported errors (gemini-client-error.zip present)"
-                      GEMINI_EXIT_CODE=1
-                    fi
-
-                    set -e
-                    exit ${GEMINI_EXIT_CODE}
+                  export GEMINI_AI_EXECUTION_TIMEOUT_HOURS="${GEMINI_AI_EXECUTION_TIMEOUT}"
+                  bash "${WORKSPACE}/workloads/common/agentic-ai/gemini/run_ai_review.sh"
                   '''
               }
               archiveArtifacts artifacts: 'gemini-assist/*', followSymlinks: false, onlyIfSuccessful: false, allowEmptyArchive: true

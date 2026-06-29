@@ -28,6 +28,8 @@ import (
 // LabelSubmittedFrom is set on Workflow metadata when the run is dispatched via Horizon (sensor maps webhook body).
 // Values match Argo-style lowercase tokens (compare workflows.argoproj.io/submit-from-ui).
 const LabelSubmittedFrom = "horizon-sdv.io/submitted-from"
+// LabelSubmittedBy is set on Workflow metadata when the run is dispatched via Horizon (sensor maps webhook body).
+const LabelSubmittedBy = "horizon-sdv.io/submitted-by"
 const LabelModule = "horizon-sdv.io/module"
 
 const (
@@ -35,12 +37,16 @@ const (
 	SubmittedFromDeveloperPortal = "developer-portal"
 	SubmittedFromHorizonCLI      = "horizon-cli"
 	SubmitParamSubmittedFrom     = "horizonSubmittedFrom"
+	SubmitParamSubmittedBy       = "submittedBy"
+	WebhookFieldSubmittedBy      = "horizonSubmittedBy"
 	// SubmitParamSampleSoftEnabled is set only by Horizon API (runtime injection), not by clients.
 	SubmitParamSampleSoftEnabled = "sampleSoftEnabled"
 	// SubmittedFromCustomToken is a reserved header value: the real id is read from HeaderSubmittedFromDetail.
 	SubmittedFromCustomToken = "custom"
 	// HeaderSubmittedFromDetail carries the integration id when X-Horizon-Submitted-From is "custom".
 	HeaderSubmittedFromDetail = "X-Horizon-Submitted-From-Detail"
+	// HeaderSubmittedBy carries the Keycloak username (preferred_username) on Developer Portal submit.
+	HeaderSubmittedBy = "X-Horizon-Submitted-By"
 )
 
 // IsHorizonInjectedWorkflowParameter is true for workflow parameters that must not appear in the
@@ -120,6 +126,12 @@ func ParseSubmittedFromHeader(r *http.Request) (string, error) {
 		return ParseSubmittedFromValue(detail)
 	}
 	return ParseSubmittedFromValue(raw)
+}
+
+// ParseSubmittedByHeader reads X-Horizon-Submitted-By (Developer Portal: Keycloak preferred_username).
+// Missing header returns empty string; callers fall back to submit body or OIDC sub.
+func ParseSubmittedByHeader(r *http.Request) string {
+	return strings.TrimSpace(r.Header.Get(HeaderSubmittedBy))
 }
 
 // ParseSubmittedFromValue validates and normalizes submitted-from values to canonical built-in ids,

@@ -19,6 +19,1679 @@
 <td valign="top" width="14%"><p><strong>Version</strong></p>
 </td>
 
+<td valign="top" width="86%"><p><strong>Release 4.1.0</strong></p>
+</td>
+</tr>
+
+<tr>
+<td valign="top" width="14%"><p><strong>Date</strong></p>
+</td>
+
+<td valign="top" width="86%"><p><strong>26.06.2026</strong></p>
+</td>
+</tr>
+</tbody>
+</table>
+
+<h2>Summary</h2>
+<p><strong>Horizon SDV 4.1.0</strong> is the minor release which extends platform capabilities with the new workloads for <strong>Android SDV</strong> build and compatibility testing.</p>
+<p>Horizon 4.1.0 also delivers several critical bug fixes including security fixes for vulnerable open-source modules used in Horizon and vulnerabilities in application containers.</p>
+<p>Horizon Rel.4.1.0 also delivers also several feature improvements and critical bug fixes.</p>
+<p>Horizon SDV 4.1.0 package offers fully verified and documented upgrade patch (from Rel.4.0.0 to Rel.4.1.0). (see details in /docs/guides/upgrade_guide_4_0_0_to_4_1_0.md)</p>
+
+<h2>New Features</h2>
+
+<table width="100%">
+<tbody>
+<tr>
+<th valign="top" width="12%"><p><strong>ID</strong></p>
+</th>
+
+<th valign="top" width="24%"><p><strong>Feature</strong></p>
+</th>
+
+<th valign="top" width="64%"><p><strong>Description</strong></p>
+</th>
+</tr>
+
+<tr>
+<td valign="top" width="12%"><p>TAA-515</p>
+</td>
+
+<td valign="top" width="24%"><p><strong>Android SDV build workload and early adaptation</strong></p>
+</td>
+
+<td valign="top" width="64%"><p><strong>For:</strong> Google partners included in EAP program (with access to Google non-public repositories on <a href="https://partner-android.googlesource.com">https://partner-android.googlesource.com</a>)</p>
+<p><strong>What&#39;s new:</strong> Support for AAOS SDV Software Stack in Jenkins pipelines for workloads-android (AAOS SDV Builder, CVD Launcher, CTS Execution)</p>
+<p><strong>Main changes:</strong></p>
+<p><strong>Jenkins</strong></p>
+
+<ul>
+<li><p><strong>new pipeline AAOS SDV Builder</strong>, dedicated to AAOS SDV SW Stack, with additional parameters for credentials: GERRIT_AUTH_MODE, GERRIT_GITCOOKIES_BASE64, GERRIT_GITCREDENTIALS_BASE64</p>
+
+<ul>
+<li><p>Default values for pipeline parameters set for AAOS SDV</p>
+</li>
+
+<li><p>Separate subfolder in GCP Bucket used to store images produced by AAOS SDV Builder</p>
+</li>
+
+<li><p>Reference revision of the AAOS SDV SW Stack used in testing was provided in description of AAOS_REVISION parameter</p>
+</li>
+</ul>
+</li>
+
+<li><p><strong>android test pipelines</strong> updated to support AAOS SDV (CVD Launcher, CTS Execution)</p>
+
+<ul>
+<li><p>Important Notes section on main pipeline page includes guidance for AAOS SDV</p>
+</li>
+
+<li><p>Default values for pipeline&#39;s parameters stay unchanged (for generic AAOS)</p>
+</li>
+
+<li><p>For parameters, which require special values for AAOS SDV, recommendations or examples are provided</p>
+</li>
+</ul>
+</li>
+</ul>
+<p><strong>Generic build pipelines changes:</strong></p>
+
+<ul>
+<li><p><strong>all android builders</strong> (AAOS Builder, AAOS SDV Builder, AAOS Builder ABFS)</p>
+
+<ul>
+<li><p>builders now support new parameter AAOS_MANIFEST_NAME, which allows to point the pipeline for custom manifest file</p>
+</li>
+
+<li><p>default behavior unchanged, if no need to specify custom manifest filename, default.xml will be used</p>
+</li>
+
+<li><p>builders now support nested manifest files</p>
+</li>
+</ul>
+</li>
+</ul>
+<p><strong>What you need to do after update:</strong></p>
+
+<ul>
+<li><p>login to ArgoCD and ensure the instance is synced and healthy</p>
+</li>
+
+<li><p>login to Developer Poral and enable android-workloads, wait until its status changes to READY</p>
+</li>
+
+<li><p>login to Jenkins and execute Seed Workloads pipeline twice:</p>
+
+<ul>
+<li><p>first with SEED_WORKLOAD set to &#39;none&#39;</p>
+</li>
+
+<li><p>second with SEED_WORKLOAD set to &#39;android&#39; (or &#39;all&#39;) to ensure new pipeline, parameters and default values get propagated correctly</p>
+</li>
+</ul>
+</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+
+<h2>Improved Features</h2>
+
+<table width="100%">
+<tbody>
+<tr>
+<th valign="top" width="12%"><p><strong>ID</strong></p>
+</th>
+
+<th valign="top" width="24%"><p><strong>Feature</strong></p>
+</th>
+
+<th valign="top" width="64%"><p><strong>Description</strong></p>
+</th>
+</tr>
+
+<tr>
+<td valign="top" width="12%"><p>TAA-1707</p>
+</td>
+
+<td valign="top" width="24%"><p>Configurable GKE maintenance window and exclusions</p>
+</td>
+
+<td valign="top" width="64%"><p>GKE <strong>release channel</strong>, <strong>recurring maintenance window</strong>, and <strong>maintenance exclusions</strong> are now configurable via <code>terraform/env/terraform.tfvars</code>.</p>
+<p><strong>Key benefits</strong></p>
+
+<ul>
+<li><p><strong>Release channel:</strong> Pick GKE&#39;s channel cadence (<code>RAPID</code> / <code>REGULAR</code> / <code>STABLE</code> / <code>EXTENDED</code>) or keep <code>UNSPECIFIED</code> (static). This repo wires ABFS <code>auto_upgrade</code> to that choice.</p>
+</li>
+
+<li><p><strong>Recurring maintenance window:</strong> Constrain <em>when</em> automatic maintenance may <em>start</em> (time-of-day + recurrence) instead of running only on whatever default window you inherit.</p>
+</li>
+
+<li><p><strong>Maintenance exclusions:</strong> Optional date ranges that <em>defer</em> upgrades by <strong>scope</strong> (<code>NO_UPGRADES</code>, <code>NO_MINOR_*</code>, …) when you need a quiet period, within GKE&#39;s limits.</p>
+</li>
+
+<li><p><strong>In-repo walkthrough:</strong> Use the <strong>GKE</strong> block in <code>terraform/env/terraform.tfvars.sample</code> (copy + comments: channel, ABFS, window, exclusions, <strong>EXTENDED</strong> + Config Connector, two-apply for <code>NO_MINOR_*</code>). Terraform variable descriptions stay short; the sample has the detail.</p>
+</li>
+</ul>
+<p><strong>Defaults (no behavior change)</strong></p>
+
+<ul>
+<li><p><code>sdv_cluster_version</code> maps to <code>min_master_version</code> (control plane <strong>floor</strong>). The version shown in the console or API can be <strong>newer</strong>; Terraform does <strong>not</strong> use this field to <strong>downgrade</strong> the control plane to an older string.</p>
+</li>
+
+<li><p><code>sdv_cluster_release_channel = "UNSPECIFIED"</code> (static / no channel).</p>
+</li>
+
+<li><p>ABFS build pool remains CASFS-pinned (<code>auto_upgrade = false</code> on <code>UNSPECIFIED</code>).</p>
+</li>
+
+<li><p>You may see a <code>maintenance_policy</code> diff on first apply as defaults are materialized; <code>UNSPECIFIED</code> clusters do not auto-upgrade.</p>
+</li>
+
+<li><p><strong>Release channels:</strong> <code>RAPID</code> / <code>REGULAR</code> / <code>STABLE</code> / <code>EXTENDED</code> / <code>UNSPECIFIED</code> (see <code>terraform/env/terraform.tfvars.sample</code> for <strong>EXTENDED</strong> + <strong>KCC</strong> notes).</p>
+</li>
+
+<li><p><code>EXTENDED</code> <strong>+ Config Connector (GKE add-on):</strong> GKE forbids both on one cluster. This repo keeps the add-on <strong>enabled</strong> in Terraform - see <code>terraform/env/terraform.tfvars.sample</code> before using <code>EXTENDED</code> (change the add-on or channel accordingly).</p>
+</li>
+</ul>
+<p><strong>Key rule (reduce 400s)</strong>: <strong>do channel +</strong> <code>NO_MINOR_*</code> in <strong>two applies</strong></p>
+<p>When moving from <code>UNSPECIFIED</code> <strong>(static)</strong> → <code>RAPID</code> <strong>/</strong> <code>REGULAR</code> <strong>/</strong> <code>STABLE</code> <strong>/</strong> <code>EXTENDED</code> <em>and</em> you want <code>NO_MINOR_UPGRADES</code> or <code>NO_MINOR_OR_NODE_UPGRADES</code>, apply in this order:</p>
+
+<ol start="1">
+<li><p><strong>Release channel only:</strong> set <code>sdv_cluster_release_channel</code> to your target channel and set <code>sdv_cluster_maintenance_exclusions = []</code>; <code>apply</code> until it succeeds.</p>
+</li>
+
+<li><p><strong>Exclusions:</strong> add your <code>NO_MINOR_*</code> exclusions and <code>apply</code> again.</p>
+</li>
+</ol>
+<p>The reverse move (back to <code>UNSPECIFIED</code>) follows the same idea: <strong>clear exclusions first</strong>, then change the channel.</p>
+</td>
+</tr>
+
+<tr>
+<td valign="top" width="12%"><p>TAA-1818</p>
+</td>
+
+<td valign="top" width="24%"><p>[Security] Fixes for vulnerable modules in Horizon containers</p>
+</td>
+
+<td valign="top" width="64%"><p>Clears the container-security (ISD) findings across 14 platform images by forcing fresh <code>no_cache</code> rebuilds (version bumps) and fixing the four images that did <strong>not</strong> self-heal on a plain rebuild. Adds a self-contained upgrade guide and a reusable probe script so teams on older releases/forks can apply, deploy, and validate the same remediation. Validated end-to-end on live lab environments (deploy → Argo CD rollout → package probe → live spot-check).</p>
+
+<ul>
+<li><p><strong>Area:</strong> terraform/modules/base/locals.tf</p>
+
+<ul>
+<li><p><strong>Change:</strong> Bump build_version and deploy_version 1.0.0 → 1.0.1 for all 14 flagged images</p>
+</li>
+
+<li><p><strong>Why:</strong> Terraform only rebuilds when the tag changes; builds are no_cache=true, so a fresh tag pulls the latest patched packages and Argo CD rolls it out. 10 of the 14 images self-heal this way (Dockerfiles already apk/apt upgrade).</p>
+</li>
+</ul>
+</li>
+
+<li><p><strong>Area:</strong> landingpage-app/Dockerfile</p>
+
+<ul>
+<li><p><strong>Change:</strong> nginx base 1.28.1 → 1.28.3-alpine3.23; add USER root + RUN apk --no-cache upgrade</p>
+</li>
+
+<li><p><strong>Why:</strong> Image never patched OS packages and pinned a vulnerable nginx base (curl/expat/libpng/openssl).</p>
+</li>
+</ul>
+</li>
+
+<li><p><strong>Area:</strong> keycloak-post/Dockerfile</p>
+
+<ul>
+<li><p><strong>Change:</strong> Add apk update &amp;&amp; apk upgrade</p>
+</li>
+
+<li><p><strong>Why:</strong> Was missing the OS-patch step its sibling images already have.</p>
+</li>
+</ul>
+</li>
+
+<li><p><strong>Area:</strong> keycloak-post-gerrit/Dockerfile</p>
+
+<ul>
+<li><p><strong>Change:</strong> Pull openssh-client from the Alpine edge branch</p>
+</li>
+
+<li><p><strong>Why:</strong> Required openssh &gt;= 10.3 is not yet in Alpine 3.23 stable.</p>
+</li>
+</ul>
+</li>
+
+<li><p><strong>Area:</strong> mtk-connect-post-key/Dockerfile</p>
+
+<ul>
+<li><p><strong>Change:</strong> Base python:3.12 → python:3.13-slim-bookworm</p>
+</li>
+
+<li><p>Fix requires Python &gt;= 3.13.11 (CVE-2025-13836).</p>
+</li>
+</ul>
+</li>
+
+<li><p><strong>Area:</strong> docs/guides/container_image_security_upgrade_guide.md + docs/guides/README.md</p>
+
+<ul>
+<li><p><strong>Change:</strong> Type A / Type B upgrade paths, full 14-image testing procedure (Section #4), indexed under Maintenance &amp; security guides</p>
+</li>
+
+<li><p><strong>Why:</strong> Existing upgrade guides don&#39;t cover how forked/older environments pull and test these fixes.</p>
+</li>
+</ul>
+</li>
+
+<li><p><strong>Area:</strong> tools/scripts/container-images/container-image-version-bump-test.sh (new)</p>
+
+<ul>
+<li><p><strong>Change:</strong> probe, argocd, spot-check, cleanup commands</p>
+</li>
+
+<li><p><strong>Why:</strong> Repeatable validation without waiting for ISD rescan cadence; probes all 14 images at any registry tag.</p>
+</li>
+</ul>
+</li>
+</ul>
+</td>
+</tr>
+
+<tr>
+<td valign="top" width="12%"><p>TAA-1787</p>
+<p>TAA-1821</p>
+</td>
+
+<td valign="top" width="24%"><p>Workloads-android (Cuttlefish templates, CVD Launcher, CTS Execution)</p>
+
+<ul>
+<li><p>[Cuttlefish] instance templates via Config Connector</p>
+</li>
+
+<li><p>CVD Launcher and CTS Execution on Argo (workloads-android)</p>
+</li>
+</ul>
+</td>
+
+<td valign="top" width="64%"><p><strong>For:</strong> Operators and developers using the <strong>Developer Portal</strong>, <strong>Argo Workflows UI</strong>, and <strong>Jenkins</strong> to build and manage <strong>Cuttlefish (CF) GCE instance templates</strong> on <strong>workloads-android</strong>.</p>
+<p><strong>What&#39;s new</strong></p>
+<p>You can create, refresh, and delete <strong>Cuttlefish instance templates</strong> through the same <strong>workloads-android</strong> module as other Android pipelines-with runs visible in <strong>Argo Workflows</strong> and submissions from the <strong>Portal</strong> (and existing <strong>Jenkins</strong> jobs where you still use them).</p>
+<p><strong>GCE instance templates</strong> for this path are published via <strong>Config Connector (KCC)</strong> in the cluster (Kubernetes-managed templates that sync to GCP), instead of relying only on ad hoc <code>gcloud</code> steps from a build agent.</p>
+<p><strong>Developer Portal</strong></p>
+
+<ul>
+<li><p><strong>workloads-android</strong> exposes <strong>Cuttlefish instance template</strong> workflows (<strong>x86</strong> and <strong>arm64</strong>) alongside existing Android pipelines.</p>
+</li>
+
+<li><p>Submit from the Portal with the usual workflow parameters (create, <strong>SSH key refresh only</strong>, or <strong>delete</strong>).</p>
+</li>
+
+<li><p><strong>Module disable</strong> shows clearer, updating status while Argo removes resources (less &ldquo;stuck on Ready&rdquo; during long uninstalls).</p>
+</li>
+
+<li><p>Enable/disable of <strong>workloads-android</strong> is more reliable when KCC resources are involved.</p>
+</li>
+</ul>
+<p><strong>Argo Workflows UI</strong></p>
+
+<ul>
+<li><p>New <strong>WorkflowTemplates</strong> and <strong>Sensors</strong> for <strong>cf-instance-template</strong> (x86 / arm64), triggered by the platform <strong>workflow-dispatch</strong> webhook (same pattern as aaos-builder and related charts).</p>
+</li>
+
+<li><p>Runs use shared <strong>git credentials</strong> and cloud settings aligned with other Android workload workflows.</p>
+</li>
+
+<li><p><strong>Delete</strong> and <strong>orphan Packer disk</strong> cleanup paths are improved when builds fail or are cancelled.</p>
+</li>
+</ul>
+<p><strong>Jenkins</strong></p>
+
+<ul>
+<li><p>Existing <strong>Cuttlefish</strong> Jenkins jobs remain supported; scripts and behaviour are aligned with the <strong>Argo</strong> pipeline (same stages: bake, SSH metadata update, delete).</p>
+</li>
+
+<li><p>Jenkins agents can still publish KCC templates where <strong>publisher RBAC</strong> is configured for the Jenkins service account.</p>
+</li>
+</ul>
+<p><strong>Platform / operations (what you may notice)</strong></p>
+
+<ul>
+<li><p><strong>workloads-android</strong> enable and disable in the Portal should complete more predictably (template cleanup, Config Connector context, Argo sync ordering).</p>
+</li>
+
+<li><p><strong>Argo CD</strong> health for Config Connector during template work is less likely to block sync indefinitely.</p>
+</li>
+
+<li><p><strong>ARM64</strong> host images get the extra kernel modules needed for Cuttlefish on Ubuntu where the distro provides them.</p>
+</li>
+</ul>
+<p><strong>What you need to do</strong></p>
+
+<ol start="1">
+<li><p>Build and deploy updated <strong>module-manager</strong> and <strong>horizon-dev-portal</strong> images per your environment rollout.</p>
+</li>
+
+<li><p>Ensure <strong>workloads-android</strong> is enabled and synced after upgrade.</p>
+</li>
+
+<li><p>Use the Portal or Argo UI to submit <strong>cf-instance-template-*</strong> workflows; confirm the new template appears in <strong>GCP Compute Engine → Instance templates</strong>.</p>
+</li>
+
+<li><p>For detailed operator steps and disable order, see <code>docs/workloads/android/environment/cf_instance_template.md</code>.</p>
+</li>
+</ol>
+</td>
+</tr>
+
+<tr>
+<td valign="top" width="12%"><p>TAA-1828</p>
+</td>
+
+<td valign="top" width="24%"><p>[ARM64] Cuttlefish placement from Terraform (shared or dedicated subnet)</p>
+</td>
+
+<td valign="top" width="64%"><p><strong>Why:</strong> ARM64 Cuttlefish runs on <strong>bare-metal-capable</strong> GCE types in <strong>specific regions and zones</strong>. That availability differs by project, org policy, and where you deploy the platform-not every region supports the same ARM64 / &ldquo;metal&rdquo; options.</p>
+<p>Earlier releases effectively <strong>hard-coded</strong> ARM64 networking and placement (region, zone, dedicated subnet). That was fine when every environment looked the same, but it blocks:</p>
+
+<ul>
+<li><p>Deploying ARM64 Cuttlefish in <strong>another allowed region/zone</strong></p>
+</li>
+
+<li><p><strong>Brownfield</strong> envs that already created a dedicated subnet under legacy names</p>
+</li>
+
+<li><p><strong>Greenfield</strong> envs that need a clean, documented default</p>
+</li>
+</ul>
+<p>4.1.0 makes placement <strong>explicit infrastructure configuration</strong>: one source of truth in Terraform, then the same values flow to CI/CD so builds and VMs land where you intend-not where an old default assumed.</p>
+<p><strong>What changed:</strong></p>
+
+<ul>
+<li><p><strong>ARM64 region, zone, and subnet</strong> are set in <code>terraform.tfvars</code> and published to <strong>Jenkins</strong>, <strong>Argo Workflows</strong>, and <code>horizon-workflow-cloud-env</code> so instance templates, workflows, and agent VMs use your deployment&#39;s placement.</p>
+</li>
+
+<li><p><code>enable_arm64</code> is renamed to <code>enable_arm64_dedicated_subnet</code> (same behaviour: dedicated ARM64 subnet vs primary <code>sdv-subnet</code>).</p>
+</li>
+
+<li><p>New <code>arm64_*</code> variables when the dedicated subnet is enabled (region, zone, subnetwork, secondary range names).</p>
+</li>
+</ul>
+<p><strong>What you need to do</strong></p>
+<p>Review <code>terraform/env/terraform.tfvars</code> against <code>terraform/env/terraform.tfvars.sample</code> and follow the upgrade guide (<code>docs/guides/upgrade_guide_4_0_0_to_4_1_0.md</code>)</p>
+<p><strong>Upgrade guide 4.0.0 → 4.1.0 - See ARM64 Cuttlefish placement</strong></p>
+</td>
+</tr>
+
+<tr>
+<td valign="top" width="12%"><p>TAA-1758</p>
+</td>
+
+<td valign="top" width="24%"><p>[OpenBSW] Align workload for Rust</p>
+</td>
+
+<td valign="top" width="64%"><p>Upgrade default OpenBSW pin to 1c1450e and expose upstream Rust presets: posix-rust (POSIX) and s32k148-rust-gcc (S32K148, GCC-only).</p>
+
+<ul>
+<li><p>Jenkins: RTOS_PLATFORM adds rust; normalize NXP rust preset in bsw_build.sh; extend POSIX/NXP parameter descriptions; POSIX_PYTEST defaults follow RTOS.</p>
+</li>
+
+<li><p>Docker Image Template: install rustup/cargo target/cbindgen per upstream dev image.</p>
+</li>
+
+<li><p>POSIX pytest: target_posix_rust.fragment.toml plus merge in bsw_download_artifact.sh and bsw_build.sh when [rust.target_process] is missing upstream.</p>
+</li>
+
+<li><p>POSIX Test / BSW Builder groovy descriptions: layout parity with Builder.</p>
+</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+
+<h2>Documentation update</h2>
+
+<ul>
+<li><p>Rel.4.1.0 provides with updates in Horizon documentation</p>
+
+<ul>
+<li><p>Deployment Guide (TAA-1864)</p>
+
+<ul>
+<li><p>Ports deployment guide updates from <code>timkl7/horizon-sdv</code> (<code>timkl7/update-deplg</code>), adapted for this repository&#39;s Terraform DNS naming, Jenkins RBAC, and existing section structure.</p>
+</li>
+
+<li><p>Adds <strong>Section #3a (Optional) - Domain Setup via GCP</strong> for registering a domain via Cloud Domains, with guidance to skip when using an existing domain and registrar.</p>
+</li>
+
+<li><p>Expands <strong>Section #3b - Update Nameservers</strong> with GCP-registered domain NS delegation (<code>&lt;SUB_DOMAIN&gt;-horizon-sdv-com</code>) and step-by-step DNSSEC setup (Search Console verification and optional DS records).</p>
+</li>
+
+<li><p>Adds troubleshooting sections <strong>#6f</strong> (homepage unreachable, Argo CD <code>horizon-sdv</code> sync) and <strong>#6g</strong> (Jenkins pipeline permissions; Keycloak groups preferred, manual <code>administrators</code> / <code>developers</code> roles as fallback).</p>
+</li>
+
+<li><p>Renumbers Section <strong>-</strong> subsections (former 3a–3i → 3b–3j) and updates cross-links in upgrade guides.</p>
+</li>
+</ul>
+</li>
+
+<li><p>Contributing Guide (TAA-1865) (<code>docs/contributing.md</code>) by adding additional guidance for contributors based on lessons learned from recent external collaboration efforts. These updates improve the Contributor onboarding experience, establish clear expectations for testing and validation, and help ensure that submitted changes are verified in a self-deployed Horizon SDV environment before being proposed for inclusion in future releases.</p>
+
+<ul>
+<li><p>Added a new <strong>Prerequisites: Self-Deployment</strong> section outlining the requirement for contributors to deploy Horizon SDV in their own GCP project before submitting changes.</p>
+</li>
+
+<li><p>Added guidance on validating deployments and testing changes in a live environment.</p>
+</li>
+
+<li><p>Introduced a <strong>Pull Request Workflow &amp; Release Cycle</strong> section describing contribution expectations and release assignment processes.</p>
+</li>
+
+<li><p>Added a <strong>Contribution Checklist</strong> to help contributors verify readiness before submitting a PR.</p>
+</li>
+
+<li><p>Included additional <strong>Getting Help</strong> information for deployment and development workflow support.</p>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+
+<li><p>The new <strong>Upgrade Guide</strong> (/docs/guides/upgrade_guide_4_0_0_to_4_1_0.md) provide guideline for Rel.4.0.0 -&gt; Rel.4.1.0 upgrade. (TAA-1868)</p>
+</li>
+
+<li><p>New <strong>Horizon modular architecture - Functional description/User Guide document</strong> (/docs/developer_portal_user_guide.md) (TAA-1826)</p>
+
+<ul>
+<li><p>Update upgrade guide 4.0.0 to 4.1.0 add platform app redeploy - (TAA-1898)</p>
+</li>
+</ul>
+</li>
+
+<li><p>Developer&#39;s Guide changes - TAA-1696 - complete re-write and re-structuring of the old developer_guide.md document with new information also added. Simplified the more complex documentation and consolidated as per sample documents:</p>
+
+<ul>
+<li><p><strong>workload_setup.md</strong></p>
+
+<ul>
+<li><p>access setup</p>
+</li>
+
+<li><p>gerrit setup</p>
+</li>
+
+<li><p>workload setup</p>
+</li>
+
+<li><p>appendix</p>
+</li>
+</ul>
+</li>
+
+<li><p><strong>workload_usage.md</strong></p>
+
+<ul>
+<li><p>android workload -&gt; linked to seperate document</p>
+</li>
+
+<li><p>openbsw workload</p>
+</li>
+
+<li><p>cloud workstationss</p>
+</li>
+
+<li><p>AI Review</p>
+</li>
+
+<li><p>Appendices</p>
+</li>
+</ul>
+</li>
+
+<li><p><strong>workload_usage_android.md</strong></p>
+
+<ul>
+<li><p>android builds</p>
+</li>
+
+<li><p>android devices</p>
+</li>
+
+<li><p>android testing</p>
+</li>
+
+<li><p>android change with Gerrit</p>
+</li>
+</ul>
+</li>
+
+<li><p><strong>android_labs.md</strong></p>
+
+<ul>
+<li><p>basic labs (linking to various workload_usage_android.md sections)</p>
+</li>
+
+<li><p>3 advanced labs</p>
+</li>
+
+<li><p>additional suggestions</p>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<p>All files at docs/workloads/android/guides/images moved to docs/archive/images</p>
+<p>Original developer_guide.md file moved to docs/archive</p>
+
+<h2>Bug Fixes</h2>
+
+<table width="100%">
+<tbody>
+<tr>
+<td valign="top" width="10%"><p><strong>ID</strong></p>
+</td>
+
+<td valign="top" width="24%"><p><strong>Bug</strong></p>
+</td>
+
+<td valign="top" width="51%"><p><strong>Description</strong></p>
+</td>
+
+<td valign="top" width="15%"><p><strong>SHA</strong></p>
+</td>
+</tr>
+
+<tr>
+<td valign="top" width="10%"><p>TAA-1735</p>
+</td>
+
+<td valign="top" width="24%"><p>AI-Review is no longer deployed as a cluster-wide shared template with workloads-common</p>
+</td>
+
+<td valign="top" width="51%">
+<ul>
+<li><p><strong>Gemini (AAOS / platform):</strong> Gemini review is delivered as an <strong>inline</strong> <code>gemini-review</code> <strong>step</strong> on the <code>aaos-builder</code> <strong>Argo</strong> <code>WorkflowTemplate</code>, running <code>workloads/common/agentic-ai/gemini/run_ai_review.sh</code> on the <strong>same workflow volumes</strong> as <strong>build</strong> (no separate Argo-synced <code>workloads/common/agentic-ai/gemini/helm</code> chart / <code>ai-review</code> template source on <code>workloads-android</code>).</p>
+</li>
+
+<li><p><strong>GitOps:</strong> <code>workloads-android</code> child Application no longer includes an extra Helm source for that Gemini chart; <code>aaos-builder</code> chart carries <code>gemini-review</code> YAML and pod affinity helpers.</p>
+</li>
+
+<li><p><strong>Jenkins / shared library:</strong> Pipelines that used the old split (AAOS, ABFS, BSW, Gemini AI Assistant utility, CVD/CTS via <code>cvdPipeline</code>) are aligned to the <strong>same</strong> <code>run_ai_review.sh</code> <strong>contract</strong> and env/hook behaviour where applicable.</p>
+</li>
+
+<li><p><strong>Scripts:</strong> Updates to <code>run_ai_review.sh</code> (and related <code>gemini_environment.sh</code> tweaks) to support the unified path; AAOS <strong>review-pre/post</strong> hooks live under <code>aaos_builder/hooks/</code>.</p>
+</li>
+
+<li><p><strong>Docs / ops:</strong> <code>gemini.md</code> and related test/docs copy updated for the inline Argo model; minor Terraform comment clarification for utility-node sizing vs Gemini jobs.</p>
+</li>
+</ul>
+</td>
+
+<td valign="top" width="15%">
+<ul>
+<li><p><code>e6ed71bbf7f390b547b95af1e71e7fbe999859ef</code></p>
+</li>
+</ul>
+</td>
+</tr>
+
+<tr>
+<td valign="top" width="10%"><p>TAA-1748</p>
+</td>
+
+<td valign="top" width="24%"><p>Module Manager does not keep applications aligned with the deployed Git ref</p>
+</td>
+
+<td valign="top" width="51%"><p><strong>Summary:</strong> When <code>scm_repo_branch</code> changes and Terraform rolls module-manager, enabled modules that follow the platform branch were left on the old <code>targetRevision</code>.</p>
+<p>This PR separates <strong>following the platform branch</strong> (default) from <strong>explicit pinning</strong>, syncs unpinned parent Argo CD Applications on module-manager startup, and updates the Admin Modules UI to make that behavior clear.</p>
+<p><strong>Changes:</strong></p>
+<p><strong>Module Manager</strong></p>
+
+<ul>
+<li><p>Treat <code>moduleTargetRevisions</code> as an explicit pin only; enable without <code>targetRevision</code> follows the cluster default and does not write a pin entry.</p>
+</li>
+
+<li><p>Add <code>DELETE /modules/{idOrName}/target-revision</code> to clear a pin and reset an enabled module to the platform branch.</p>
+</li>
+
+<li><p>Add <code>TargetRevisionStartupSync</code> to patch enabled, unpinned parent Applications (<code>spec.source.targetRevision</code> and Helm <code>repo.revision</code>) to <code>--target-revision</code> on pod start.</p>
+</li>
+
+<li><p>Add <code>retry.RetryOnConflict</code> to <code>SyncApplicationTargetRevision</code> so concurrent Argo CD / helm-config updates do not silently drop branch alignment.</p>
+</li>
+
+<li><p>Expose <code>pinned</code> on module API responses and update OpenAPI.</p>
+</li>
+</ul>
+<p><strong>Developer Portal</strong></p>
+
+<ul>
+<li><p>Admin Modules tab: show <strong>Following platform</strong> / <strong>Pinned</strong> status with the effective ref.</p>
+</li>
+
+<li><p>On-demand pin editor (Pin to ref / Pin ref before install) instead of an always-visible Git ref field.</p>
+</li>
+
+<li><p><strong>Reset to platform branch</strong> for pinned enabled modules.</p>
+</li>
+</ul>
+</td>
+
+<td valign="top" width="15%">
+<ul>
+<li><p><code>bcb66b7038d729e8eebb4799fcbc3dc512020022</code></p>
+</li>
+</ul>
+</td>
+</tr>
+
+<tr>
+<td valign="top" width="10%"><p>TAA-1756</p>
+</td>
+
+<td valign="top" width="24%"><p>GKE Extended release channel cannot be combined with Config Connector GKE add-on</p>
+</td>
+
+<td valign="top" width="51%">
+<ul>
+<li><p>Update <code>terraform/env/terraform.tfvars.sample</code> cluster version from <code>1.33.10-gke.1067000</code> to <code>1.33.11-gke.1013000</code>.</p>
+</li>
+
+<li><p>Change <code>sdv_cluster_release_channel</code> from <code>UNSPECIFIED</code> to <code>STABLE</code> and document channel-based upgrade behavior.</p>
+</li>
+
+<li><p>Enable <code>sdv_cluster_maintenance_exclusions</code> example as active config and add guidance to update exclusion dates before apply.</p>
+</li>
+</ul>
+</td>
+
+<td valign="top" width="15%">
+<ul>
+<li><p><code>b247f816bc7a481ad410039266764cca4d4a63d7</code></p>
+</li>
+</ul>
+</td>
+</tr>
+
+<tr>
+<td valign="top" width="10%"><p>TAA-1757</p>
+</td>
+
+<td valign="top" width="24%"><p>CTS Execution - test result with non-zero failures is detected as Pass</p>
+</td>
+
+<td valign="top" width="51%"><p>CTS Execution fix for result analysis failure - now only results with explicit &quot;FAILED: 0&quot; are detected as Pass</p>
+</td>
+
+<td valign="top" width="15%">
+<ul>
+<li><p><code>4c6eeba46a9c64059e9ce07d1d8a44b407d32bf4</code></p>
+</li>
+</ul>
+</td>
+</tr>
+
+<tr>
+<td valign="top" width="10%"><p>TAA-1760</p>
+</td>
+
+<td valign="top" width="24%"><p>[Cuttflefish] Reinstate OS Login SSH key pruning</p>
+</td>
+
+<td valign="top" width="51%"><p>TAA-1760: fix(cf-instance-template): prune OS Login SSH keys before Packer builds - Packer googlecompute + IAP/OS Login imports a temp key per run; pre-Packer ops pruned the caller profile but that step was dropped on migration. Keys from success/fail/interrupted runs accumulate until the 32 KiB login profile limit is hit (rare in prod, common in heavy test).</p>
+<p>Reinstate prune via cf_compute_rest.py prune-os-login-ssh-keys from cf_create_instance_template.sh before packer init; Packer/plugin do not manage profile size (known upstream gap).</p>
+</td>
+
+<td valign="top" width="15%">
+<ul>
+<li><p><code>c9fea32e08c4b6d6af770656d2bf69729b33941b</code></p>
+</li>
+</ul>
+</td>
+</tr>
+
+<tr>
+<td valign="top" width="10%"><p>TAA-1779</p>
+</td>
+
+<td valign="top" width="24%"><p>No access to signed urls</p>
+</td>
+
+<td valign="top" width="51%"><p>FIX to download artifacts from running workflows or from historical workflows (using signed urls)</p>
+</td>
+
+<td valign="top" width="15%">
+<ul>
+<li><p><code>ffd47bfdf6a88b93c70807ec9fa8b85f31e01d66</code></p>
+</li>
+</ul>
+</td>
+</tr>
+
+<tr>
+<td valign="top" width="10%"><p>TAA-1796</p>
+</td>
+
+<td valign="top" width="24%"><p>[Argo CD] UI lists zero Applications</p>
+</td>
+
+<td valign="top" width="51%"><p>TAA-1796: fix(argocd): persist RBAC in Helm values so upgrades don&#39;t reset argocd-rbac-cm</p>
+
+<ul>
+<li><p>argo-helm owned argocd-rbac-cm but Terraform omitted configs.rbac, so each upgrade wiped policy.csv and set scopes to [groups]. Horizon OIDC uses JWT roles administrators → role:admin); post-Keycloak patches were overwritten on reconcile. Add policy.csv, policy.default, and scopes: [roles] to argocd-values.yaml.tpl; keep in sync with keycloak-post-argocd/configure.sh.</p>
+</li>
+</ul>
+</td>
+
+<td valign="top" width="15%">
+<ul>
+<li><p><code>c9fea32e08c4b6d6af770656d2bf69729b33941b</code></p>
+</li>
+</ul>
+</td>
+</tr>
+
+<tr>
+<td valign="top" width="10%"><p>TAA-1800</p>
+</td>
+
+<td valign="top" width="24%"><p>[Module Manager] pod CrashLoops when workloads-android child Application uses multi-source spec.sources</p>
+</td>
+
+<td valign="top" width="51%"><p>TAA-1800 - Multi-source Argo Applications Module Manager: skip live MODULE_CONFIG spec sync for multi-source apps (invalid merge on sources[])</p>
+</td>
+
+<td valign="top" width="15%">
+<ul>
+<li><p><code>6af770656d2bf69729b33941b</code></p>
+</li>
+</ul>
+</td>
+</tr>
+
+<tr>
+<td valign="top" width="10%"><p>TAA-1801</p>
+</td>
+
+<td valign="top" width="24%"><p>[Module Manager] Fast Module Manager toggles leave mod-workloads-* syncing while {prefix}workloads-* is still deleting</p>
+</td>
+
+<td valign="top" width="51%"><p>TAA-1801 - workloads-android / workloads-common disable, CCC, and CNRM ComputeInstanceTemplate</p>
+
+<ul>
+<li><p>Serialize prefixed child Application teardown and re-enable; terminate in-flight Argo sync; strip syncPolicy.automated during teardown.</p>
+</li>
+
+<li><p>Re-enable: wait until workflows ConfigConnectorContext is absent or not terminating before recreating the child Application.</p>
+</li>
+
+<li><p>Disable: delete all ComputeInstanceTemplate CRs in workflows namespace and wait for CCC absent (PreDelete + Module Manager); harden child finalizer handling and EnsureWorkflowsConfigConnectorContextRemoved on success paths.</p>
+</li>
+
+<li><p>After successful child teardown, clear skip-reconcile on parent mod-* so delete can complete and resources-finalizer can prune.</p>
+</li>
+
+<li><p>Argo CD (Terraform): CCC health.lua - terminating CCC healthy; healthy false without operator errors -&gt; Progressing.</p>
+</li>
+
+<li><p>Gitops: workloads-android / workloads-common syncPolicy automated.prune true, selfHeal false, and comments; module-manager RBAC for CNRM ComputeInstanceTemplate delete; prepare-pipeline-git-creds and webhook alignment with other Android workload charts.</p>
+</li>
+
+<li><p>Unblock workloads-android CCC teardown on KCC disable. Delete(workloads-android child) then remove ComputeInstanceTemplate CRs immediately so CCC can finalize during Argo prune instead of wedging MM until PreDelete clears CITs. While CCC is terminating, if the API lists zero CIT for three polls but status.errors still shows the addon &quot;cannot finalize ... ComputeInstanceTemplate&quot; wedge, clear CCC metadata.finalizers once (automated break-glass) and continue waiting until absent.</p>
+</li>
+</ul>
+</td>
+
+<td valign="top" width="15%">
+<ul>
+<li><p><code>6af770656d2bf69729b33941b</code></p>
+</li>
+</ul>
+</td>
+</tr>
+
+<tr>
+<td valign="top" width="10%"><p>TAA-1802</p>
+</td>
+
+<td valign="top" width="24%"><p>[Portal] Shows installation in progress during Module Manager disable instead of uninstall in progress</p>
+</td>
+
+<td valign="top" width="51%"><p>TAA-1802 - Developer Portal</p>
+
+<ul>
+<li><p>Modules tab: poll during disable (READY -&gt; uninstall); steadier status while Argo prunes; related App.tsx / moduleStatus / proxy tweaks.</p>
+</li>
+
+<li><p>Keycloak post-argocd configure.sh updates for portal flows.</p>
+</li>
+</ul>
+</td>
+
+<td valign="top" width="15%">
+<ul>
+<li><p><code>6af770656d2bf69729b33941b</code></p>
+</li>
+</ul>
+</td>
+</tr>
+
+<tr>
+<td valign="top" width="10%"><p>TAA-1804</p>
+</td>
+
+<td valign="top" width="24%"><p>[Security] golang/oauth2 module update (v0.12.0-v.0.36.0)</p>
+</td>
+
+<td valign="top" width="51%"><p>Fixes TAA-1804 by upgrading <code>golang.org/x/oauth2</code> from <code>v0.12.0</code> to <code>v0.36.0</code> (indirect) in <strong>module-manager-app</strong> and <strong>workflow-namespace-drain-app</strong>.</p>
+<p><strong>Changes</strong></p>
+
+<ul>
+<li><p>Updated <code>terraform/modules/sdv-container-images/images/module-manager/module-manager-app/go.mod</code></p>
+
+<ul>
+<li><p><code>golang.org/x/oauth2 v0.12.0 -&gt; v0.36.0 (indirect)</code></p>
+</li>
+
+<li><p><code>go mod tidy</code> removed the unused indirect <code>google.golang.org/appengine</code> line (no longer required by this module graph after the <code>oauth2</code> bump).</p>
+</li>
+</ul>
+</li>
+
+<li><p>Updated <code>terraform/modules/sdv-container-images/images/module-manager/module-manager-app/go.sum</code> via <code>go mod tidy</code>.</p>
+</li>
+
+<li><p>Updated <code>terraform/modules/sdv-container-images/images/workflow-namespace-drain/workflow-namespace-drain-app/go.mod</code></p>
+
+<ul>
+<li><p><code>golang.org/x/oauth2 v0.12.0 -&gt; v0.36.0 (indirect)</code></p>
+</li>
+
+<li><p>Same removal of indirect <code>google.golang.org/appengine</code> as above.</p>
+</li>
+</ul>
+</li>
+
+<li><p>Updated <code>terraform/modules/sdv-container-images/images/workflow-namespace-drain/workflow-namespace-drain-app/go.sum</code> via <code>go mod tidy</code>.</p>
+</li>
+
+<li><p>No changes to Dockerfile, application source, Helm, or Terraform configuration (outside these <code>go.mod</code> / <code>go.sum</code> paths).</p>
+</li>
+</ul>
+</td>
+
+<td valign="top" width="15%">
+<ul>
+<li><p><code>aba6cdc7b30deddec23258d198e0361c2ec6a6e9</code></p>
+</li>
+</ul>
+</td>
+</tr>
+
+<tr>
+<td valign="top" width="10%"><p>TAA-1806</p>
+</td>
+
+<td valign="top" width="24%"><p>[Security] golang/oauth2 module update (v0.21.0-v.0.36.0)</p>
+</td>
+
+<td valign="top" width="51%"><p>Fixes TAA-1806 by upgrading <code>golang.org/x/oauth2</code> from <code>v0.21.0</code> to <code>v0.36.0</code> (indirect) in the <strong>horizon-dev-portal</strong> Go proxy module.</p>
+<p><strong>Changes</strong></p>
+
+<ul>
+<li><p>Updated <code>terraform/modules/sdv-container-images/images/horizon-dev-portal/horizon-dev-portal/proxy/go.mod</code></p>
+
+<ul>
+<li><p><code>golang.org/x/oauth2 v0.21.0 -&gt; v0.36.0 (indirect)</code></p>
+</li>
+</ul>
+</li>
+
+<li><p>Updated <code>terraform/modules/sdv-container-images/images/horizon-dev-portal/horizon-dev-portal/proxy/go.sum</code> (oauth2 checksum lines only; refreshed with <code>go mod tidy</code>).</p>
+</li>
+
+<li><p>No changes to Dockerfile, proxy source (<code>main.go</code>), Helm, or Terraform outside these paths.</p>
+</li>
+</ul>
+<p><strong>Dependency note</strong></p>
+<p><code>oauth2</code> is indirect; the direct dependency remains <code>github.com/coreos/go-oidc/v3 v3.11.0</code>. The bump pins the resolved <code>oauth2</code> version via <code>go.mod</code> (MVS override) without upgrading <code>go-oidc</code>.</p>
+</td>
+
+<td valign="top" width="15%">
+<ul>
+<li><p><code>1390a4d5c949dc672777fa791820ad97442f51fd</code></p>
+</li>
+</ul>
+</td>
+</tr>
+
+<tr>
+<td valign="top" width="10%"><p>TAA-1807</p>
+</td>
+
+<td valign="top" width="24%"><p>[Security] go-jose module update (v4.0.2-v4.1.4)</p>
+</td>
+
+<td valign="top" width="51%"><p>go-jose module update to v4.1.4</p>
+
+<ul>
+<li><p>All dependencies are identified and analyzed.</p>
+</li>
+</ul>
+</td>
+
+<td valign="top" width="15%">
+<ul>
+<li><p><code>b2cce4bba421bf0198832e7ee8e5e9db4eb3e522</code></p>
+</li>
+</ul>
+</td>
+</tr>
+
+<tr>
+<td valign="top" width="10%"><p>TAA-1808</p>
+</td>
+
+<td valign="top" width="24%"><p>[Security] go-jose module update (v4.1.3-v4.1.4)</p>
+</td>
+
+<td valign="top" width="51%"><p>go-jose module update to v4.1.4</p>
+
+<ul>
+<li><p>All dependencies are identified and analyzed.</p>
+</li>
+</ul>
+</td>
+
+<td valign="top" width="15%">
+<ul>
+<li><p><code>af3e3040e76e9a7b4b96874209b2577e0281dc06</code></p>
+</li>
+</ul>
+</td>
+</tr>
+
+<tr>
+<td valign="top" width="10%"><p>TAA-1809</p>
+</td>
+
+<td valign="top" width="24%"><p>[Security] golang-jwt/jwt module update (v4.5.0-v5.3.1)</p>
+</td>
+
+<td valign="top" width="51%"><p><strong>Summary</strong> Fixes TAA-1809 by upgrading [Security] golang-jwt/jwt module update (v4.5.0-v5.3.1) in the module-manager and workflow-namespace-drain module.</p>
+<p><strong>Changes</strong> Updated the following files:</p>
+
+<ol start="1">
+<li><p>terraform/modules/sdv-container-images/images/module-manager/module-manager-app/go.mod</p>
+</li>
+
+<li><p>terraform/modules/sdv-container-images/images/module-manager/module-manager-app/go.sum</p>
+</li>
+
+<li><p>terraform/modules/sdv-container-images/images/workflow-namespace-drain/workflow-namespace-drain-app/go.mod</p>
+</li>
+
+<li><p>terraform/modules/sdv-container-images/images/workflow-namespace-drain/workflow-namespace-drain-app/go.sum</p>
+</li>
+</ol>
+<p>As part of the dependency refresh, the controller-runtime and related Kubernetes dependencies were updated through <strong>go mod tidy</strong>. No changes were made to Dockerfile, Helm, or Terraform outside these paths.</p>
+<p><strong>Dependency note</strong> <strong>golang/jwt</strong> remains an indirect dependency. The direct dependency chain continues to come through the Kubernetes <strong>controller-runtime</strong> version.</p>
+</td>
+
+<td valign="top" width="15%">
+<ul>
+<li><p><code>4b365d36741382301d724361084a805a1a9ef356</code></p>
+</li>
+
+<li><p><code>75bf091fa8db89f7f3d5d04aa6276aa94847a89f</code></p>
+</li>
+
+<li><p><code>2fcaa5bc7141f40b911d25566209410f04dc261a</code></p>
+</li>
+</ul>
+</td>
+</tr>
+
+<tr>
+<td valign="top" width="10%"><p>TAA-1811</p>
+</td>
+
+<td valign="top" width="24%"><p>[Security] golang.org/x/net module update (v0.19.0-v0.54.0)</p>
+</td>
+
+<td valign="top" width="51%"><p><strong>Summary</strong></p>
+
+<ul>
+<li><p>Resolves TAA-1811 issue: bumps indirect <code>golang.org/x/net</code> from <strong>v0.52.0</strong> to <strong>v0.54.0</strong> (Black Duck target; addresses OSS scan finding for v0.19.0 lineage).</p>
+</li>
+
+<li><p>Updates <code>go.mod</code> / <code>go.sum</code> for:</p>
+
+<ul>
+<li><p><code>horizon-api-app</code></p>
+</li>
+
+<li><p><code>module-manager-app</code></p>
+</li>
+
+<li><p><code>workflow-namespace-drain-app</code></p>
+</li>
+</ul>
+</li>
+
+<li><p>Regenerates checksums via <code>go mod tidy</code>; removes stale <code>golang.org/x/exp</code> from <code>module-manager</code> and <code>workflow-namespace-drain</code> <code>go.mod</code> (rebase artifact that broke <code>go build</code> with <code>missing go.sum entry</code>).</p>
+</li>
+
+<li><p>No application source, Dockerfile, or Go toolchain changes (<code>go 1.25.0</code> / <code>golang:1.25-alpine</code> unchanged).</p>
+</li>
+</ul>
+</td>
+
+<td valign="top" width="15%">
+<ul>
+<li><p><code>fc0ac053f7c796f6601cc22088aa9578943d705c</code></p>
+</li>
+
+<li><p><code>3830c825a6829d240c56dd35c1d4c2a053c7d46a</code></p>
+</li>
+
+<li><p><code>efb978febc4fa4c845dedb735aa5b7a861bddbe3</code></p>
+</li>
+</ul>
+</td>
+</tr>
+
+<tr>
+<td valign="top" width="10%"><p>TAA-1814</p>
+</td>
+
+<td valign="top" width="24%"><p>[Cuttlefish] Packer builds can leave orphan packer-* persistent disks in GCP</p>
+</td>
+
+<td valign="top" width="51%"><p>TAA-1814 - Packer orphan disks</p>
+
+<ul>
+<li><p>Post-packer-build / SIGINT orphan packer-* zonal disk cleanup; onExit /umbrella-creds paths in cf-instance-template workflows where applicable.</p>
+</li>
+</ul>
+</td>
+
+<td valign="top" width="15%">
+<ul>
+<li><p><code>6af770656d2bf69729b33941b</code></p>
+</li>
+</ul>
+</td>
+</tr>
+
+<tr>
+<td valign="top" width="10%"><p>TAA-1816</p>
+</td>
+
+<td valign="top" width="24%"><p>[Cuttlefish] modprobe errors on vhci-hcd</p>
+</td>
+
+<td valign="top" width="51%">
+<ul>
+<li><p>TAA-1816 - Host image (ARM64 family)</p>
+</li>
+
+<li><p>Packer provisioning: linux-modules-extra (or equivalent) before Cuttlefish on Ubuntu where required.</p>
+</li>
+
+<li><p>Debian not in-scope as Google not support kernel-extras</p>
+</li>
+</ul>
+</td>
+
+<td valign="top" width="15%">
+<ul>
+<li><p><code>6af770656d2bf69729b33941b</code></p>
+</li>
+</ul>
+</td>
+</tr>
+
+<tr>
+<td valign="top" width="10%"><p>TAA-1820</p>
+</td>
+
+<td valign="top" width="24%"><p>[Developer Portal] 502 HTTP Error response to Module Manager API call</p>
+</td>
+
+<td valign="top" width="51%"><p>Fixes the <code>502 Bad Gateway</code> returned by Developer Portal on <code>/api/mm/*</code> (Admin -&gt; Modules tab showing <code>modules: 502</code>).</p>
+<p>Root cause: <code>ModuleConfigHelmStartupSync</code> aborted the Module Manager on Argo Applications using <code>spec.sources</code> (multi-source apps introduced by TAA-1787) whose <code>path</code> contained <code>gitops/</code>. The Module Manager pod crash-looped, the Service had no Ready endpoints, and the Developer Portal proxy surfaced this as 502.</p>
+<p><strong>Changes</strong></p>
+
+<ul>
+<li><p>Cherry-picked from <code>env/mercedes</code> (authorship preserved):</p>
+
+<ul>
+<li><p><code>application_helm_config.go</code>: handle multi-source apps; merge <code>MODULE_CONFIG</code> only into the <code>gitops/</code> source.</p>
+</li>
+
+<li><p><code>application_helm_config_test.go</code>, <code>argo_app_test.go</code>: tests aligned with new behaviour and controller-runtime fake-client semantics.</p>
+</li>
+</ul>
+</li>
+
+<li><p><code>module_config_helm_startup.go</code>: per-application failure demoted from <code>return fmt.Errorf(...)</code> to <code>log.Printf(...)</code> so a single bad Application no longer aborts the manager.</p>
+</li>
+
+<li><p>Version bump (separate commit, my authorship):</p>
+
+<ul>
+<li><p><code>module-manager-app</code> image: <code>0.3.1</code> -&gt; <code>0.3.2</code> (<code>terraform/modules/base/locals.tf</code>).</p>
+</li>
+
+<li><p><code>gitops/apps/module-manager</code> chart: <code>0.3.0</code> -&gt; <code>0.3.2</code>.</p>
+</li>
+</ul>
+</li>
+</ul>
+</td>
+
+<td valign="top" width="15%">
+<ul>
+<li><p><code>54702b69656960b72c7c6ade257697bd46e4a154</code></p>
+</li>
+
+<li><p><code>2d5e6fc39bb038a6ac80507bd4d1e943a4a4a37c</code></p>
+</li>
+
+<li><p><code>524904556ee895eea3807d1c7c0dbf579b67be04</code></p>
+</li>
+</ul>
+</td>
+</tr>
+
+<tr>
+<td valign="top" width="10%"><p>TAA-1822</p>
+</td>
+
+<td valign="top" width="24%"><p>Jenkins/Argo logs link GCS Console URLs with ANSI reset appended</p>
+</td>
+
+<td valign="top" width="51%"><p>TAA-1822: fix(storage): print artifact summary URLs without ANSI reset Jenkins and Argo log linkifiers were including \033[0m after Console URLs from the colored ARTIFACT SUMMARY block (%1B[0m in the href). Emit https?:// lines with plain echo; keep green formatting elsewhere.</p>
+</td>
+
+<td valign="top" width="15%">
+<ul>
+<li><p><code>000add0add96e734aa6eeca6fe18c28bdddba3ac</code></p>
+</li>
+</ul>
+</td>
+</tr>
+
+<tr>
+<td valign="top" width="10%"><p>TAA-1823</p>
+</td>
+
+<td valign="top" width="24%"><p>[ARM64] Lack of available instances on us-central1-f</p>
+</td>
+
+<td valign="top" width="51%"><p>TAA-1823: ARM64 lack of available instances us-central1-f does not have the resources available but -b does so change Jenkins, Argo to use us-central1-b by default. Future:</p>
+
+<ul>
+<li><p>Arm metal instances are available on europe-west3</p>
+</li>
+
+<li><p>Change Horizon so we no longer tie 2nd subnet to US, let&#39;s make generic so it can be any region/zone.</p>
+</li>
+</ul>
+</td>
+
+<td valign="top" width="15%">
+<ul>
+<li><p><code>70d5aa65dbd262297a6b20cbf518b35789c8cd02</code></p>
+</li>
+</ul>
+</td>
+</tr>
+
+<tr>
+<td valign="top" width="10%"><p>TAA-1824</p>
+</td>
+
+<td valign="top" width="24%"><p>[ArgoWF] CF Instance Template fail when aaos-builder image is missing tag</p>
+</td>
+
+<td valign="top" width="51%"><p>TAA-1824: fix(cf_instance_template): build aaos-builder runtime image when tag missing Match aaos-builder DAG: check Artifact Registry, then templateRef aaos-builder-runtime-image build-defaults instead of kubectl child Workflow.</p>
+</td>
+
+<td valign="top" width="15%">
+<ul>
+<li><p><code>5f20d94dc5f259ca7af29894144e846693410357</code></p>
+</li>
+</ul>
+</td>
+</tr>
+
+<tr>
+<td valign="top" width="10%"><p>TAA-1829</p>
+</td>
+
+<td valign="top" width="24%"><p>Cloud Workstation Config Creation Abort/Fails Due to Stale Terraform State Lock After Abrupt Kubernetes Pipeline Pod Termination</p>
+</td>
+
+<td valign="top" width="51%"><p>Cloud Workstation admin pipelines run Terraform on short-lived Jenkins K8s agent pods. When a pod dies mid-<code>terraform apply</code> (preemption, SIGKILL, node loss), the GCS state lock is never released, and <strong>every subsequent pipeline run blocks at</strong> <code>terraform init</code> <strong>itself</strong> with <code>googleapi: Error 412: ... conditionNotMet</code>. Today, only a manual <code>terraform force-unlock</code> recovers - platform stays down until an operator intervenes (TAA-1829).</p>
+<p>This PR is a deliberately scoped, temporary mitigation (until Cloud-WS migrates to Argo Workflows + KCC). It <strong>(a) hardens the agent pod against abrupt eviction</strong> and <strong>(b) auto-recovers stranded locks before the next</strong> <code>terraform init</code> with conservative safety guards.</p>
+<p><strong>Key changes</strong> <code>workloads/cloud-workstations/pipelines/utils/terraform-utils.sh</code></p>
+
+<ul>
+<li><p><strong>New</strong> <code>release_stale_terraform_lock()</code> - detects a stranded <code>.tflock</code> in GCS and removes it via <code>gcloud storage rm</code> only if <strong>all</strong> of:</p>
+
+<ol start="1">
+<li><p>Lock age ≥ <code>TF_STALE_LOCK_AFTER_SECONDS</code> (default <code>1800</code> s, wider than the ~15-20 min worst-case cluster create/delete).</p>
+</li>
+
+<li><p>The pod named in <code>Who: &lt;user&gt;@&lt;hostname&gt;</code> no longer exists in the namespace (<code>kubectl get pod</code>).</p>
+</li>
+
+<li><p>Jenkins-side <code>disableConcurrentBuilds + buildBlocker</code> already rules out a concurrent legitimate owner. Any uncertain signal (young lock, live owner pod, malformed JSON, unparseable <code>Created</code>, no <code>@host</code> in <code>Who</code>) → log a warning and <strong>leave the lock alone</strong> (terraform will then fail loudly, preserving today&#39;s safety net).</p>
+</li>
+</ol>
+</li>
+
+<li><p><strong>Recovery runs pre-init</strong> (not post-init). Reason: the gcs backend acquires a lock during init&#39;s state-load step (<code>If-Generation-Match: 0</code> on the <code>.tflock</code> object); a pre-existing stale lock fails that precondition with HTTP 412 and breaks init itself, so any post-init hook is unreachable in the very scenario it&#39;s meant for.</p>
+</li>
+
+<li><p><strong>Backend prefix read from</strong> <code>./backend.tf</code> (always in cwd) instead of <code>.terraform/terraform.tfstate</code> (doesn&#39;t exist pre-init).</p>
+</li>
+
+<li><p><strong>Removal uses</strong> <code>gcloud storage rm</code>, not <code>terraform force-unlock</code>. Reason: <code>terraform force-unlock</code> requires an initialised backend, which by definition isn&#39;t available pre-init. Both ultimately perform the same DELETE on the same GCS object via the same workload-identity credentials.</p>
+</li>
+
+<li><p><code>terraform apply</code> <strong>/</strong> <code>terraform destroy</code> <strong>now run with</strong> <code>-input=false -lock-timeout=120s</code> for non-interactive operation and a deterministic 2-minute lock-acquire wait that absorbs brief buildBlocker handover races.</p>
+</li>
+</ul>
+<p><strong>Cloud-WS write Jenkinsfiles</strong> (<code>create-cluster</code>, <code>delete-cluster</code>, <code>create-config</code>, <code>update-config</code>, <code>delete-config</code>, <code>create-workstation</code>, <code>delete-workstation</code>, <code>add-workstation-user</code>, <code>remove-workstation-user</code>)</p>
+
+<ul>
+<li><p><code>cluster-autoscaler.kubernetes.io/safe-to-evict: "false"</code> <strong>annotation</strong> - prevents the cluster-autoscaler from evicting the agent during node scale-down.</p>
+</li>
+
+<li><p><code>terminationGracePeriodSeconds: 600</code> - if SIGTERM arrives, terraform has up to 10 min to finish in-flight work and release the lock cleanly.</p>
+</li>
+
+<li><p><strong>Removed hard-coded</strong> <code>hostname: jenkins-cloud-ws-build-pod</code> - K8s now uses the unique pod name as hostname, so the <code>.tflock</code>&#39;s <code>Who: &lt;user&gt;@&lt;hostname&gt;</code> captures the <strong>real pod name</strong>, which is what makes the recovery&#39;s owner-pod check reliable.</p>
+</li>
+</ul>
+</td>
+
+<td valign="top" width="15%">
+<ul>
+<li><p><code>6529768a64fedf79c1e5b2a88eb3087b6c514e16</code></p>
+</li>
+
+<li><p><code>ee815b7a882f682c9728adcdfb7ae2d979467f86</code></p>
+</li>
+</ul>
+</td>
+</tr>
+
+<tr>
+<td valign="top" width="10%"><p>TAA-1835</p>
+</td>
+
+<td valign="top" width="24%"><p>Terraform apply fails on root Argo CD Application when scm_repo_branch differs from live targetRevision</p>
+</td>
+
+<td valign="top" width="51%"><p>TAA-1835: fix(sdv-gke-apps): force-conflicts on root Argo Application for scm_repo_branch</p>
+
+<ul>
+<li><p>Argo CD (argocd-server) and Terraform both manage spec.source.targetRevision via server-side apply. When scm_repo_branch in tfvars differs from the live ref (e.g. env/dev vs a feature branch), apply fails with an SSA field-manager conflict.</p>
+</li>
+
+<li><p>Set force_conflicts on kubectl_manifest.argocd_application so Terraform can update targetRevision and embedded Helm values (scm.branch, workloads.*.branch) from tfvars.</p>
+</li>
+</ul>
+</td>
+
+<td valign="top" width="15%">
+<ul>
+<li><p><code>89d59ac5ff0bce81bee9fa807a28253c9d917b16</code></p>
+</li>
+</ul>
+</td>
+</tr>
+
+<tr>
+<td valign="top" width="10%"><p>TAA-1837</p>
+</td>
+
+<td valign="top" width="24%"><p>[Module Manager] disable leaves workloads-android Argo apps healthy while Portal shows UNINSTALL IN PROGRESS</p>
+</td>
+
+<td valign="top" width="51%"><p>TAA-1837: fix(module-manager): re-delete prefixed child Application on disable</p>
+
+<ul>
+<li><p>After clearParentSkipReconcile, mod-workloads-android can reconcile from Git and recreate workloads-android before the parent Application is deleted, leaving enabled=false with healthy Argo apps and Portal UNINSTALL IN PROGRESS.</p>
+</li>
+
+<li><p>Call deletePrefixedChildApplicationIfPresent before parent delete and again after it is issued. Add unit test.</p>
+</li>
+</ul>
+</td>
+
+<td valign="top" width="15%">
+<ul>
+<li><p><code>57d5d9b7c7761f0aa75cca2957ebebb79eea964</code></p>
+</li>
+</ul>
+</td>
+</tr>
+
+<tr>
+<td valign="top" width="10%"><p>TAA-1843</p>
+</td>
+
+<td valign="top" width="24%"><p>GCS bucket deletion fails pipeline despite successful removal</p>
+</td>
+
+<td valign="top" width="51%"><p>This PR updates the ABFS Spanner destroy script to handle cases where <code>gcloud storage rm --recursive</code> returns a non-zero exit code even though the bucket has been successfully removed. Previously, the script relied directly on the exit code from <code>gcloud storage rm</code>. Because the script runs with <code>set -e</code>, any non-zero return code caused the job to fail immediately. In some cases, <code>gcloud storage rm</code> was returning <code>1</code> despite the bucket being deleted, causing Jenkins to report a false failure. The fix allows the delete command to complete without immediately failing the script, then verifies the actual bucket state using <code>gcloud storage buckets describe</code>.</p>
+<p>With this change, the script now checks whether the bucket still exists after deletion:</p>
+
+<ul>
+<li><p>If the bucket still exists, the job fails correctly.</p>
+</li>
+
+<li><p>If the bucket no longer exists, the job succeeds correctly.</p>
+</li>
+</ul>
+</td>
+
+<td valign="top" width="15%">
+<ul>
+<li><p><code>77d6df37597e2121d31dc3f33d974e7a5e777cef</code></p>
+</li>
+</ul>
+</td>
+</tr>
+
+<tr>
+<td valign="top" width="10%"><p>TAA-1847</p>
+<p>TAA-1848</p>
+</td>
+
+<td valign="top" width="24%"><p>[Security] spdystream module update (v0.2.0-&gt; v0.5.1)</p>
+<p>[Security] spdystream module update (v.0.5.0-&gt;v.0.5.1)</p>
+</td>
+
+<td valign="top" width="51%"><p><strong>Summary</strong> Fixes TAA-1847, 1848 by upgrading [Security] spdystream module update (v0.2.0-&gt;v0.5.1) in the horizon-api, module-manager and workflow-namespace-drain module.</p>
+<p><strong>Changes</strong> Updated the following files:</p>
+
+<ul>
+<li><p>terraform/modules/sdv-container-images/images/horizon-api/horizon-api-app/go.mod</p>
+</li>
+
+<li><p>terraform/modules/sdv-container-images/images/horizon-api/horizon-api-app/go.sum</p>
+</li>
+
+<li><p>terraform/modules/sdv-container-images/images/module-manager/module-manager-app/go.mod</p>
+</li>
+
+<li><p>terraform/modules/sdv-container-images/images/module-manager/module-manager-app/go.sum</p>
+</li>
+
+<li><p>terraform/modules/sdv-container-images/images/workflow-namespace-drain/workflow-namespace-drain-app/go.mod</p>
+</li>
+
+<li><p>terraform/modules/sdv-container-images/images/workflow-namespace-drain/workflow-namespace-drain-app/go.sum</p>
+</li>
+</ul>
+<p>As part of the dependency refresh, kubernetes and golang dependencies were updated through go mod tidy. No changes were made to Dockerfile, Helm, or Terraform outside these paths.</p>
+<p><strong>Dependency notes</strong> spdystream remains an indirect dependency. The direct dependency chain continues to come through the Kubernetes apimachinery version.</p>
+</td>
+
+<td valign="top" width="15%">
+<ul>
+<li><p><code>20e3a804dff49400c988c019ea164d77d8f1c757</code></p>
+</li>
+
+<li><p><code>ddf4012165b56856b865c69468e65025831d679f</code></p>
+</li>
+</ul>
+</td>
+</tr>
+
+<tr>
+<td valign="top" width="10%"><p>TAA-1849</p>
+</td>
+
+<td valign="top" width="24%"><p>[Security] PostCSS module update (8.4.31 -&gt; 8.5.15)</p>
+</td>
+
+<td valign="top" width="51%"><p>Summary [Security] PostCSS module update (8.4.31 -&gt; 8.5.15)</p>
+<p>Files updated</p>
+
+<ul>
+<li><p>terraform/modules/sdv-container-images/images/horizon-dev-portal/horizon-dev-portal/package.json</p>
+</li>
+
+<li><p>terraform/modules/sdv-container-images/images/horizon-dev-portal/horizon-dev-portal/package-lock.json</p>
+</li>
+</ul>
+</td>
+
+<td valign="top" width="15%">
+<ul>
+<li><p><code>12ed6f34e214cd975ca4459efe2aa907334fb07c</code></p>
+</li>
+</ul>
+</td>
+</tr>
+
+<tr>
+<td valign="top" width="10%"><p>TAA-1850</p>
+<p>TAA-1851</p>
+</td>
+
+<td valign="top" width="24%"><p>[Security] React from Facebook module update ( 19.2.5 -&gt; 19.3.0-canary-fef12a01-20260413)</p>
+<p>[Security] react-is module update ( 19.2.5 -&gt; 19.3.0-canary-fef12a01-20260413)</p>
+</td>
+
+<td valign="top" width="51%"><p><strong>Summary</strong> <code>react</code> and <code>react-is</code> has been updated from <code>19.2.5</code> to <code>19.3.0-canary-fef12a01-20260413</code> to fix security issue found in vulnerability scan.</p>
+<p><strong>Files updated.</strong></p>
+
+<ul>
+<li><p>terraform/modules/sdv-container-images/images/horizon-dev-portal/horizon-dev-portal/package.json</p>
+</li>
+
+<li><p>terraform/modules/sdv-container-images/images/horizon-dev-portal/horizon-dev-portal/package-lock.json</p>
+</li>
+
+<li><p>terraform/modules/sdv-container-images/images/horizon-dev-portal/horizon-dev-portal/Dockerfile</p>
+</li>
+
+<li><p>terraform/modules/sdv-container-images/images/horizon-dev-portal/horizon-dev-portal/.npmrc</p>
+</li>
+</ul>
+</td>
+
+<td valign="top" width="15%">
+<ul>
+<li><p><code>03737c1f394757786b645682a92db2bbba4fa96a</code></p>
+</li>
+</ul>
+</td>
+</tr>
+
+<tr>
+<td valign="top" width="10%"><p>TAA-1863</p>
+</td>
+
+<td valign="top" width="24%"><p>Missing Accenture Copyright Notices</p>
+</td>
+
+<td valign="top" width="51%"><p>This PR improves copyright compliance across the Horizon SDV repository by adding missing <strong>Accenture copyright notices</strong> to source files created and maintained by Accenture.</p>
+<p><strong>Details</strong></p>
+
+<ul>
+<li><p>Scanned repository files to identify missing copyright notices.</p>
+</li>
+
+<li><p>Added appropriate Accenture copyright headers to eligible source files across:</p>
+
+<ul>
+<li><p><code>gitops/</code></p>
+</li>
+
+<li><p><code>workloads/</code></p>
+</li>
+
+<li><p><code>terraform/</code></p>
+</li>
+
+<li><p><code>tools/</code></p>
+</li>
+
+<li><p><code>docs/</code></p>
+</li>
+</ul>
+</li>
+
+<li><p>Excluded trivial files and file types where copyright notices are not applicable or technically feasible.</p>
+</li>
+
+<li><p>Improved overall copyright coverage and alignment with organizational compliance requirements.</p>
+</li>
+</ul>
+<p><strong>Purpose</strong></p>
+<p>These changes ensure that Accenture-owned source files contain the required copyright notices, improving legal compliance, ownership attribution, and repository consistency across the Horizon SDV codebase.</p>
+</td>
+
+<td valign="top" width="15%">
+<ul>
+<li><p><code>bf4a41995a8277a01284e0992f6f48c988d8b1fc</code></p>
+</li>
+
+<li><p><code>c1c58825fa7883521bd3b8412952a9bacc9b6e9a</code></p>
+</li>
+
+<li><p><code>560caa3122747cad3e29785d37646793e2dd984b</code></p>
+</li>
+
+<li><p><code>bc5042ab1ad599c3f1d87e6066903dc115a40ff9</code></p>
+</li>
+
+<li><p><code>713d90ed15cb4b93cd2f419ea941dc09160503fb</code></p>
+</li>
+</ul>
+</td>
+</tr>
+
+<tr>
+<td valign="top" width="10%"><p>TAA-1867</p>
+</td>
+
+<td valign="top" width="24%"><p>AAOS SDV Builder not able to fetch gerrit changes</p>
+</td>
+
+<td valign="top" width="51%"><p>Found inconsistence in configuration between AAOS Builder and AAOS SDV Builder. AAOS SDV Builder sets GERRIT_API_URL to external gerrit repositories, what causes it to fail with open changes to be fetched.</p>
+<p><strong>Changes</strong></p>
+<p>Unify the configuration across builders to point to gerrit server in HORIZON_DOMAIN.</p>
+</td>
+
+<td valign="top" width="15%">
+<ul>
+<li><p><code>bc7f0cb797938cc30c466391d96985de44a6c5c1</code></p>
+</li>
+</ul>
+</td>
+</tr>
+
+<tr>
+<td valign="top" width="10%"><p>TAA-1886</p>
+</td>
+
+<td valign="top" width="24%"><p>[Developer Portal] Android Workload module stuck in UPDATE IN PROGRESS state</p>
+</td>
+
+<td valign="top" width="51%"><p>After first enable on the Developer Portal Administration page, <code>workloads-android</code> stayed in <strong>UPDATE IN PROGRESS</strong> while other modules showed <strong>READY</strong>. The child Argo CD Application was healthy; the parent <code>mod-workloads-android</code> was <strong>OutOfSync + Healthy</strong> because the managed child <code>Application/workloads-android</code> drifted on <code>spec.syncPolicy.automated.selfHeal</code>.</p>
+<p>Git desired <code>selfHeal: false</code>, but Argo CD did not persist that zero-value field on apply (<code>omitempty</code>). With self-heal intentionally off on parent and child, the parent never re-synced that drift, so the portal label never cleared.</p>
+<p><strong>Fix</strong></p>
+<p>Remove explicit <code>selfHeal: false</code> from both prefixed-module child Application templates. Self-heal defaults to <code>false</code> when omitted, so runtime behavior is unchanged; desired state now matches what Argo reliably stores (<code>automated: { prune: true }</code> only).</p>
+<p><strong>Changes</strong></p>
+
+<ul>
+<li><p><code>gitops/modules/workloads-android/templates/application-workloads-android.yaml</code> - drop <code>selfHeal: false</code>; document why it must not be set explicitly</p>
+</li>
+
+<li><p><code>gitops/modules/workloads-common/templates/application-workloads-common.yaml</code> - same change for consistency (common only avoided the wedge by chance)</p>
+</li>
+</ul>
+</td>
+
+<td valign="top" width="15%">
+<ul>
+<li><p><code>3e250afef49e5ae0fe44444c4ca23c836a45cf08</code></p>
+</li>
+</ul>
+</td>
+</tr>
+
+<tr>
+<td valign="top" width="10%"><p>TAA-1893</p>
+</td>
+
+<td valign="top" width="24%"><p>Cloud Workstations: Disable initial concurrent builds for write/update/delete ops in pipeline suite</p>
+</td>
+
+<td valign="top" width="51%"><p>Fixes a first-build race in Cloud Workstations Jenkins write pipelines (TAA-1893) where concurrent Create and Delete config jobs could run before mutual-exclusion rules were active, leading to stale tfvars and unintended Terraform destruction via <code>for_each</code>.</p>
+<p>The fix applies the existing Android Mirror pattern: <code>blockOn()</code> <strong>in seed DSL</strong> (installs <code>BuildBlockerProperty</code> at seed time, before build #1) plus <code>buildBlocker()</code> <strong>in Jenkinsfiles</strong> (runtime second layer).</p>
+<p><strong>Key changes</strong></p>
+<p><strong>1. Seed DSL</strong> - <code>blockOn()</code> <strong>on all 11 write jobs</strong></p>
+<p><strong>Files:</strong> <code>*/groovy/job.groovy</code> under cluster-, config-, and workstation-admin/user write operations</p>
+<p><strong>Reasoning:</strong> Jenkinsfile <code>options { buildBlocker() }</code> only persists <code>BuildBlockerProperty</code> into job <code>config.xml</code> <strong>after</strong> the first build completes. On build #1, the queue dispatcher sees no blocker → concurrent dispatch is allowed. This was reproduced on lab with a clean folder delete + seed. <code>blockOn()</code> is Job DSL sandbox-safe (unlike <code>configure {}</code>, which failed seed with <code>Rejecting unsandboxed method call: groovy.util.Node.div</code>) and writes the blocker into <code>config.xml</code> at seed time - matching Android Mirror and Cloud-WS image builder jobs.</p>
+<p><strong>2. Jenkinsfile - include</strong> <code>update</code> in <code>buildBlocker</code> <strong>regex</strong></p>
+<p><strong>Files:</strong> 19 Cloud Workstations Jenkinsfiles (write + read pipelines that declare <code>buildBlocker</code>)</p>
+<p><strong>Reasoning:</strong> The original regex omitted <code>update</code>, so Update Existing Configuration was not in the mutual-exclusion set at runtime. Update can modify the same shared config Terraform state as Create/Delete - it must participate in blocking.</p>
+</td>
+
+<td valign="top" width="15%">
+<ul>
+<li><p><code>45db1d3ea7e11677d0b499420cd6ef801ddde5b6</code></p>
+</li>
+
+<li><p><code>97d728abf2fedf36b88c56763abb788ad90ef8d2</code></p>
+</li>
+
+<li><p><code>38fc509a0cbe3e99f418d0efb623b55cd92e8658</code></p>
+</li>
+
+<li><p><code>b19233c5582fab788e915271bf83903f1ff7474a</code></p>
+</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+
+<h2>Known Issues</h2>
+<p><strong>TAA-1891</strong> Gemini Code Assist in Code OSS Workstation Agent Mode Does Not Detect Configured MCP Servers</p>
+<p>In Horizon Code OSS, MCP servers configured for Gemini may not appear or work in the Gemini Code Assist chat window (Agent mode), including <code>/mcp</code> showing no servers. Configuration and MCP connectivity are otherwise valid.</p>
+<p><strong>Workaround:</strong> Use Gemini CLI for MCP-enabled workflows until this is resolved.</p>
+
+<hr>
+<table width="100%">
+<tbody>
+<tr>
+<td valign="top" width="14%"><p><strong>Platform</strong></p>
+</td>
+
+<td valign="top" width="86%"><p><strong>Horizon SDV</strong></p>
+</td>
+</tr>
+
+<tr>
+<td valign="top" width="14%"><p><strong>Version</strong></p>
+</td>
+
 <td valign="top" width="86%"><p><strong>Release 4.0.0</strong></p>
 </td>
 </tr>

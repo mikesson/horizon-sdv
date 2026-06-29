@@ -16,7 +16,7 @@ limitations under the License.
 Description:
 Compute derived values for aaos-builder templates.
 Order: 2/10.
-Dependencies: outputs sdkAndroidVersion for init/build/ai-review/storage.
+Dependencies: outputs sdkAndroidVersion for init/build/storage.
 */ -}}
 
 {{- define "aaos-builder.template.compute-vars" -}}

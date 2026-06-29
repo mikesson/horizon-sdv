@@ -1,0 +1,581 @@
+# Copyright (c) 2026 Accenture, All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#         http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# CVD Launcher: ephemeral GCE VM + cvd_argo_gce driver (Jenkins GCE plugin replacement).
+{{- $root := . }}
+{{- $auth := include "cvd-launcher.scmAuthMethod" $root | trim }}
+{{- $umbrellaCreds := or (eq $auth "app") (eq $auth "userpass") }}
+{{- $sharedWs := eq (include "cvd-launcher.useSharedPipelineWorkspaceVolume" $root) "true" }}
+{{- $mono := include "cvd-launcher.pipelineMonorepoPath" $root }}
+---
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: {{ $root.Values.workflowTemplateName | quote }}
+  namespace: {{ include "cvd-launcher.workflowNamespace" $root | quote }}
+  labels:
+    app.kubernetes.io/name: cvd-launcher
+    horizon-sdv.io/expose: "true"
+    horizon-sdv.io/module: workloads-android
+  annotations:
+    argocd.argoproj.io/sync-wave: "8"
+spec:
+  entrypoint: main
+  archiveLogs: true
+  serviceAccountName: {{ include "cvd-launcher.workflowServiceAccountName" $root | quote }}
+  # aaos-builder image uses uid/gid 1000; volumeClaimTemplates default root-owned without fsGroup.
+  securityContext:
+    fsGroup: 1000
+{{- if or $root.Values.spec.nodeSelector $root.Values.spec.tolerations }}
+  # Applies to workflow pods; gemini-review is inline (native volumeMounts for gemini-test-results PVC).
+  podSpecPatch: |
+{{- if $root.Values.spec.nodeSelector }}
+    nodeSelector:
+{{ $root.Values.spec.nodeSelector | toYaml | nindent 6 }}
+{{- end }}
+{{- if $root.Values.spec.tolerations }}
+    tolerations:
+{{ $root.Values.spec.tolerations | toYaml | nindent 6 }}
+{{- end }}
+{{- end }}
+{{- if $root.Values.podGcStrategy }}
+  podGC:
+    strategy: {{ $root.Values.podGcStrategy | quote }}
+{{- end }}
+{{- if $root.Values.workflowTtlSecondsAfterCompletion }}
+  ttlStrategy:
+    secondsAfterCompletion: {{ $root.Values.workflowTtlSecondsAfterCompletion }}
+{{- end }}
+  workflowMetadata:
+    annotations:
+      workflows.argoproj.io/title: "CVD Launcher (ephemeral GCE)"
+      workflows.argoproj.io/description: "Ephemeral Cuttlefish on GCE. Run aaos-builder-runtime-image and cf-instance-template-x86 or -arm64 first so the instance template exists."
+  volumeClaimTemplates:
+    - metadata:
+        name: gemini-test-results
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: {{ $root.Values.spec.geminiStagingStorageSize | default "5Gi" | quote }}
+{{- if $sharedWs }}
+    - metadata:
+        name: pipeline-workspace
+        labels:
+          app.kubernetes.io/name: cvd-launcher
+          cvd-pipeline-workspace: "workflow"
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        storageClassName: {{ $root.Values.spec.pipelineWorkspaceStorageClassName | default "pipeline-workspace-delete" | quote }}
+        resources:
+          requests:
+            storage: {{ $root.Values.spec.pipelineWorkspaceStorageSize | default "5Gi" | quote }}
+{{- end }}
+  arguments:
+    parameters:
+      - name: horizonSubmittedFrom
+        value: ""
+        description: "Opaque provenance label (e.g. portal id); stored on workflow labels."
+      - name: instanceTemplateName
+        value: {{ .Values.spec.instanceTemplateName | quote }}
+        description: "Must exist in GCP. Run cf-instance-template-x86 or -arm64 first; use the name that run publishes (x86: …-main, ARM64: …-main-arm64)."
+      - name: cuttlefishDownloadUrl
+        value: ""
+        description: "URL of folder containing cvd host package and Cuttlefish image artifacts."
+      - name: cuttlefishInstallWifi
+        value: "false"
+        description: "When true, install Wi‑Fi components during Cuttlefish setup."
+      - name: cuttlefishMaxBootTime
+        value: "180"
+        description: "Boot wait timeout in seconds for Cuttlefish instances."
+      - name: cuttlefishKeepAliveTime
+        value: "15"
+        description: "Idle keep-alive time in minutes after workload (0 tears down immediately when supported)."
+      - name: numInstances
+        value: "1"
+        description: "Number of Cuttlefish instances to create."
+      - name: vmCpus
+        value: "16"
+        description: "vCPUs per Cuttlefish guest."
+      - name: vmMemoryMb
+        value: "8192"
+        description: "Guest RAM per Cuttlefish instance (MiB)."
+      - name: mtkConnectPublic
+        value: "true"
+        description: "When true, MTK testbench user is everyone (public); avoids MTK per-user login for workflow runs."
+      - name: mtkConnectTunnelPort
+        value: "8555"
+        description: "Local tunnel port for MTK Connect when using tunnel mode."
+      - name: cvdCommandLine
+        value: '/usr/bin/cvd create --noresume -config=auto -report_anonymous_usage_stats=no --num_instances="${NUM_INSTANCES}" --cpus="${VM_CPUS}" --memory_mb="${VM_MEMORY_MB}" --console=true --setupwizard_mode DISABLED --enable_host_bluetooth false --gpu_mode guest_swiftshader'
+        description: "Full cvd create command line; NUM_INSTANCES, VM_CPUS, VM_MEMORY_MB are expanded by the driver."
+      - name: enableGeminiAiAssistant
+        value: {{ $root.Values.spec.enableGeminiAiAssistant | default "true" | quote }}
+        description: "Enable Gemini AI review on failure when true; success-path review also requires geminiAnalyseOnSuccess (aaos-builder parity)."
+      - name: geminiAnalyseOnSuccess
+        value: {{ $root.Values.spec.geminiAnalyseOnSuccess | default "false" | quote }}
+        description: "When true with enableGeminiAiAssistant, run Gemini AI review after successful CVD (default from Helm spec.geminiAnalyseOnSuccess)."
+      - name: ctsArtifactStorageSolution
+        value: "GCS_BUCKET"
+        description: "Artifact backend for storage scripts (typically GCS_BUCKET; same env as CTS_ARTIFACT_STORAGE_SOLUTION)."
+      - name: storageBucketDestination
+{{- if $root.Values.spec.cloudProject }}
+        value: 'gs://{{ $root.Values.spec.cloudProject }}-aaos/Android/Tests/{{ $root.Values.spec.androidTestsWorkflowArtifactFolder | default "CVD_Launcher_Workflows" }}'
+        description: "GCS parent prefix for test logs / Gemini staging; workflow appends /<YYYY-MM-DD-HHMMSS>_<workflow.name>/ (aaos-builder storage parity). Override full URI only if you manage paths yourself."
+{{- else }}
+        value: ""
+{{- end }}
+      - name: storageLabels
+        value: ""
+        description: "Optional label string for GCS uploads (see workloads/common/storage/storage.sh)."
+      - name: submittedBy
+        value: ""
+        description: "Jenkins BUILD_USER_ID equivalent for private MTK testbenches. Portal sets preferred_username; Sensor maps horizonSubmittedBy."
+  templates:
+    - name: main
+      dag:
+        tasks:
+{{- if $umbrellaCreds }}
+          - name: prepare-pipeline-git-creds
+            templateRef:
+              name: prepare-pipeline-git-creds
+              template: prepare-pipeline-git-creds
+              clusterScope: true
+            arguments:
+              parameters:
+                - name: scmAuthMethod
+                  value: {{ include "cvd-launcher.scmAuthMethod" $root | trim | quote }}
+                - name: pipelineStaticGitSecretName
+                  value: {{ $root.Values.spec.pipelineRepoSecret | default "workflow-pipeline-git-creds" | quote }}
+                - name: horizonSubmittedFrom
+                  value: '{{ "{{" }}workflow.parameters.horizonSubmittedFrom{{ "}}" }}'
+{{- end }}
+          - name: compute-test-results-staging-uri
+            template: compute-test-results-staging-uri
+            arguments:
+              parameters:
+                - name: storageBucketBase
+                  value: '{{ "{{" }}workflow.parameters.storageBucketDestination{{ "}}" }}'
+{{- if $sharedWs }}
+          - name: fetch-pipeline
+            template: fetch-pipeline
+{{- if $umbrellaCreds }}
+            depends: prepare-pipeline-git-creds.Succeeded && compute-test-results-staging-uri.Succeeded
+{{- else }}
+            depends: compute-test-results-staging-uri.Succeeded
+{{- end }}
+{{- end }}
+          - name: run-cvd-ephemeral-gce
+            template: run-cvd-ephemeral-gce
+            depends: >-
+{{- if $sharedWs }}
+              fetch-pipeline.Succeeded &&
+{{- end }}
+{{- if $umbrellaCreds }}
+              prepare-pipeline-git-creds.Succeeded &&
+{{- end }}
+              compute-test-results-staging-uri.Succeeded
+            arguments:
+              parameters:
+                - name: instanceTemplateName
+                  value: '{{ "{{" }}workflow.parameters.instanceTemplateName{{ "}}" }}'
+                - name: cuttlefishDownloadUrl
+                  value: '{{ "{{" }}workflow.parameters.cuttlefishDownloadUrl{{ "}}" }}'
+                - name: cuttlefishInstallWifi
+                  value: '{{ "{{" }}workflow.parameters.cuttlefishInstallWifi{{ "}}" }}'
+                - name: cuttlefishMaxBootTime
+                  value: '{{ "{{" }}workflow.parameters.cuttlefishMaxBootTime{{ "}}" }}'
+                - name: cuttlefishKeepAliveTime
+                  value: '{{ "{{" }}workflow.parameters.cuttlefishKeepAliveTime{{ "}}" }}'
+                - name: numInstances
+                  value: '{{ "{{" }}workflow.parameters.numInstances{{ "}}" }}'
+                - name: vmCpus
+                  value: '{{ "{{" }}workflow.parameters.vmCpus{{ "}}" }}'
+                - name: vmMemoryMb
+                  value: '{{ "{{" }}workflow.parameters.vmMemoryMb{{ "}}" }}'
+                - name: mtkConnectPublic
+                  value: '{{ "{{" }}workflow.parameters.mtkConnectPublic{{ "}}" }}'
+                - name: mtkConnectTunnelPort
+                  value: '{{ "{{" }}workflow.parameters.mtkConnectTunnelPort{{ "}}" }}'
+                - name: cvdCommandLine
+                  value: '{{ "{{" }}workflow.parameters.cvdCommandLine{{ "}}" }}'
+                - name: enableGeminiAiAssistant
+                  value: '{{ "{{" }}workflow.parameters.enableGeminiAiAssistant{{ "}}" }}'
+                - name: geminiAnalyseOnSuccess
+                  value: '{{ "{{" }}workflow.parameters.geminiAnalyseOnSuccess{{ "}}" }}'
+                - name: ctsArtifactStorageSolution
+                  value: '{{ "{{" }}workflow.parameters.ctsArtifactStorageSolution{{ "}}" }}'
+                - name: storageBucketDestination
+                  value: '{{ "{{" }}tasks.compute-test-results-staging-uri.outputs.parameters.resolvedStagingUri{{ "}}" }}'
+                - name: storageLabels
+                  value: '{{ "{{" }}workflow.parameters.storageLabels{{ "}}" }}'
+                - name: submittedBy
+                  value: '{{ "{{" }}workflow.parameters.submittedBy{{ "}}" }}'
+{{- if and (eq $auth "app") $sharedWs }}
+          - name: refresh-pipeline-git-creds-after-ephemeral
+            templateRef:
+              name: prepare-pipeline-git-creds
+              template: prepare-pipeline-git-creds
+              clusterScope: true
+            arguments:
+              parameters:
+                - name: scmAuthMethod
+                  value: {{ include "cvd-launcher.scmAuthMethod" $root | trim | quote }}
+                - name: pipelineStaticGitSecretName
+                  value: {{ $root.Values.spec.pipelineRepoSecret | default "workflow-pipeline-git-creds" | quote }}
+                - name: horizonSubmittedFrom
+                  value: '{{ "{{" }}workflow.parameters.horizonSubmittedFrom{{ "}}" }}'
+            depends: >-
+              run-cvd-ephemeral-gce.Succeeded ||
+              run-cvd-ephemeral-gce.Failed ||
+              run-cvd-ephemeral-gce.Errored
+{{- end }}
+          - name: sync-vm-staging-if-no-ai-review
+            template: sync-vm-staging-if-no-ai-review
+            depends: >-
+{{- if and (eq $auth "app") $sharedWs }}
+              refresh-pipeline-git-creds-after-ephemeral.Succeeded &&
+{{- end }}
+              run-cvd-ephemeral-gce.Succeeded
+            when: "'{{ "{{" }}workflow.parameters.enableGeminiAiAssistant{{ "}}" }}' == \"true\" && '{{ "{{" }}workflow.parameters.geminiAnalyseOnSuccess{{ "}}" }}' != \"true\""
+            arguments:
+              parameters:
+                - name: stagingUri
+                  value: '{{ "{{" }}tasks.compute-test-results-staging-uri.outputs.parameters.resolvedStagingUri{{ "}}" }}'
+              artifacts:
+                - name: cvd-argo-artifacts
+                  optional: true
+                  from: '{{ "{{" }}tasks.run-cvd-ephemeral-gce.outputs.artifacts.cvd-argo-artifacts{{ "}}" }}'
+          - name: prepare-gemini-on-failure
+            template: prepare-gemini-cvd
+            depends: >-
+{{- if and (eq $auth "app") $sharedWs }}
+              refresh-pipeline-git-creds-after-ephemeral.Succeeded &&
+{{- end }}
+              (run-cvd-ephemeral-gce.Failed || run-cvd-ephemeral-gce.Errored)
+            when: "'{{ "{{" }}workflow.parameters.enableGeminiAiAssistant{{ "}}" }}' == \"true\""
+            arguments:
+              artifacts:
+                - name: cvd-argo-artifacts
+                  optional: true
+                  from: '{{ "{{" }}tasks.run-cvd-ephemeral-gce.outputs.artifacts.cvd-argo-artifacts{{ "}}" }}'
+              parameters:
+                - name: buildNumber
+                  value: '{{ "{{" }}workflow.uid{{ "}}" }}'
+                - name: testResultsStagingGcsUri
+                  value: '{{ "{{" }}tasks.compute-test-results-staging-uri.outputs.parameters.resolvedStagingUri{{ "}}" }}'
+          - name: gemini-ai-review-on-failure
+            template: gemini-review
+            depends: prepare-gemini-on-failure.Succeeded
+            when: >-
+              '{{ "{{" }}workflow.parameters.enableGeminiAiAssistant{{ "}}" }}' == "true" &&
+              '{{ "{{" }}tasks.prepare-gemini-on-failure.outputs.parameters.skipGemini{{ "}}" }}' != "true"
+            arguments:
+{{- if eq (include "cvd-launcher.useGeminiReviewGitArtifact" $root) "true" }}
+              artifacts:
+                - name: pipeline-repo
+                  path: /workspace
+                  git:
+                    repo: {{ $root.Values.spec.pipelineRepoUrl | quote }}
+                    revision: {{ $root.Values.spec.pipelineRepoRevision | quote }}
+{{- include "cvd-launcher.gitArtifactCredsContent" $root | nindent 20 }}
+{{- end }}
+              parameters:
+                - name: storageBucketDestination
+                  value: '{{ "{{" }}tasks.compute-test-results-staging-uri.outputs.parameters.resolvedStagingUri{{ "}}" }}'
+          - name: prepare-gemini-on-success
+            template: prepare-gemini-cvd
+            depends: >-
+{{- if and (eq $auth "app") $sharedWs }}
+              refresh-pipeline-git-creds-after-ephemeral.Succeeded &&
+{{- end }}
+              run-cvd-ephemeral-gce.Succeeded
+            when: "'{{ "{{" }}workflow.parameters.enableGeminiAiAssistant{{ "}}" }}' == \"true\" && '{{ "{{" }}workflow.parameters.geminiAnalyseOnSuccess{{ "}}" }}' == \"true\""
+            arguments:
+              artifacts:
+                - name: cvd-argo-artifacts
+                  optional: true
+                  from: '{{ "{{" }}tasks.run-cvd-ephemeral-gce.outputs.artifacts.cvd-argo-artifacts{{ "}}" }}'
+              parameters:
+                - name: buildNumber
+                  value: '{{ "{{" }}workflow.uid{{ "}}" }}'
+                - name: testResultsStagingGcsUri
+                  value: '{{ "{{" }}tasks.compute-test-results-staging-uri.outputs.parameters.resolvedStagingUri{{ "}}" }}'
+          - name: gemini-ai-review-on-success
+            template: gemini-review
+            depends: prepare-gemini-on-success.Succeeded
+            when: >-
+              '{{ "{{" }}workflow.parameters.enableGeminiAiAssistant{{ "}}" }}' == "true" &&
+              '{{ "{{" }}workflow.parameters.geminiAnalyseOnSuccess{{ "}}" }}' == "true" &&
+              '{{ "{{" }}tasks.prepare-gemini-on-success.outputs.parameters.skipGemini{{ "}}" }}' != "true"
+            arguments:
+{{- if eq (include "cvd-launcher.useGeminiReviewGitArtifact" $root) "true" }}
+              artifacts:
+                - name: pipeline-repo
+                  path: /workspace
+                  git:
+                    repo: {{ $root.Values.spec.pipelineRepoUrl | quote }}
+                    revision: {{ $root.Values.spec.pipelineRepoRevision | quote }}
+{{- include "cvd-launcher.gitArtifactCredsContent" $root | nindent 20 }}
+{{- end }}
+              parameters:
+                - name: storageBucketDestination
+                  value: '{{ "{{" }}tasks.compute-test-results-staging-uri.outputs.parameters.resolvedStagingUri{{ "}}" }}'
+    - name: compute-test-results-staging-uri
+      inputs:
+        parameters:
+          - name: storageBucketBase
+      outputs:
+        parameters:
+          - name: resolvedStagingUri
+            valueFrom:
+              path: /tmp/resolved-staging-uri.txt
+      metadata:
+        annotations:
+          workflows.argoproj.io/description: "Compose gs://.../<YYYY-MM-DD-HHMMSS>_<workflow.name> once per workflow (aaos-builder storage parity)."
+      container:
+        image: {{ include "cvd-launcher.builderImage" $root | quote }}
+        imagePullPolicy: Always
+        command: [bash, -euo, pipefail, -c]
+        args:
+          - |
+            _base="{{ "{{" }}inputs.parameters.storageBucketBase{{ "}}" }}"
+            if [[ -z "${_base}" ]]; then
+              : > /tmp/resolved-staging-uri.txt
+              exit 0
+            fi
+            _wf="{{ "{{" }}workflow.name{{ "}}" }}"
+            printf '%s' "${_base%/}/$(date +%Y-%m-%d-%H%M%S)_${_wf}" > /tmp/resolved-staging-uri.txt
+    - name: run-cvd-ephemeral-gce
+{{- include "cvd-launcher.pipelineWorkspacePodSpecPatch" $root }}
+      inputs:
+        parameters:
+          - name: instanceTemplateName
+          - name: cuttlefishDownloadUrl
+          - name: cuttlefishInstallWifi
+          - name: cuttlefishMaxBootTime
+          - name: cuttlefishKeepAliveTime
+          - name: numInstances
+          - name: vmCpus
+          - name: vmMemoryMb
+          - name: mtkConnectPublic
+          - name: mtkConnectTunnelPort
+          - name: cvdCommandLine
+          - name: enableGeminiAiAssistant
+          - name: geminiAnalyseOnSuccess
+          - name: ctsArtifactStorageSolution
+          - name: storageBucketDestination
+          - name: storageLabels
+          - name: submittedBy
+{{- include "cvd-launcher.pipelineRepoGitArtifactInputs" $root }}
+{{- if or $root.Values.spec.runPodLabels $root.Values.spec.runPodAnnotations }}
+      metadata:
+{{- if $root.Values.spec.runPodLabels }}
+        labels:
+{{- toYaml $root.Values.spec.runPodLabels | nindent 10 }}
+{{- end }}
+{{- if $root.Values.spec.runPodAnnotations }}
+        annotations:
+{{- toYaml $root.Values.spec.runPodAnnotations | nindent 10 }}
+{{- end }}
+{{- end }}
+{{- if $root.Values.spec.nodeSelector }}
+      nodeSelector:
+{{- toYaml $root.Values.spec.nodeSelector | nindent 8 }}
+{{- end }}
+{{- if $root.Values.spec.tolerations }}
+      tolerations:
+{{- toYaml $root.Values.spec.tolerations | nindent 8 }}
+{{- end }}
+      container:
+        image: {{ include "cvd-launcher.builderImage" $root | quote }}
+        imagePullPolicy: Always
+        workingDir: {{ $mono | quote }}
+{{- if $sharedWs }}
+        volumeMounts:
+{{- include "cvd-launcher.pipelineWorkspaceVolumeMounts" $root }}
+{{- end }}
+        env:
+          - name: JOB_NAME
+            value: '{{ "{{" }}workflow.name{{ "}}" }}'
+          - name: BUILD_NUMBER
+            value: '{{ "{{" }}workflow.uid{{ "}}" }}'
+          - name: CVD_ARGO_MODE
+            value: "cvd"
+          - name: CUTTLEFISH_DOWNLOAD_URL
+            value: "{{ "{{" }}inputs.parameters.cuttlefishDownloadUrl{{ "}}" }}"
+          - name: CUTTLEFISH_INSTALL_WIFI
+            value: "{{ "{{" }}inputs.parameters.cuttlefishInstallWifi{{ "}}" }}"
+          - name: CUTTLEFISH_MAX_BOOT_TIME
+            value: "{{ "{{" }}inputs.parameters.cuttlefishMaxBootTime{{ "}}" }}"
+          - name: CUTTLEFISH_KEEP_ALIVE_TIME
+            value: "{{ "{{" }}inputs.parameters.cuttlefishKeepAliveTime{{ "}}" }}"
+          - name: NUM_INSTANCES
+            value: "{{ "{{" }}inputs.parameters.numInstances{{ "}}" }}"
+          - name: VM_CPUS
+            value: "{{ "{{" }}inputs.parameters.vmCpus{{ "}}" }}"
+          - name: VM_MEMORY_MB
+            value: "{{ "{{" }}inputs.parameters.vmMemoryMb{{ "}}" }}"
+          - name: MTK_CONNECT_PUBLIC
+            value: "{{ "{{" }}inputs.parameters.mtkConnectPublic{{ "}}" }}"
+          - name: MTK_CONNECT_TUNNEL_PORT
+            value: "{{ "{{" }}inputs.parameters.mtkConnectTunnelPort{{ "}}" }}"
+          - name: CVD_COMMAND_LINE
+            value: "{{ "{{" }}inputs.parameters.cvdCommandLine{{ "}}" }}"
+          - name: BUILD_USER
+            value: {{ $root.Values.spec.remoteUser | default "jenkins" | quote }}
+          - name: BUILD_USER_ID
+            value: "{{ "{{" }}inputs.parameters.submittedBy{{ "}}" }}"
+          - name: ENABLE_GEMINI_AI_ASSISTANT
+            value: "{{ "{{" }}inputs.parameters.enableGeminiAiAssistant{{ "}}" }}"
+          - name: GEMINI_ANALYSE_ON_SUCCESS
+            value: "{{ "{{" }}inputs.parameters.geminiAnalyseOnSuccess{{ "}}" }}"
+          - name: GEMINI_COMMAND_LINE
+            value: {{ $root.Values.spec.geminiCommandLine | default "gemini --yolo --output-format json" | quote }}
+          - name: CTS_ARTIFACT_STORAGE_SOLUTION
+            value: "{{ "{{" }}inputs.parameters.ctsArtifactStorageSolution{{ "}}" }}"
+          - name: GEMINI_TEST_RESULTS_STAGING_URI
+            value: "{{ "{{" }}inputs.parameters.storageBucketDestination{{ "}}" }}"
+          - name: STORAGE_LABELS
+            value: "{{ "{{" }}inputs.parameters.storageLabels{{ "}}" }}"
+          - name: GEMINI_PREVIEW_FEATURES
+            value: {{ $root.Values.spec.geminiPreviewFeatures | default "true" | quote }}
+          - name: GEMINI_LOCATION_GLOBAL
+            value: {{ $root.Values.spec.geminiLocationGlobal | default "true" | quote }}
+{{- $mtkSecretName := $root.Values.spec.mtkConnectSecretName | default "workflow-mtk-connect-apikey" }}
+{{- if $mtkSecretName }}
+          - name: MTK_CONNECT_USERNAME
+            valueFrom:
+              secretKeyRef:
+                name: {{ $mtkSecretName | quote }}
+                key: {{ $root.Values.spec.mtkConnectUsernameKey | default "username" | quote }}
+                optional: true
+          - name: MTK_CONNECT_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: {{ $mtkSecretName | quote }}
+                key: {{ $root.Values.spec.mtkConnectPasswordKey | default "password" | quote }}
+                optional: true
+{{- end }}
+        envFrom:
+{{- if $root.Values.cloudEnvConfigMapName }}
+          - configMapRef:
+              name: {{ $root.Values.cloudEnvConfigMapName | quote }}
+{{- end }}
+        resources:
+{{- if $root.Values.spec.runPodResources }}
+{{- toYaml $root.Values.spec.runPodResources | nindent 10 }}
+{{- else }}
+          requests:
+            cpu: "4000m"
+            memory: "8Gi"
+          limits:
+            cpu: "32000m"
+            memory: "64Gi"
+{{- end }}
+        command: [bash, -euo, pipefail, -c]
+        args:
+          - |
+            export WORKSPACE={{ $mono | quote }}
+            export WORKFLOW_UID="{{ "{{" }}workflow.uid{{ "}}" }}"
+            export K8S_WORKFLOWS_NAMESPACE={{ include "cvd-launcher.workflowNamespace" $root | quote }}
+            export CVD_ARGO_GUEST_POLL_SEC={{ $root.Values.spec.guestPollSeconds | default 45 }}
+            export CVD_ARGO_GUEST_POLL_FIRST_SEC={{ $root.Values.spec.guestPollFirstSeconds | default 30 }}
+            export CVD_ARGO_LOG_SINK={{ $root.Values.spec.guestLogSink | default "serial" | quote }}
+            export CVD_ARGO_SERIAL_PORT={{ $root.Values.spec.guestSerialPort | default 2 }}
+            export CVD_ARGO_KCC_WAIT_TIMEOUT={{ $root.Values.spec.kccInstanceWaitTimeout | default "20m" | quote }}
+            export CVD_ARGO_GCP_WAIT_TIMEOUT={{ $root.Values.spec.gcpInstanceWaitTimeout | default "15m" | quote }}
+            export CVD_ARGO_INSTANCE_TEMPLATE="{{ "{{" }}inputs.parameters.instanceTemplateName{{ "}}" }}"
+            export CVD_ARGO_VM_NAME="cvd-{{ "{{" }}workflow.uid{{ "}}" }}"
+            export CVD_ARGO_MODE=cvd
+            # ARM64 placement (ARM64_ZONE / ARM64_REGION) is applied in cvd_argo_gce_ephemeral.sh.
+            _zo={{ $root.Values.spec.cloudZone | default "" | quote }}
+            if [[ -n "${_zo}" ]]; then
+              export CLOUD_ZONE="${_zo}"
+            fi
+            if [[ -z "${CVD_ARGO_INSTANCE_TEMPLATE}" ]]; then
+              echo "instanceTemplateName is required" >&2
+              exit 2
+            fi
+            export CVD_ARGO_LOCAL_ARTIFACT_ROOT=/tmp/cvd-argo-artifacts
+            mkdir -p "${CVD_ARGO_LOCAL_ARTIFACT_ROOT}"
+            # Git artifact mounts are often noexec / immutable mode bits — do not chmod; invoke with bash.
+            bash workloads/android/pipelines/tests/cvd_argo_gce/cvd_argo_gce_ephemeral.sh
+      outputs:
+        artifacts:
+          - name: cvd-argo-artifacts
+            path: /tmp/cvd-argo-artifacts
+            optional: true
+
+    - name: sync-vm-staging-if-no-ai-review
+{{- include "cvd-launcher.pipelineWorkspacePodSpecPatch" $root }}
+      inputs:
+        parameters:
+          - name: stagingUri
+        artifacts:
+{{- if eq (include "cvd-launcher.usePerPodGitArtifact" $root) "true" }}
+{{ include "cvd-launcher.pipelineRepoGitArtifactItem" $root | nindent 10 }}
+{{- end }}
+          - name: cvd-argo-artifacts
+            path: /tmp/cvd-argo-artifacts
+            optional: true
+{{- if $root.Values.spec.nodeSelector }}
+      nodeSelector:
+{{- toYaml $root.Values.spec.nodeSelector | nindent 8 }}
+{{- end }}
+{{- if $root.Values.spec.tolerations }}
+      tolerations:
+{{- toYaml $root.Values.spec.tolerations | nindent 8 }}
+{{- end }}
+      container:
+        image: {{ include "cvd-launcher.builderImage" $root | quote }}
+        imagePullPolicy: Always
+        workingDir: {{ $mono | quote }}
+{{- if $sharedWs }}
+        volumeMounts:
+{{- include "cvd-launcher.pipelineWorkspaceVolumeMounts" $root }}
+{{- end }}
+        env:
+          - name: WORKSPACE
+            value: {{ $mono | quote }}
+        envFrom:
+{{- if $root.Values.cloudEnvConfigMapName }}
+          - configMapRef:
+              name: {{ $root.Values.cloudEnvConfigMapName | quote }}
+{{- end }}
+        resources:
+          requests:
+            cpu: "500m"
+            memory: "512Mi"
+          limits:
+            cpu: "4000m"
+            memory: "4Gi"
+        command: [bash, -euo, pipefail, -c]
+        args:
+          - |
+            export WORKSPACE={{ $mono | quote }}
+            _uri='{{ "{{" }}inputs.parameters.stagingUri{{ "}}" }}'
+            if [[ -z "${_uri}" ]]; then
+              echo "[cvd-argo-sync] skip (empty staging URI)"
+              exit 0
+            fi
+            export GEMINI_TEST_RESULTS_STAGING_URI="${_uri}"
+            export CVD_ARGO_LOCAL_ARTIFACT_ROOT=/tmp/cvd-argo-artifacts
+            bash "${WORKSPACE}/workloads/android/pipelines/tests/cvd_argo_gce/cvd_argo_sync_vm_artifacts_to_staging.sh"
+
+{{ include "cvd-launcher.template.fetch-pipeline" $root }}
+{{ include "cvd-launcher.template.prepare-gemini-cvd" $root }}
+{{ include "cvd-launcher.template.gemini-review" $root }}

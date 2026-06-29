@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# Copyright (c) 2025 Accenture, All Rights Reserved.
+# Copyright (c) 2025-2026 Accenture, All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -120,7 +120,7 @@ LIST_UNIT_TESTS_CMDLINE=${LIST_UNIT_TESTS_CMDLINE:-cmake --preset tests-posix-de
 RUN_UNIT_TESTS_CMDLINE=${RUN_UNIT_TESTS_CMDLINE:-ctest --preset tests-posix-debug --parallel ${CMAKE_SYNC_JOBS}}
 POSIX_BUILD_CMDLINE=${POSIX_BUILD_CMDLINE:-cmake --preset posix-freertos && cmake --build --preset posix-freertos -j${CMAKE_SYNC_JOBS}}
 NXP_S32K148_BUILD_CMDLINE=${NXP_S32K148_BUILD_CMDLINE:-cmake --preset s32k148-freertos-gcc && cmake --build --preset s32k148-freertos-gcc -j${CMAKE_SYNC_JOBS}}
-POSIX_PYTEST_CMDLINE=${POSIX_PYTEST_CMDLINE:-./tools/enet/bring-up-ethernet.sh && ./tools/can/bring-up-vcan0.sh && cd test/pyTest/ && pytest --target=posix --app=freertos}
+POSIX_PYTEST_CMDLINE=${POSIX_PYTEST_CMDLINE:-./tools/enet/bring-up-ethernet.sh && ./tools/can/bring-up-vcan0.sh && cd test/pyTest/ && pytest --target=posix --app=${RTOS_PLATFORM:-freertos}}
 BUILD_DOCUMENTATION_CMDLINE=${BUILD_DOCUMENTATION_CMDLINE:-cd doc/api && doxygen Doxyfile && cd -}
 
 # Artifacts
@@ -203,6 +203,7 @@ if ${BUILD_NXP_S32K148}; then
         "cp -f build/s32k148-threadx-gcc/application.map artifacts/s32k148 || true"
         "cp -f build/s32k148-freertos-clang/application.map artifacts/s32k148 || true"
         "cp -f build/s32k148-threadx-clang/application.map artifacts/s32k148 || true"
+        "cp -f build/s32k148-rust-gcc/application.map artifacts/s32k148 || true"
     )
 
     # Update compiler

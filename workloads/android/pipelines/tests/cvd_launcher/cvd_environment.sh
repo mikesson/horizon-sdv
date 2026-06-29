@@ -18,6 +18,7 @@
 # Common environment functions and variables for Cuttlefish Virtual Device
 # (CVD).
 
+# Colours for logging (same pattern as cf_host_initialise.sh).
 GREEN='\033[1;32m'
 ORANGE='\033[1;33m'
 RED='\033[1;31m'

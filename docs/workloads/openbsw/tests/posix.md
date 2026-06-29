@@ -1,7 +1,23 @@
+<!-- Copyright (c) 2026 Accenture, All Rights Reserved.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+        http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License. -->
+
 # POSIX Target Test
 
 ## Table of contents
 - [Introduction](#introduction)
+- [Why Rust tests need an extra config line](#why-the-rust-toml-snippet-matters-plain-english)
+- [Step-by-step: posix-rust](#step-by-step-posix-rust)
 - [Prerequisites](#prerequisites)
 - [Environment Variables/Parameters](#environment-variables)
 - [System Variables](#system-variables)
@@ -15,18 +31,48 @@ Use `NUM_HOST_INSTANCES` to set how many device sessions to create. These sessio
 
 The following options are available for testing the POSIX reference application:
 
-**POSIX Reference Application:**
+**POSIX reference application**
 
-This will allow users to execute and operate the POSIX reference application.
+Bring up networking and run the ELF from the artifact that matches your BSW Builder preset:
 
-`./posix/tools/enet/bring-up-ethernet.sh && ./posix/tools/can/bring-up-vcan0.sh && ./posix/build/posix/executables/referenceApp/application/Release/app.referenceApp.elf`
+| Preset | Command |
+|--------|---------|
+| posix-freertos | `./build/posix-freertos/executables/referenceApp/application/Release/app.referenceApp.elf` |
+| posix-threadx | `./build/posix-threadx/executables/referenceApp/application/Release/app.referenceApp.elf` |
+| posix-rust | `./build/posix-rust/executables/referenceApp/application/Release/app.referenceApp.elf` |
 
-**POSIX pyTest:**
+Run these from **`${HOME}/posix`** after unpack (this job puts artifacts there). Prefix with `./tools/enet/bring-up-ethernet.sh && ./tools/can/bring-up-vcan0.sh &&` when needed (use `sudo` if the host requires it).
 
-This will allow users to run pyTest on the reference application, and debug failures etc:
+**POSIX pyTest**
 
-`./posix/tools/enet/bring-up-ethernet.sh && ./posix/tools/can/bring-up-vcan0.sh && cd posix/test/pyTest/ && pytest --target=posix --app=freertos`
+Examples (`pytest` runs under `test/pyTest/` relative to **`${HOME}/posix`**):
 
+- FreeRTOS: `pytest --target=posix --app=freertos`
+- ThreadX: `pytest --target=posix --app=threadx`
+- Rust (`posix-rust` artifact): `pytest --target=posix --app=rust`
+
+After download, this job adds the **Rust** lines to the small test config file **`test/pyTest/target_posix.toml`** when they are missing (see below). You normally do nothing manually.
+
+## Why Rust tests need an extra config line <a name="why-the-rust-toml-snippet-matters-plain-english"></a>
+
+**In short:** OpenBSW’s automated POSIX tests read a file (**`target_posix.toml`**) that lists **which built program to run** for each flavor (FreeRTOS, ThreadX, Rust). The stock project lists FreeRTOS and ThreadX but **not Rust yet**. Without adding Rust, the test runner stops immediately—it never gets to real tests.
+
+Think of that file as **labeled switches**: “When someone picks Rust, start **this** program.” Our **`target_posix_rust.fragment.toml`** is just that missing Rust switch (pointing at the **`posix-rust`** build). **BSW Builder** and **this job** copy it into **`target_posix.toml`** for you when needed.
+
+**Manual unpack only:** append **`workloads/openbsw/pipelines/tests/posix/target_posix_rust.fragment.toml`** to **`test/pyTest/target_posix.toml`**, or copy its **`[rust.target_process]`** block by hand.
+
+## Step-by-step: posix-rust <a name="step-by-step-posix-rust"></a>
+
+Use this when your **BSW Builder** run used **`RTOS_PLATFORM=rust`** (CMake preset **`posix-rust`**).
+
+1. **Produce the artifact** — Complete a BSW Builder job with **`BUILD_POSIX`** enabled and **`RTOS_PLATFORM=rust`**. Note the build number and the GCS path **`…/OpenBSW/Builds/BSW_Builder/&lt;NN&gt;/posix/`** (zero-pad **`NN`** if required).
+2. **Run this POSIX Test job** — Set **`OPENBSW_DOWNLOAD_URL`** to that **`posix/`** folder. Wait for **Download artifacts** to finish; the script **adds the Rust test config** to **`target_posix.toml`** when it is missing.
+3. **MTK Connect** — Use the portal session created by the job (see **`NUM_HOST_INSTANCES`**).
+4. **Shell on the host** — `cd "${HOME}/posix"` (unpack directory for `posix.tgz`), then:
+   - `./tools/enet/bring-up-ethernet.sh`
+   - `./tools/can/bring-up-vcan0.sh`
+5. **Run the app** — `./build/posix-rust/executables/referenceApp/application/Release/app.referenceApp.elf`
+6. **Optional pyTest** — In another shell: `cd "${HOME}/posix/test/pyTest" && pytest --target=posix --app=rust`
 
 ### References <a name="references"></a>
 

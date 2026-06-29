@@ -13,7 +13,8 @@
 # limitations under the License.
 
 # requests>=2.33.0 requires Python >=3.10 (see PyPI Requires-Python).
-FROM --platform=linux/amd64 python:3.12-slim-bookworm
+# Python 3.13 to satisfy ISD-recommended fix for CVE-2025-13836 (>= 3.13.11).
+FROM --platform=linux/amd64 python:3.13-slim-bookworm
 
 # Add security repository and upgrade all packages to fix CVEs
 RUN echo "deb http://security.debian.org/debian-security bookworm-security main" > /etc/apt/sources.list.d/security.list && \

@@ -13,6 +13,8 @@
 # limitations under the License.
 
 FROM --platform=linux/amd64 node:22-alpine
+# Patch OS packages (openssl, etc.) flagged by ISD security scan.
+RUN apk update && apk upgrade
 WORKDIR /usr/src/app
 RUN chown node:node ./
 USER node

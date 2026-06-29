@@ -16,8 +16,7 @@
 // Run gemini on provided artifacts.
 //
 // Pod scheduling/resources align with cvdPipeline diagnostics AI Review and
-// workloads/common/agentic-ai/gemini/helm/values.yaml (ClusterWorkflowTemplate ai-review):
-// explicit requests/limits avoid BestEffort QoS (frequent eviction under pressure).
+// workloads/common/agentic-ai/gemini/run_ai_review.sh consumers (explicit QoS; not BestEffort).
 // Schedules on the dedicated utility node pool (workloadLabel:utility + workloadType=utility:NoSchedule),
 // not the Android build pool. Idle sleep must exceed gemini_analysis timeout (2h below).
 
@@ -80,21 +79,19 @@ pipeline {
           catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
             sh '''
               set +x
-              if [ -n "${GEMINI_ARTIFACTS_COMMAND}" ]; then
-                eval "${GEMINI_ARTIFACTS_COMMAND}"
-              fi
-              export REPO_ROOT="${WORKSPACE}"
+              export PIPELINE_REPO_ROOT="${WORKSPACE}"
+              export GEMINI_ANALYSIS_PATH="${WORKSPACE}"
+              export GEMINI_SKIP_MOVE_ARTIFACTS="1"
+              export GEMINI_AI_EXECUTION_TIMEOUT_HOURS="2"
               export GEMINI_PREVIEW_FEATURES="${GEMINI_PREVIEW_FEATURES}"
               [ "$GEMINI_LOCATION_GLOBAL" = "true" ] && export GOOGLE_CLOUD_LOCATION="global" || export GOOGLE_CLOUD_LOCATION="${CLOUD_REGION}"
               export GOOGLE_CLOUD_PROJECT="${CLOUD_PROJECT}"
               export GEMINI_PROMPT_FILE="${GEMINI_PROMPT_FILE}"
-                export GEMINI_PROMPT_FILE_2="${GEMINI_PROMPT_FILE_2:-}"
-                export GEMINI_PROMPT_FILE_3="${GEMINI_PROMPT_FILE_3:-}"
-                [ -n "${GEMINI_SKILLS_YAML:-}" ] && export GEMINI_SKILLS_YAML="${GEMINI_SKILLS_YAML}"
-                export GEMINI_COMMAND_LINE="${GEMINI_COMMAND_LINE}"
-                "${WORKSPACE}"/workloads/common/agentic-ai/gemini/gemini_initialise.sh
-                timeout 2h "${WORKSPACE}"/workloads/common/agentic-ai/gemini/gemini_analysis.sh
-                find . -type f -name "headless*.json" -size 0 -delete
+              export GEMINI_PROMPT_FILE_2="${GEMINI_PROMPT_FILE_2:-}"
+              export GEMINI_PROMPT_FILE_3="${GEMINI_PROMPT_FILE_3:-}"
+              [ -n "${GEMINI_SKILLS_YAML:-}" ] && export GEMINI_SKILLS_YAML="${GEMINI_SKILLS_YAML}"
+              export GEMINI_COMMAND_LINE="${GEMINI_COMMAND_LINE}"
+              bash "${WORKSPACE}/workloads/common/agentic-ai/gemini/run_ai_review.sh"
               '''
             }
             archiveArtifacts artifacts: 'gemini-assist/*', followSymlinks: false, onlyIfSuccessful: false, allowEmptyArchive: true

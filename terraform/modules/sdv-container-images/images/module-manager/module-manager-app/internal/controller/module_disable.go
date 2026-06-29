@@ -30,10 +30,25 @@ import (
 // callers should invoke RunAutoDisableSweep and ResyncSoftFeaturesForParentsOfSoftDep
 // after disable side effects as appropriate.
 //
+// For workloads-android, TeardownPrefixedModuleChildApplication removes the child Application,
+// clears ComputeInstanceTemplate CRs in the workflows namespace, and waits for ConfigConnectorContext
+// to be absent so the cluster matches the pre-enable / pre–cf_instance_template baseline (CNRM deletes
+// matching GCP instance templates when those CRs are removed).
+//
+// Ordering note (vs platform drain): this path updates ModuleManagerState before deleting the parent
+// mod-* Application so the Portal API reflects disabled during long Argo prunes. PlatformDrainer
+// deletes the parent mod-* Application before updating state (whole-platform teardown).
+//
+// After clearParentSkipReconcile, deletePrefixedChildApplicationIfPresent runs so a Git reconcile cannot
+// leave workloads-android / workloads-common child Applications healthy while the module is disabled.
+//
 // When enforceNoHardDependents is true, ListHardDependents must be empty or the call fails.
 // REST disable sets this to true. Auto-disable sets it to false because eligibility is
 // determined by hard- and soft-dependent checks before this runs.
-func PerformModuleDisable(ctx context.Context, c client.Client, stateStore StateStoreInterface, catalogStore CatalogStoreInterface, argocdNamespace, mmNamespace string, moduleName, moduleID string, enforceNoHardDependents bool) error {
+//
+// moduleConfig is Helm MODULE_CONFIG YAML/JSON (may be empty). For workloads-android and workloads-common,
+// the prefixed multi-source child Application is torn down first; empty moduleConfig falls back to MODULE_CONFIG env.
+func PerformModuleDisable(ctx context.Context, c client.Client, stateStore StateStoreInterface, catalogStore CatalogStoreInterface, argocdNamespace, mmNamespace string, moduleName, moduleID string, enforceNoHardDependents bool, moduleConfig string) error {
 	logger := log.FromContext(ctx)
 	if moduleName == "" || moduleID == "" {
 		return fmt.Errorf("perform module disable: module name and module id are required")
@@ -53,16 +68,20 @@ func PerformModuleDisable(ctx context.Context, c client.Client, stateStore State
 		}
 	}
 
-	appName := ApplicationName(moduleName)
-	app := &unstructured.Unstructured{}
-	app.SetGroupVersionKind(schema.GroupVersionKind{Group: "argoproj.io", Version: "v1alpha1", Kind: "Application"})
-	app.SetNamespace(argocdNamespace)
-	app.SetName(appName)
-	logger.Info("disabling module", "module", moduleName, "moduleID", moduleID, "application", appName, "enforceNoHardDependents", enforceNoHardDependents)
-	if err := c.Delete(ctx, app); err != nil && !errors.IsNotFound(err) {
-		return err
+	if err := TeardownPrefixedModuleChildApplication(ctx, c, argocdNamespace, moduleConfig, moduleName); err != nil {
+		return fmt.Errorf("perform module disable: teardown child Application for %q: %w", moduleName, err)
+	}
+	// Teardown sets skip-reconcile on the parent mod-* Application so Git cannot recreate the child during delete.
+	// Clear it before we delete the parent: otherwise Argo does not prune managed resources (overview Deployment,
+	// etc.) and resources-finalizer.argocd.argoproj.io keeps mod-* stuck in Deleting indefinitely.
+	clearParentSkipReconcileIfPrefixedModule(ctx, c, argocdNamespace, moduleName)
+	if err := deletePrefixedChildApplicationIfPresent(ctx, c, argocdNamespace, moduleConfig, moduleName); err != nil {
+		return fmt.Errorf("perform module disable: remove recreated child Application for %q: %w", moduleName, err)
 	}
 
+	// Persist disabled state before deleting the parent Application so GET /modules reports enabled=false while the
+	// parent Argo app still prunes (Synced + Progressing, e.g. KCC/PreDelete). Otherwise the Developer Portal maps
+	// that Argo phase to "INSTALLATION IN PROGRESS" because ModuleManagerState still showed enabled until the end.
 	var newEnabled []string
 	for _, id := range state.EnabledModules {
 		if id != moduleID {
@@ -74,16 +93,31 @@ func PerformModuleDisable(ctx context.Context, c client.Client, stateStore State
 		delete(state.ModuleTargetRevisions, moduleName)
 	}
 	if err := stateStore.Update(ctx, state); err != nil {
+		clearParentSkipReconcileIfPrefixedModule(ctx, c, argocdNamespace, moduleName)
 		return err
 	}
-	_ = mmNamespace
+
+	appName := ApplicationName(moduleName)
+	app := &unstructured.Unstructured{}
+	app.SetGroupVersionKind(schema.GroupVersionKind{Group: "argoproj.io", Version: "v1alpha1", Kind: "Application"})
+	app.SetNamespace(argocdNamespace)
+	app.SetName(appName)
+	logger.Info("disabling module", "module", moduleName, "moduleID", moduleID, "application", appName, "enforceNoHardDependents", enforceNoHardDependents)
+	if err := c.Delete(ctx, app); err != nil && !errors.IsNotFound(err) {
+		clearParentSkipReconcileIfPrefixedModule(ctx, c, argocdNamespace, moduleName)
+		return err
+	}
+	if err := deletePrefixedChildApplicationIfPresent(ctx, c, argocdNamespace, moduleConfig, moduleName); err != nil {
+		return fmt.Errorf("perform module disable: remove child Application after parent delete for %q: %w", moduleName, err)
+	}
 	return nil
 }
 
 // DisableModuleAndRefresh performs the shared disable workflow used by the REST API:
 // disable the module, refresh dependents, then resync soft-feature parents.
-func DisableModuleAndRefresh(ctx context.Context, apiReader client.Reader, c client.Client, stateStore StateStoreInterface, catalogStore CatalogStoreInterface, argocdNamespace, mmNamespace, moduleName, moduleID string, enforceNoHardDependents bool) error {
-	if err := PerformModuleDisable(ctx, c, stateStore, catalogStore, argocdNamespace, mmNamespace, moduleName, moduleID, enforceNoHardDependents); err != nil {
+// moduleConfig is passed to PerformModuleDisable (prefixed child teardown for workloads-android / workloads-common).
+func DisableModuleAndRefresh(ctx context.Context, apiReader client.Reader, c client.Client, stateStore StateStoreInterface, catalogStore CatalogStoreInterface, argocdNamespace, mmNamespace, moduleName, moduleID string, enforceNoHardDependents bool, moduleConfig string) error {
+	if err := PerformModuleDisable(ctx, c, stateStore, catalogStore, argocdNamespace, mmNamespace, moduleName, moduleID, enforceNoHardDependents, moduleConfig); err != nil {
 		return err
 	}
 	if err := RunAutoDisableSweep(ctx, apiReader, c, mmNamespace, argocdNamespace, stateStore, catalogStore); err != nil {

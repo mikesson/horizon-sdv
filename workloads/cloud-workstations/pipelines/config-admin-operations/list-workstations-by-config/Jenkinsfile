@@ -61,7 +61,7 @@ pipeline {
   options {
     // Prevent any other "write" operation pipeline within the Cloud Workstations domain
     // from running concurrently with this job (and vice-versa).
-    buildBlocker(useBuildBlocker: true, blockLevel: 'GLOBAL', scanQueueFor: 'BUILDABLE', blockingJobs: '(?i)Cloud-Workstations/.*/(create|delete|add|remove|start|stop).*')
+    buildBlocker(useBuildBlocker: true, blockLevel: 'GLOBAL', scanQueueFor: 'BUILDABLE', blockingJobs: '(?i)Cloud-Workstations/.*/(create|update|delete|add|remove|start|stop).*')
 
     // Prevent this specific job from running concurrently with itself.
     disableConcurrentBuilds()
