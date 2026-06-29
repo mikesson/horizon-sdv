@@ -517,7 +517,7 @@ module "base" {
 
   sdv_gcp_secrets_map = merge(
     local.sdv_gcp_common_secrets_map,
-    var.scm_auth_method == "app" ? local.sdv_gcp_github_app_secrets_map : local.sdv_gcp_userpass_secrets_map,
+    var.scm_auth_method == "app" ? local.sdv_gcp_github_app_secrets_map : (var.scm_auth_method == "userpass" ? local.sdv_gcp_userpass_secrets_map : {}),
     local.sub_env_secrets,
     local.sub_env_git_secrets
   )

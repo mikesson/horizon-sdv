@@ -50,7 +50,8 @@ docker run --rm -it \
   --hostname $CONTAINER_HOSTNAME \
   -u 0 \
   -v /var/run/docker.sock:/var/run/docker.sock \
-  -v "$GCLOUD_CONFIG_VOLUME:/root/.config/gcloud" \
+  -v "$HOME/.config/gcloud:/root/.config/gcloud" \
+  -v "${REPO_ROOT}:/workspace-host" \
   -v "$LOCAL_TFVARS:/tmp/terraform.tfvars" \
   -w /workspace \
   $IMAGE_NAME \
