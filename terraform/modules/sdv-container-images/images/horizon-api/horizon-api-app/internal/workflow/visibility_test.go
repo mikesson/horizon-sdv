@@ -38,6 +38,17 @@ func TestIsHorizonClientVisible(t *testing.T) {
 	}
 }
 
+func TestParseSubmittedByHeader(t *testing.T) {
+	r := httptest.NewRequest("POST", "/", nil)
+	if v := ParseSubmittedByHeader(r); v != "" {
+		t.Fatalf("default: got %q, want empty", v)
+	}
+	r.Header.Set(HeaderSubmittedBy, "jsmith")
+	if v := ParseSubmittedByHeader(r); v != "jsmith" {
+		t.Fatalf("username: got %q, want jsmith", v)
+	}
+}
+
 func TestParseSubmittedFromHeader(t *testing.T) {
 	r := httptest.NewRequest("POST", "/", nil)
 	v, err := ParseSubmittedFromHeader(r)

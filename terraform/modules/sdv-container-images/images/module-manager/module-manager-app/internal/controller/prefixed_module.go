@@ -1,0 +1,30 @@
+// Copyright (c) 2026 Accenture, All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//	http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package controller
+
+// PrefixedModuleExpectedManagedApplicationCount is the parent mod-* plus {prefix}{module} child Application count.
+const PrefixedModuleExpectedManagedApplicationCount = 2
+
+// ModuleUsesPrefixedChildApplication reports modules that use a mod-* parent and a prefixed child Argo CD Application.
+// workloads-common shares the same teardown shape as workloads-android for the child Application only;
+// Cuttlefish KCC ComputeInstanceTemplate cleanup runs only for workloads-android (that chart owns cf-it-* CRs).
+func ModuleUsesPrefixedChildApplication(moduleName string) bool {
+	switch moduleName {
+	case "workloads-android", "workloads-common":
+		return true
+	default:
+		return false
+	}
+}

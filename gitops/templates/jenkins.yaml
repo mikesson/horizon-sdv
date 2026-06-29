@@ -46,6 +46,11 @@ spec:
             backendBucket: {{ .Values.config.backendBucket }}
             domain: {{ .Values.config.domain }}
             namespacePrefix: {{ .Values.config.namespacePrefix }}
+            {{- $ar := .Values.config.arm64 | default dict }}
+            arm64:
+              region: {{ $ar.region | quote }}
+              zone: {{ $ar.zone | quote }}
+              subnetwork: {{ $ar.subnetwork | quote }}
             workloads:
               android:
                 url: {{ .Values.scm.repoUrl }}

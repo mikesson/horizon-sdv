@@ -57,6 +57,13 @@ crucial for correlating <code>ABFS_VERSION</code> and <code>ABFS_CASFS_VERSION</
     }
 
     stringParam {
+      name('AAOS_MANIFEST_NAME')
+      defaultValue('default.xml')
+      description('''<p>Android Manifest filename.</p>''')
+      trim(true)
+    }
+
+    stringParam {
       name('AAOS_LUNCH_TARGET')
       defaultValue('aosp_cf_x86_64_auto-bp1a-userdebug')
       description('''<p>Build Android cuttlefish, virtual devices and Pixel target.<br/>

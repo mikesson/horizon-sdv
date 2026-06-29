@@ -53,7 +53,6 @@ spec:
                   parameters:
                     - name: horizonSubmittedFrom
                     - name: dockerArtifactPathName
-                    - name: dockerfileDir
                     - name: dryRun
                     - name: imageTag
                     - name: linuxDistribution
@@ -81,37 +80,33 @@ spec:
               dest: spec.arguments.parameters.1.value
             - src:
                 dependencyName: webhook-dep
-                dataKey: body.dockerfileDir
+                dataKey: body.dryRun
               dest: spec.arguments.parameters.2.value
             - src:
                 dependencyName: webhook-dep
-                dataKey: body.dryRun
+                dataKey: body.imageTag
               dest: spec.arguments.parameters.3.value
             - src:
                 dependencyName: webhook-dep
-                dataKey: body.imageTag
+                dataKey: body.linuxDistribution
               dest: spec.arguments.parameters.4.value
             - src:
                 dependencyName: webhook-dep
-                dataKey: body.linuxDistribution
+                dataKey: body.nodejsVersion
               dest: spec.arguments.parameters.5.value
             - src:
                 dependencyName: webhook-dep
-                dataKey: body.nodejsVersion
+                dataKey: body.gcloudCliVersion
               dest: spec.arguments.parameters.6.value
             - src:
                 dependencyName: webhook-dep
-                dataKey: body.gcloudCliVersion
+                dataKey: body.kubectlVersion
               dest: spec.arguments.parameters.7.value
             - src:
                 dependencyName: webhook-dep
-                dataKey: body.kubectlVersion
+                dataKey: body.enableGeminiAiAssistant
               dest: spec.arguments.parameters.8.value
             - src:
                 dependencyName: webhook-dep
-                dataKey: body.enableGeminiAiAssistant
-              dest: spec.arguments.parameters.9.value
-            - src:
-                dependencyName: webhook-dep
                 dataKey: body.geminiCliVersion
-              dest: spec.arguments.parameters.10.value
+              dest: spec.arguments.parameters.9.value

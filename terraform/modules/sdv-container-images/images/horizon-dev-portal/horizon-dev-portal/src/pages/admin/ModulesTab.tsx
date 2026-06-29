@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 //
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Alert,
   Box,
@@ -22,6 +22,7 @@ import {
   CircularProgress,
   FormControlLabel,
   Grid,
+  Stack,
   Switch,
   TextField,
   Typography,
@@ -30,6 +31,7 @@ import {
 import { apiMm } from '../../utils/api';
 import type { ModuleResponse, StatusResponse } from '../../types';
 import { deploymentStatus } from '../../moduleStatus';
+import { READY_MODULES_REFRESH_EVENT } from '../../constants';
 
 async function fetchModules(): Promise<ModuleResponse[]> {
   const r = await apiMm('/modules');
@@ -47,6 +49,10 @@ async function fetchStatus(idOrName: string): Promise<StatusResponse> {
   return r.json() as Promise<StatusResponse>;
 }
 
+type RefreshResult =
+  | { ok: true; list: ModuleResponse[]; allReady: boolean }
+  | { ok: false; allReady: boolean };
+
 export function ModulesTab() {
   const [mods, setMods] = useState<ModuleResponse[]>([]);
   const [statuses, setStatuses] = useState<Record<string, StatusResponse>>({});
@@ -54,17 +60,30 @@ export function ModulesTab() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
+  /** Name of the module whose pin editor is open, or null when all editors are closed. */
+  const [pinEditor, setPinEditor] = useState<string | null>(null);
+  /** Ref copy of `busy` for the polling loop and visibility refresh. */
+  const busyRef = useRef<string | null>(null);
+  /** When true, background poll skips `refresh()` during long enable (reduces READY→INSTALLATION flicker). Disable/apply-ref keep polling so READY→UNINSTALL updates while DELETE runs. */
+  const suppressBackgroundPollRef = useRef(false);
+  busyRef.current = busy;
 
-  const refresh = useCallback(async (): Promise<boolean> => {
+  const cancelPinEditor = (m: ModuleResponse) => {
+    setRefDraft((prev) => ({ ...prev, [m.name]: m.pinned ? (m.targetRevision ?? '').trim() : '' }));
+    setPinEditor(null);
+  };
+
+  const refresh = useCallback(async (): Promise<RefreshResult> => {
     try {
       const list = await fetchModules();
       setRefDraft((prev) => {
         const next = { ...prev };
         for (const m of list) {
-          const serverRef =
-            (m.targetRevision ?? m.clusterTargetRevision ?? '').trim() || '';
           if (next[m.name] === undefined) {
-            next[m.name] = serverRef;
+            // Only pre-fill the field for pinned modules (so Apply ref shows the current pin).
+            // Following/disabled modules get an empty string so enable sends no body and follows
+            // the platform branch rather than accidentally pinning it.
+            next[m.name] = m.pinned ? (m.targetRevision ?? '').trim() : '';
           }
         }
         return next;
@@ -79,20 +98,24 @@ export function ModulesTab() {
           }
         })
       );
-      setMods(list);
+      // Disable can commit on the server between GET /modules and GET /modules/{name}/status; the list would
+      // still show enabled=true while Argo reports OutOfSync+Healthy for the pruning parent, which wrongly maps
+      // to UPDATE IN PROGRESS. Re-fetch the module list so enabled matches the latest ModuleManagerState.
+      const listFinal = await fetchModules();
+      setMods(listFinal);
       setStatuses(st);
       setError(null);
-      const allReady = list.every((m) => {
+      const allReady = listFinal.every((m) => {
         const label = deploymentStatus(m.enabled, st[m.name]);
         if (!m.enabled) {
           return label === 'NOT INSTALLED';
         }
         return label === 'READY';
       });
-      return allReady;
+      return { ok: true, list: listFinal, allReady };
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Load failed');
-      return true;
+      return { ok: false, allReady: true };
     } finally {
       setLoading(false);
     }
@@ -107,11 +130,17 @@ export function ModulesTab() {
         if (cancelled) {
           return;
         }
-        const allReady = await refresh();
+        if (busyRef.current && suppressBackgroundPollRef.current) {
+          schedule(3000);
+          return;
+        }
+        const res = await refresh();
         if (cancelled) {
           return;
         }
-        schedule(allReady ? 8000 : 3000);
+        const allReady = res.ok ? res.allReady : false;
+        // Steady state still polls so out-of-band disables (Argo/kubectl) update without a full reload.
+        schedule(allReady ? 5000 : 3000);
       }, delay);
     };
 
@@ -122,6 +151,42 @@ export function ModulesTab() {
     };
   }, [refresh]);
 
+  useEffect(() => {
+    const onVis = () => {
+      if (document.visibilityState !== 'visible' || (busyRef.current && suppressBackgroundPollRef.current)) {
+        return;
+      }
+      void refresh();
+    };
+    document.addEventListener('visibilitychange', onVis);
+    return () => document.removeEventListener('visibilitychange', onVis);
+  }, [refresh]);
+
+  const resetToPlatformBranch = async (m: ModuleResponse) => {
+    setBusy(m.name);
+    suppressBackgroundPollRef.current = false;
+    setError(null);
+    try {
+      const r = await apiMm(`/modules/${encodeURIComponent(m.name)}/target-revision`, {
+        method: 'DELETE',
+      });
+      if (!r.ok) {
+        const t = await r.text();
+        throw new Error(t || `reset ref ${r.status}`);
+      }
+      // Clear the draft so the field reverts to the platform-branch placeholder, not the stale pin.
+      setRefDraft((prev) => ({ ...prev, [m.name]: '' }));
+      setPinEditor(null);
+      await refresh();
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Request failed');
+    } finally {
+      setBusy(null);
+      suppressBackgroundPollRef.current = false;
+      window.dispatchEvent(new CustomEvent(READY_MODULES_REFRESH_EVENT));
+    }
+  };
+
   const applyRef = async (m: ModuleResponse) => {
     const ref = (refDraft[m.name] ?? '').trim();
     if (!ref) {
@@ -129,6 +194,7 @@ export function ModulesTab() {
       return;
     }
     setBusy(m.name);
+    suppressBackgroundPollRef.current = false;
     setError(null);
     try {
       const r = await apiMm(`/modules/${encodeURIComponent(m.name)}/target-revision`, {
@@ -140,16 +206,35 @@ export function ModulesTab() {
         const t = await r.text();
         throw new Error(t || `set ref ${r.status}`);
       }
+      setPinEditor(null);
       await refresh();
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Request failed');
     } finally {
       setBusy(null);
+      suppressBackgroundPollRef.current = false;
+      window.dispatchEvent(new CustomEvent(READY_MODULES_REFRESH_EVENT));
+    }
+  };
+
+  /** Module Manager can return 200 on enable/disable before the next GET /modules observes the new flag (informer/cache). */
+  const refreshUntilModuleEnabledMatches = async (moduleName: string, wantEnabled: boolean) => {
+    for (let i = 0; i < 15; i++) {
+      const res = await refresh();
+      if (!res.ok) {
+        return;
+      }
+      const row = res.list.find((x) => x.name === moduleName);
+      if (row && row.enabled === wantEnabled) {
+        return;
+      }
+      await new Promise((r) => setTimeout(r, 400));
     }
   };
 
   const toggle = async (m: ModuleResponse, enable: boolean) => {
     setBusy(m.name);
+    suppressBackgroundPollRef.current = enable;
     setError(null);
     try {
       if (enable) {
@@ -164,6 +249,8 @@ export function ModulesTab() {
           const t = await r.text();
           throw new Error(t || `enable ${r.status}`);
         }
+        setPinEditor(null);
+        await refreshUntilModuleEnabledMatches(m.name, true);
       } else {
         const r = await apiMm(`/modules/${encodeURIComponent(m.name)}/disable`, {
           method: 'DELETE',
@@ -178,12 +265,17 @@ export function ModulesTab() {
           const t = await r.text();
           throw new Error(t || `disable ${r.status}`);
         }
+        // Clear the draft so a subsequent re-enable follows the platform branch by default.
+        setRefDraft((prev) => ({ ...prev, [m.name]: '' }));
+        setPinEditor(null);
+        await refreshUntilModuleEnabledMatches(m.name, false);
       }
-      await refresh();
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Request failed');
     } finally {
       setBusy(null);
+      suppressBackgroundPollRef.current = false;
+      window.dispatchEvent(new CustomEvent(READY_MODULES_REFRESH_EVENT));
     }
   };
 
@@ -197,11 +289,42 @@ export function ModulesTab() {
 
   return (
     <Box>
-      <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-        Enable or disable modules. Hard dependencies are enabled automatically. Set each
-        module&apos;s Git ref (branch, tag, or commit) before enabling or use Apply on an
-        enabled module to switch refs. Dependent modules are shown on each card.
-      </Typography>
+      <Stack spacing={1.25} sx={{ mb: 2 }}>
+        <Typography variant="body2" color="text.secondary" component="p" sx={{ m: 0 }}>
+          Enable or disable modules. Hard dependencies are enabled automatically. Enabling follows the{' '}
+          <strong>platform branch</strong> (the cluster default from Terraform) by default. Use{' '}
+          <strong>Pin to ref</strong> on an enabled module, or{' '}
+          <strong>Pin ref before install</strong> on a disabled one, to lock it to a specific branch, tag, or
+          commit. Use <strong>Reset to platform branch</strong> on a pinned module to follow the platform again.
+          Dependent modules are listed on each card.
+        </Typography>
+        <Typography variant="body2" color="text.secondary" component="p" sx={{ m: 0 }}>
+          Status chips reflect Module Manager and Argo CD (install, update, uninstall, or ready). First-time
+          installs and uninstalls can take several minutes; disable may wait while related cloud resources finish
+          tearing down.
+        </Typography>
+        <Typography variant="body2" color="text.secondary" component="p" sx={{ m: 0 }}>
+          When no toggle or apply is running, this page refreshes status on its own every few seconds. Bringing
+          this tab back to the foreground also triggers a refresh.
+        </Typography>
+      </Stack>
+      <Alert severity="warning" sx={{ mb: 2 }}>
+        <Stack spacing={1}>
+          <Typography variant="body2" component="div">
+            <strong>Do not reload or close this tab</strong> while enable, disable, pin / apply ref, or
+            &quot;Reset to platform branch&quot; is running.
+          </Typography>
+          <Typography variant="body2" component="div">
+            A full page refresh usually <strong>cancels the in-flight browser request</strong>. The server may
+            still apply or partially apply the change, so the UI can disagree with the cluster until you load
+            fresh data <em>after</em> the operation completes.
+          </Typography>
+          <Typography variant="body2" component="div">
+            While this page is idle, status updates every few seconds automatically. Only hard-refresh if you
+            believe the view is stale and no command is in progress.
+          </Typography>
+        </Stack>
+      </Alert>
       {error && (
         <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
           {error}
@@ -211,10 +334,15 @@ export function ModulesTab() {
         {mods.map((m) => {
           const st = statuses[m.name];
           const label = deploymentStatus(m.enabled, st);
+          const moduleUiLocked =
+            busy === m.name ||
+            label === 'UNINSTALL IN PROGRESS' ||
+            label === 'INSTALLATION IN PROGRESS' ||
+            label === 'UPDATE IN PROGRESS';
           const color =
             label === 'READY'
               ? 'success'
-              : label === 'NOT INSTALLED'
+              : label === 'NOT INSTALLED' || label === 'DEPLOYMENT PENDING'
                 ? 'default'
                 : label === 'UPDATE IN PROGRESS'
                   ? 'info'
@@ -227,39 +355,116 @@ export function ModulesTab() {
                   <Box sx={{ my: 1, display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
                     <Chip size="small" label={label} color={color} />
                   </Box>
-                  <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 0.5 }}>
-                    Effective ref: {m.targetRevision || m.clusterTargetRevision || '—'}
-                  </Typography>
-                  <TextField
-                    size="small"
-                    fullWidth
-                    label="Git ref"
-                    placeholder={m.clusterTargetRevision || 'branch / tag / SHA'}
-                    value={refDraft[m.name] ?? ''}
-                    disabled={busy === m.name}
-                    onChange={(e) =>
-                      setRefDraft((prev) => ({ ...prev, [m.name]: e.target.value }))
-                    }
-                    sx={{ mt: 1 }}
-                  />
-                  <Box sx={{ mt: 1, display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                    {m.enabled ? (
-                      <Button
+                  {label === 'DEPLOYMENT PENDING' ? (
+                    <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 0.5 }}>
+                      Enabled in Module Manager, but no matching Argo CD Application was found (reconcile lag,
+                      manual delete, or different cluster/namespace than module-manager). Disable if this is
+                      unintended.
+                    </Typography>
+                  ) : null}
+                  {m.enabled ? (
+                    <Box sx={{ mb: 0.5, display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+                      <Chip
                         size="small"
                         variant="outlined"
-                        disabled={busy === m.name}
-                        onClick={() => void applyRef(m)}
+                        label={m.pinned ? 'Pinned' : 'Following platform'}
+                        color={m.pinned ? 'warning' : 'info'}
+                      />
+                      <Typography
+                        variant="caption"
+                        color="text.secondary"
+                        component="span"
+                        title={(m.pinned ? m.targetRevision : m.clusterTargetRevision) || ''}
+                        sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '100%' }}
                       >
-                        Apply ref
-                      </Button>
-                    ) : null}
-                  </Box>
+                        {(m.pinned ? m.targetRevision : m.clusterTargetRevision) || '\u2014'}
+                      </Typography>
+                    </Box>
+                  ) : null}
+                  {pinEditor === m.name ? (
+                    <Box sx={{ mt: 1 }}>
+                      <TextField
+                        size="small"
+                        fullWidth
+                        label="Custom Git ref"
+                        placeholder={m.clusterTargetRevision || 'branch / tag / SHA'}
+                        value={refDraft[m.name] ?? ''}
+                        disabled={moduleUiLocked}
+                        onChange={(e) =>
+                          setRefDraft((prev) => ({ ...prev, [m.name]: e.target.value }))
+                        }
+                        helperText={
+                          m.enabled
+                            ? m.pinned
+                              ? 'Edit and Apply to change the pin, or Reset to follow the platform branch.'
+                              : 'Enter a branch, tag, or commit to pin. Cancel to keep following the platform branch.'
+                            : 'Optional. Pins this module to this ref on install. Leave empty to follow the platform branch.'
+                        }
+                      />
+                      <Box sx={{ mt: 1, display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                        {m.enabled ? (
+                          <Button
+                            size="small"
+                            variant="contained"
+                            disabled={moduleUiLocked}
+                            onClick={() => void applyRef(m)}
+                          >
+                            Apply
+                          </Button>
+                        ) : null}
+                        <Button
+                          size="small"
+                          variant="outlined"
+                          disabled={moduleUiLocked}
+                          onClick={() => cancelPinEditor(m)}
+                        >
+                          Cancel
+                        </Button>
+                      </Box>
+                    </Box>
+                  ) : (
+                    <Box sx={{ mt: 1, display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                      {m.enabled ? (
+                        <>
+                          <Button
+                            size="small"
+                            variant="outlined"
+                            disabled={moduleUiLocked}
+                            onClick={() => setPinEditor(m.name)}
+                          >
+                            {m.pinned ? 'Edit ref' : 'Pin to ref'}
+                          </Button>
+                          {m.pinned ? (
+                            <Button
+                              size="small"
+                              variant="outlined"
+                              color="secondary"
+                              disabled={moduleUiLocked}
+                              onClick={() => void resetToPlatformBranch(m)}
+                            >
+                              Reset to platform branch
+                            </Button>
+                          ) : null}
+                        </>
+                      ) : (
+                        <Button
+                          size="small"
+                          variant="text"
+                          disabled={moduleUiLocked}
+                          onClick={() => setPinEditor(m.name)}
+                          sx={{ px: 0, minWidth: 0 }}
+                        >
+                          Pin ref before install
+                        </Button>
+                      )}
+                    </Box>
+                  )}
                   <FormControlLabel
                     sx={{ mt: 1, display: 'block' }}
                     control={
                       <Switch
                         checked={m.enabled}
-                        disabled={busy === m.name}
+                        disabled={moduleUiLocked}
                         onChange={(_, v) => void toggle(m, v)}
                       />
                     }

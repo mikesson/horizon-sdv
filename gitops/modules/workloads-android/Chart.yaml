@@ -14,7 +14,7 @@
 
 apiVersion: v2
 name: workloads-android
-description: Android AAOS pipelines (dynpvc + aaos-builder + runtime-image) via Module Manager
-version: 0.2.0
+description: Android AAOS pipelines (dynpvc + aaos-builder + runtime-image + cf-instance-template) via Module Manager
+version: 0.2.1
 type: application
-appVersion: "0.2.0"
+appVersion: "0.2.1"

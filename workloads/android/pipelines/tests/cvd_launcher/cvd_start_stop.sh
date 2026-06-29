@@ -46,38 +46,66 @@ function cuttlefish_extract_artifacts() {
     mkdir -p "${HOME}"/cf
     cd "${HOME}"/cf || exit
 
+    local _quiet=false
+    [[ "${CVD_ARGO_QUIET_GUEST_EXTRACT:-}" == "true" ]] && _quiet=true
+
     case "${CUTTLEFISH_DOWNLOAD_URL}" in
         gs://*)
-            gcloud storage cp "${CUTTLEFISH_DOWNLOAD_URL}"/cvd-host_package.tar.gz .
-            gcloud storage cp "${CUTTLEFISH_DOWNLOAD_URL}"/aosp_cf_"${ARCHITECTURE}"_auto-img*.zip .
+            if "${_quiet}"; then
+                gcloud storage cp "${CUTTLEFISH_DOWNLOAD_URL}"/cvd-host_package.tar.gz . >/dev/null 2>&1 \
+                    || { echo -e "${RED}gcloud cp cvd-host_package failed (see guest /tmp/cvd-argo-remote-main.log)${NC}" >&2; exit 1; }
+                gcloud storage cp "${CUTTLEFISH_DOWNLOAD_URL}/*img*.zip" . >/dev/null 2>&1 \
+                    || { echo -e "${RED}gcloud cp aosp_cf image failed${NC}" >&2; exit 1; }
+                echo -e "${GREEN}[cvd] Downloaded Cuttlefish artifacts from GCS (quiet guest extract)${NC}" >&2
+                ls -lh cvd-host_package.tar.gz *img*.zip 2>/dev/null | sed 's/^/[cvd] /' >&2 || true
+            else
+                gcloud storage cp "${CUTTLEFISH_DOWNLOAD_URL}"/cvd-host_package.tar.gz .
+                gcloud storage cp "${CUTTLEFISH_DOWNLOAD_URL}/*img*.zip" .
+            fi
             # Allow this to fail.
             gcloud storage cp "${CUTTLEFISH_DOWNLOAD_URL}/${WIFI_APK_NAME}" . >/dev/null 2>&1 || true
             ;;
         *)
             wget -nv "${CUTTLEFISH_DOWNLOAD_URL}"/cvd-host_package.tar.gz .
-            wget -r -nd -nv --no-parent -A "aosp_cf_${ARCHITECTURE}_auto-img*.zip" "${CUTTLEFISH_DOWNLOAD_URL}"/
+            wget -r -nd -nv --no-parent -A "*img*.zip" "${CUTTLEFISH_DOWNLOAD_URL}"/ || true
             # Allow this to fail.
             wget -nv "${CUTTLEFISH_DOWNLOAD_URL}/${WIFI_APK_NAME}" . > /dev/null 2>&1 || true
             ;;
     esac
 
     # Unpack the host packages.
-    if ! tar -xvf cvd-host_package.tar.gz
-    then
+    if "${_quiet}"; then
+        if ! tar -xf cvd-host_package.tar.gz; then
+            echo -e "${RED}Failed to extract cvd-host_package.tar.gz${NC}" >&2
+            exit 1
+        fi
+        if ! unzip -qo -- ./*img*.zip; then
+            echo -e "${RED}Failed to extract device image zip(s) (./*img*.zip)${NC}" >&2
+            exit 1
+        fi
+        echo -e "${GREEN}[cvd] Extracted host package and CF image (quiet guest extract)${NC}" >&2
+    elif ! tar -xvf cvd-host_package.tar.gz; then
         echo -e "${RED}Failed to extract cvd-host_package.tar.gz${NC}" >&2
         exit 1
-    fi
-
-    # Unpack the Cuttlefish device images.
-    if ! unzip aosp_cf_"${ARCHITECTURE}"_auto-img*.zip
-    then
-        echo -e "${RED}Failed to extract aosp_cf_${ARCHITECTURE}_auto-img*.zip${NC}" >&2
+    elif ! unzip -o -- ./*img*.zip; then
+        echo -e "${RED}Failed to extract CF image${NC}" >&2
         exit 1
     fi
 
     # Clean up
-    rm -f aosp_cf_"${ARCHITECTURE}"_auto-img*.zip
-    rm -f cvd-host_package.tar.gz
+    rm -f ./*img*.zip
+    rm -f ./cvd-host_package.tar.gz
+
+    # SDV cvd wrapper from build storage (AAOS: host/linux-x86/bin/sdv-cf). Fetch after unpack so
+    # it is not overwritten by the host tarball. Optional when the bucket has no sdv-cf (legacy).
+    case "${CUTTLEFISH_DOWNLOAD_URL}" in
+        gs://*)
+            gcloud storage cp "${CUTTLEFISH_DOWNLOAD_URL}/sdv-cf" . >/dev/null 2>&1 || true
+            ;;
+        *)
+            wget -nv "${CUTTLEFISH_DOWNLOAD_URL}/sdv-cf" . >/dev/null 2>&1 || true
+            ;;
+    esac
 }
 
 # Adjust cuttlefish resources
@@ -114,6 +142,12 @@ function cuttlefish_start() {
         echo -e "${RED}ERROR: CVD_COMMAND_LINE is empty after cvd_environment.sh${NC}" >&2
         exit 1
     fi
+
+    # Ensure sdv-cf is executable
+    if [[ -f "${PWD}/sdv-cf" ]]; then
+        chmod +x "${PWD}/sdv-cf"
+    fi
+
     CVD_CMD="sudo HOME=\"${PWD}\" ${CVD_COMMAND_LINE} >> \"${logfile}\" 2>&1 &"
     echo -e "${GREEN}Running ${CVD_CMD} in background.${NC}"
     if ! eval "${CVD_CMD}"
@@ -192,15 +226,24 @@ function cuttlefish_cleanup() {
 }
 
 function cuttlefish_nuclear() {
-    # dnsmasq process can remain and block a new start. Kill all CVD.
-    # Brute force so we can stop/start repeatedly on the same instance.
-    sudo pkill -9 -f cvd
+    # dnsmasq process can remain and block a new start. Kill Cuttlefish host processes.
+    # NEVER use pkill -f cvd — too broad; match binary names/paths only.
+    echo -e "${ORANGE}cuttlefish_nuclear${NC}"
+    sudo pkill -9 -x cvd || true
+    sudo pkill -9 -f '/usr/bin/cvd' || true
+    sudo pkill -9 -f '/usr/local/bin/cvd' || true
+    echo -e "${GREEN}cuttlefish_nuclear done${NC}"
 }
 
 # Stop CVD.
 function cuttlefish_stop() {
     echo -e "${ORANGE}cuttlefish_stop${NC}"
-    adb reboot
+    # Bound wait: stuck adb can block teardown for a long time.
+    if command -v timeout >/dev/null 2>&1; then
+        timeout 180 adb reboot 2>/dev/null || true
+    else
+        adb reboot || true
+    fi
     sudo adb kill-server || true
     sudo /usr/bin/cvd stop > /dev/null 2>&1
     sudo /usr/bin/cvd remove > /dev/null 2>&1

@@ -26,6 +26,9 @@
 # shellcheck disable=SC1091
 source "$(dirname "${BASH_SOURCE[0]}")"/cts_environment.sh "$0"
 
+CTS_TRADEFED_HOME="$(_cts_tradefed_home)"
+export CTS_TRADEFED_HOME
+
 declare CTS_RESULT=255
 
 function cts_cleanup() {
@@ -40,7 +43,7 @@ function cts_info() {
 
 # Show disk space
 function cts_disk_usage() {
-    echo -e "\033[1;32mCurrent Disk Usage:\033[0m"
+    echo -e "${GREEN}Current Disk Usage:${NC}"
     # Use tmp because disk differs on arch and it's /tmp that tests complain about.
     df -h /tmp || true
 }
@@ -100,19 +103,56 @@ function cts_run() {
     cts_wait_for_completion "$!"
 }
 
+# Tradefed writes under <CTS_TRADEFED_HOME>/results/latest/ (see Jenkins archive android-cts-results/invocation_summary.txt
+# from cts_store_results, which copies from .../latest/). Do not treat an empty results/ as valid: cts_execution.sh
+# mkdir -p "${CTS_TRADEFED_HOME}/results" before the run, so results/ often exists even when Tradefed never started.
+function cts_resolve_results_dir() {
+    local legacy="${HOME}/android-cts/results"
+    if [[ -d "${CTS_TRADEFED_HOME}/results/latest" ]]; then
+        echo "${CTS_TRADEFED_HOME}/results"
+        return 0
+    fi
+    if [[ -d "${legacy}/latest" ]]; then
+        echo "${legacy}"
+        return 0
+    fi
+    echo ""
+    return 1
+}
+
 function cts_store_results() {
+    local rdir legacy_home
+    legacy_home="${HOME}/android-cts/results"
+    rdir="$(cts_resolve_results_dir)" || true
+    if [[ -z "${rdir}" ]] || [[ ! -d "${rdir}/latest" ]]; then
+        echo -e "${RED}[cts] ERROR: No Tradefed results under ${CTS_TRADEFED_HOME}/results/latest or ${legacy_home}/latest (CTS_ROOT=${CTS_ROOT} CTS_TRADEFED_HOME=${CTS_TRADEFED_HOME}).${NC}" >&2
+        echo -e "${ORANGE}[cts]       Tradefed may have exited before creating a session (e.g. wrong host Java vs CTS requirements). Jenkins/Argo still expect WORKSPACE/android-cts-results/ after a successful run.${NC}" >&2
+        return 1
+    fi
     # Place in WORKSPACE for Jenkins artifact archive to store with job!
     rm -rf "${WORKSPACE}"/android-cts-results
-    cp -rf "${HOME}"/android-cts/results "${WORKSPACE}"/android-cts-results
-    cp -f "${HOME}"/android-cts/results/latest/invocation_summary.txt "${WORKSPACE}"/android-cts-results
+    cp -rf "${rdir}" "${WORKSPACE}"/android-cts-results
+    if [[ ! -f "${rdir}/latest/invocation_summary.txt" ]]; then
+        echo -e "${RED}[cts] ERROR: missing ${rdir}/latest/invocation_summary.txt after resolve (unexpected).${NC}" >&2
+        return 1
+    fi
+    cp -f "${rdir}/latest/invocation_summary.txt" "${WORKSPACE}"/android-cts-results
+
+    # Tradefed leaves results/latest as a symlink (often absolute under /opt/android-cts).
+    # Argo artifact init rejects those when prepare-gemini loads cvd-argo-artifacts.
+    rm -f "${WORKSPACE}/android-cts-results/latest" 2>/dev/null || true
 
     # Publish HTML failures
     mkdir -p "${WORKSPACE}"/android-cts-results-html
-    cp -f "${HOME}"/android-cts/results/latest/test_result_failures_suite.html "${WORKSPACE}"/android-cts-results-html || true
-    cp -f "${HOME}"/android-cts/results/latest/logo.png "${WORKSPACE}"/android-cts-results-html || true
-    cp -f "${HOME}"/android-cts/results/latest/compatibility_result.css "${WORKSPACE}"/android-cts-results-html || true
-    # Clean up.
-    rm -rf "${HOME}"/android-cts/results
+    cp -f "${rdir}/latest/test_result_failures_suite.html" "${WORKSPACE}"/android-cts-results-html || true
+    cp -f "${rdir}/latest/logo.png" "${WORKSPACE}"/android-cts-results-html || true
+    cp -f "${rdir}/latest/compatibility_result.css" "${WORKSPACE}"/android-cts-results-html || true
+    # Clean up job output (avoid wiping baked /opt trees — only drop latest or legacy home dir).
+    if [[ "${rdir}" == "${legacy_home}" ]]; then
+        rm -rf "${rdir}"
+    else
+        rm -rf "${rdir}/latest" 2>/dev/null || sudo rm -rf "${rdir}/latest" 2>/dev/null || true
+    fi
 }
 
 function cts_failure_check() {
@@ -126,15 +166,23 @@ function cts_failure_check() {
 }
 
 # Main
-cd "${HOME}"/android-cts/tools || exit
+mkdir -p "${CTS_TRADEFED_HOME}/results"
+chmod 1777 "${CTS_TRADEFED_HOME}/results" 2>/dev/null || sudo chmod 1777 "${CTS_TRADEFED_HOME}/results" 2>/dev/null || true
+
+cd "${CTS_TRADEFED_HOME}/tools" || {
+    echo -e "${RED}[cts] ERROR: ${CTS_TRADEFED_HOME}/tools missing. Run cts_initialise.sh first.${NC}" >&2
+    exit 1
+}
 cts_info
 RESULT=$?
 if [[ "${CTS_TEST_LISTS_ONLY}" == "false" ]]; then
     cts_run
     RESULT="${CTS_RESULT}"
-    cts_store_results
+    if ! cts_store_results; then
+        exit 1
+    fi
     if ! cts_failure_check; then
-        echo "Tests failed."
+        echo -e "${RED}Tests failed.${NC}"
         exit 1
     fi
     cts_cleanup

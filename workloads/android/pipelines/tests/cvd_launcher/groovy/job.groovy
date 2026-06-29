@@ -31,7 +31,10 @@ pipelineJob(cvdJobFullName) {
     </ul>
     <p>Refer to the README.md in the respective repository for further details.</p>
     <h4 style="margin-bottom: 10px;">Important Notes</h4>
-    <p>Users are responsible for specifying a valid cuttlefish instance - the job will block if the specified instance does not exist.</p>
+    <ul>
+      <li>AAOS SDV support included, please ensure you specify desired values for CUTTLEFISH_DOWNLOAD_URL and CVD_COMMAND_LINE.</li>
+      <li>Users are responsible for specifying a valid cuttlefish instance - the job will block if the specified instance does not exist.</li>
+    </ul>
     <p><b>Agentic AI (experimental):</b></p>
     <ul>
       <li>When <i>Agentic AI</i> is enabled, this job runs a sequenced triage over Cuttlefish /
@@ -94,7 +97,9 @@ pipelineJob(cvdJobFullName) {
     stringParam {
       name('CUTTLEFISH_DOWNLOAD_URL')
       defaultValue('')
-      description("""<p>Mandatory: Storage URL pointing to the location of the Cuttlefish Virtual Device images and host packages, e.g.<br/>gs://${ANDROID_BUILD_BUCKET_ROOT_NAME}/Android/Builds/AAOS_Builder/&lt;BUILD_NUMBER&gt;<br/><br/>
+      description("""<p>Mandatory: Storage URL pointing to the location of the Cuttlefish Virtual Device images and host packages for it.<br/><br/>
+        Example for AAOS:<br/>gs://${ANDROID_BUILD_BUCKET_ROOT_NAME}/Android/Builds/AAOS_Builder/&lt;BUILD_NUMBER&gt;<br/><br/>
+        Example for AAOS SDV:<br/>gs://${ANDROID_BUILD_BUCKET_ROOT_NAME}/Android/Builds/AAOS_SDV_Builder/&lt;BUILD_NUMBER&gt;<br/><br/>
         <b>Note:</b>
           <ul><li>if build number is less than 2 digits, then zero pad , i.e. 1 to 9 must be 01 to 09.</li></ul)</p>""")
       trim(true)
@@ -182,7 +187,12 @@ pipelineJob(cvdJobFullName) {
     stringParam {
       name('CVD_COMMAND_LINE')
       defaultValue('/usr/bin/cvd create --noresume -config=auto -report_anonymous_usage_stats=no --num_instances="${NUM_INSTANCES}" --cpus="${VM_CPUS}" --memory_mb="${VM_MEMORY_MB}" --console=true --setupwizard_mode DISABLED --enable_host_bluetooth false --gpu_mode guest_swiftshader')
-      description('''<p>Full <code>/usr/bin/cvd</code> command line. The default skips the setup wizard, disables host Bluetooth, and uses guest SwiftShader (software rendering) for typical CI agents without GPU passthrough; edit to suit your hosts. <code>NUM_INSTANCES</code>, <code>VM_CPUS</code>, and <code>VM_MEMORY_MB</code> in the default derive from the respective parameters in the job automatically.</p>''')
+      description('''<p>Full <code>/usr/bin/cvd</code> command line. The default skips the setup wizard, disables host Bluetooth, and uses guest SwiftShader (software rendering) for typical CI agents without GPU passthrough; edit to suit your hosts. <code>NUM_INSTANCES</code>, <code>VM_CPUS</code>, and <code>VM_MEMORY_MB</code> in the default derive from the respective parameters in the job automatically.<br/><br/>
+        For AAOS SDV image, use one of the options below:<br/><br/>
+        Option 1: single instance with default configurations (ignores: NUM_INSTANCES, VM_CPUS, VM_MEMORY_MB):<br/>
+        <code>./sdv-cf create --instance_name=instance1</code><br/><br/>
+        Option 2: multiple instances or specific demands (as specified with: NUM_INSTANCES, VM_CPUS, VM_MEMORY_MB):<br/>
+        <code>/usr/bin/cvd create -guest_enforce_security="true" -report_anonymous_usage_stats=y -extra_bootconfig_args="androidboot.sdv.instance_name=instance1 androidboot.sdv.boot_mode=locked androidboot.virt.address=3 androidboot.sdv.init_open_dice.sample_file=dice_handover_instance1 androidboot.sdv.vvmfactorytrust=c779a73d0595a6814ba0414a419e99ad4026ad0feb603f2ad80ee6a9e4d1adb7 androidboot.sdv.keymint.rpc.hbk=799da7577efd41d5b27810c5952fcec0291cbcfd687e77ac9a6cec8370651b1d androidboot.sdv.authz.enable=true androidboot.sdv.preprovisioned_vvmtruststore=img androidboot.sdv.ignore_avb_state=true androidboot.sdv.someip.enable=true" -default_vvmtruststore_file_name="vvmtruststore_preprovisioned_1.img" --enable_sandbox="true" --num_instances="${NUM_INSTANCES}" --cpus="${VM_CPUS}" --memory_mb="${VM_MEMORY_MB}"</code></p>''')
       trim(true)
     }
 

@@ -54,6 +54,12 @@ spec:
             android:
               url: {{ .Values.config.workloads.android.url | quote }}
               branch: {{ .Values.config.workloads.android.branch | quote }}
+          {{- if .Values.config.arm64 }}
+          arm64:
+            region: {{ .Values.config.arm64.region | quote }}
+            zone: {{ .Values.config.arm64.zone | quote }}
+            subnetwork: {{ .Values.config.arm64.subnetwork | quote }}
+          {{- end }}
     path: gitops/apps/module-manager
   destination:
     server: https://kubernetes.default.svc

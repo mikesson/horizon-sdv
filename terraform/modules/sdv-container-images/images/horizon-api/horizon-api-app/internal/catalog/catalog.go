@@ -299,7 +299,7 @@ func submitRequestBodySchema(e Entry) map[string]interface{} {
 			}
 		}
 		paramProps[p.Name] = prop
-		if p.Default == "" && p.Name != workflow.SubmitParamSubmittedFrom {
+		if p.Default == "" && p.Name != workflow.SubmitParamSubmittedFrom && p.Name != workflow.SubmitParamSubmittedBy {
 			paramRequired = append(paramRequired, p.Name)
 		}
 	}

@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 # CVD Launcher sequenced analysis: Cuttlefish / virtual device logs only. Prompt = task; skill = instruction. Single source of truth: this file.
 # Maintainer — **shared Cuttlefish grep/table only:** In **`global_constraints`**, the contiguous block from **## CVD errors — what to do** through **`- (add pattern)`** under **C — Extend** (includes the failure-id **markdown table** and **## Obvious guest `kernel.log` greps**) must be **byte-for-byte aligned** with `workloads/android/pipelines/tests/cts_execution/prompt/sequenced/skills.yaml`. Edit **both files in one PR** when you change that block. **Do not** expect Tradefed / CTS suite text here — this job is CVD logs only.
 global_constraints: |
@@ -33,6 +32,7 @@ global_constraints: |
   - Generate output directly in your response. Unless explicitly instructed otherwise, DO NOT write output to separate files.
   ## Artifact paths (read_file / filesystem tool)
   - CI stages logs under **`test-results/`** relative to the job workspace. The Gemini CLI sandbox only allows paths **inside** that workspace. **Never** use `/test-results/cvd/...` — use **`test-results/cvd/cvd-1/logs/kernel.log`** (workspace-relative).
+  - **FORBIDDEN:** Filesystem tools on **`/tmp`** or **`/tmp/`** (e.g. `list_directory("/tmp")`) — not in the allowlist; use only **`test-results/...`** and other workspace-relative paths. Do not browse `/tmp` to locate job artifacts.
   ## Cuttlefish zip — unpack if guest logs are not on disk yet
   - If **`test-results/cuttlefish_logs*.zip`** exists and **no** **`test-results/cvd/**/logs/kernel.log`** is present yet, **must** run **`mkdir -p test-results/cvd`** then **`unzip -q -o <zip> -d test-results/cvd`** for each zip (matches the pipeline’s AI Review unpack step), then confirm guest paths. Do not triage guest boot from the zip file without unpacking.
   - If **`unzip`** fails or shell is unavailable, note it in **preprocessing_log** and continue with available logs.

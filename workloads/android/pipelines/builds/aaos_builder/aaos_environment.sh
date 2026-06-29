@@ -26,6 +26,7 @@
 #
 # Optional variables:
 #  - AAOS_CLEAN: whether to clean before building.
+#  - AAOS_MANIFEST_NAME: default manifest filename.
 #  - AAOS_ARTIFACT_STORAGE_SOLUTION: the persistent storage location for
 #        artifacts (GCS_BUCKET default).
 #  - AAOS_ARTIFACT_ROOT_NAME: the name of the bucket to store artifacts.
@@ -84,6 +85,9 @@ AAOS_DEFAULT_REVISION=${AAOS_DEFAULT_REVISION:-android-16.0.0_r3}
 # Android branch/tag:
 AAOS_REVISION=${AAOS_REVISION:-${AAOS_DEFAULT_REVISION}}
 AAOS_REVISION=$(echo "${AAOS_REVISION}" | xargs)
+
+# Android manifest filename:
+AAOS_MANIFEST_NAME=${AAOS_MANIFEST_NAME:-}
 
 # Gerrit AAOS and RPi manifest URLs.
 AAOS_GERRIT_MANIFEST_URL=$(echo "${AAOS_GERRIT_MANIFEST_URL}" | xargs)
@@ -292,6 +296,10 @@ elif [[ "${AAOS_LUNCH_TARGET}" =~ "rpi5" ]]; then
 elif [[ "${AAOS_LUNCH_TARGET}" =~ "tangor" ]]; then
     AAOS_ARCH="arm64"
 fi
+# SDV CF targets omit x86_64/arm64 in the lunch name; default to x86_64 Cuttlefish.
+if [[ "${AAOS_LUNCH_TARGET}" =~ ^sdv_.*_cf ]] && [ -z "${AAOS_ARCH}" ]; then
+    AAOS_ARCH="x86_64"
+fi
 
 # If Jenkins, or local, the artifacts differ so update.
 USER=$(whoami)
@@ -335,6 +343,8 @@ declare -a POST_STORAGE_COMMANDS=(
 
 # This is a dictionary mapping the target names to the command line
 # to build the image.
+# SDV Cuttlefish lunch targets (glob sdv_*_cf*, e.g. sdv_core_cf-trunk_staging-userdebug) share
+# the same make/artifact path as aosp_cf*; OUT_DIR is still out_sdv-${AAOS_LUNCH_TARGET}.
 case "${AAOS_LUNCH_TARGET}" in
     aosp_rpi*)
         AAOS_BUILD_CTS="false"
@@ -410,7 +420,7 @@ case "${AAOS_LUNCH_TARGET}" in
             "rm -f ${AAOS_SDK_ADDON_FILE}"
         )
         ;;
-    aosp_cf*)
+    aosp_cf*|sdv_*_cf*)
         AAOS_MAKE_CMDLINE="m dist -j${AAOS_PARALLEL_BUILD_JOBS}"
 
         WIFI_APK_NAME="WifiUtil.apk"
@@ -442,6 +452,8 @@ case "${AAOS_LUNCH_TARGET}" in
                     "${OUT_DIR}/dist/cvd-host_package.tar.gz"
                     "${OUT_DIR}/dist/sbom/sbom.spdx.json"
                     "${OUT_DIR}/dist/aosp_cf_${AAOS_ARCH}_auto-img*.zip"
+                    "${OUT_DIR}/dist/sdv_*_cf*-img*.zip"
+                    "${OUT_DIR}/host/linux-x86/bin/sdv-cf"
                     "${WIFI_APK_NAME}"
                 )
             fi
@@ -535,7 +547,7 @@ case "${AAOS_LUNCH_TARGET}" in
     *)
         # If the target is not one of the above, print an error message
         # but continue as best so people can play with builds.
-        echo "WARNING: unknown target ${LUNCH_TARGET}"
+        echo "WARNING: unknown target ${AAOS_LUNCH_TARGET}"
         AAOS_MAKE_CMDLINE="m -j${AAOS_PARALLEL_BUILD_JOBS}"
         echo "Artifacts will not be stored!"
         ;;
@@ -564,6 +576,10 @@ GERRIT_PROJECT=$(echo "${GERRIT_PROJECT}" | xargs)
 GERRIT_CHANGE_NUMBER=$(echo "${GERRIT_CHANGE_NUMBER}" | xargs)
 GERRIT_PATCHSET_NUMBER=$(echo "${GERRIT_PATCHSET_NUMBER}" | xargs)
 GERRIT_TOPIC=$(echo "${GERRIT_TOPIC}" | xargs)
+GERRIT_USERNAME=$(echo "${GERRIT_USERNAME:-}" | xargs)
+GERRIT_PASSWORD=$(echo "${GERRIT_PASSWORD:-}" | xargs)
+# Gerrit REST (topic query, curl_gerrit_rest_get): HTTP basic auth uses GERRIT_USERNAME + GERRIT_PASSWORD.
+GERRIT_HTTP_USERNAME="${GERRIT_USERNAME}"
 # Holds changes that will be used to provide vote on verified label.
 GERRIT_CHANGES_FILE="${ORIG_WORKSPACE}/gerrit-changes.txt"
 
@@ -592,6 +608,7 @@ case "$0" in
             AAOS_GERRIT_RPI_MANIFEST_URL=${AAOS_GERRIT_RPI_MANIFEST_URL}
 
             AAOS_REVISION=${AAOS_REVISION}
+            AAOS_MANIFEST_NAME=${AAOS_MANIFEST_NAME}
 
             POST_REPO_INITIALISE_COMMAND=${POST_REPO_INITIALISE_COMMAND}
             POST_REPO_COMMAND=${POST_REPO_COMMAND}
@@ -603,6 +620,7 @@ case "$0" in
             GERRIT_CHANGE_NUMBER=${GERRIT_CHANGE_NUMBER}
             GERRIT_PATCHSET_NUMBER=${GERRIT_PATCHSET_NUMBER}
             GERRIT_TOPIC=${GERRIT_TOPIC}
+            GERRIT_HTTP_USERNAME=${GERRIT_HTTP_USERNAME}
 
             USE_LOCAL_AOSP_MIRROR=${USE_LOCAL_AOSP_MIRROR}
             AOSP_MIRROR_DIR_NAME=${AOSP_MIRROR_DIR_NAME}
@@ -611,6 +629,7 @@ case "$0" in
         else
             VARIABLES+="
             AAOS_REVISION=${AAOS_REVISION}
+            AAOS_MANIFEST_NAME=${AAOS_MANIFEST_NAME}
             AAOS_CLEAN=${AAOS_CLEAN}
             ABFS_CACHED_BUILD=${ABFS_CACHED_BUILD}
             ABFS_CMD_FLAGS=${ABFS_CMD_FLAGS}

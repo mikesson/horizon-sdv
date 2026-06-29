@@ -61,6 +61,7 @@ pipelineJob('Android/Tests/CTS Execution') {
     </ul>
     <h4 style="margin-bottom: 10px;">Important Notes</h4>
     <ul>
+      <li>AAOS SDV support included, please ensure you specify desired values for CUTTLEFISH_DOWNLOAD_URL, CVD_COMMAND_LINE and, if required, also CTS_DOWNLOAD_URL.</li>
       <li>Users are responsible for specifying a valid cuttlefish instance - the job will block if the specified instance does not exist.</li>
       <li>If tests timeout, then create the Cuttlefish instance template with a larger run duration, see <code>MAX_RUN_DURATION</code>, increase or set to 0 to ignore max runtime.</li>
     </ul>
@@ -119,7 +120,9 @@ pipelineJob('Android/Tests/CTS Execution') {
     stringParam {
       name('CUTTLEFISH_DOWNLOAD_URL')
       defaultValue('')
-      description("""<p>Mandatory: Storage URL pointing to the location of the Cuttlefish Virtual Device images and host packages, e.g.<br/>gs://${ANDROID_BUILD_BUCKET_ROOT_NAME}/Android/Builds/AAOS_Builder/&lt;BUILD_NUMBER&gt;<br/><br/>
+      description("""<p>Mandatory: Storage URL pointing to the location of the Cuttlefish Virtual Device images and host packages,<br/><br/>
+        Example for AAOS:<br/>gs://${ANDROID_BUILD_BUCKET_ROOT_NAME}/Android/Builds/AAOS_Builder/&lt;BUILD_NUMBER&gt;<br/><br/>
+        Example for AAOS SDV:<br/>gs://${ANDROID_BUILD_BUCKET_ROOT_NAME}/Android/Builds/AAOS_SDV_Builder/&lt;BUILD_NUMBER&gt;<br/><br/>
         <b>Note:</b>
           <ul><li>if build number is less than 2 digits, then zero pad , i.e. 1 to 9 must be 01 to 09.</li></ul)</p>""")
       trim(true)
@@ -159,8 +162,9 @@ pipelineJob('Android/Tests/CTS Execution') {
     stringParam {
       name('CTS_DOWNLOAD_URL')
       defaultValue('')
-      description("""<p>Optional CTS test harness download URL.<br/>Use official CTS test harness (empty field) or one built from AAOS Builder job and stored in GCS Bucket,
-e.g.<br/>gs://${ANDROID_BUILD_BUCKET_ROOT_NAME}/Android/Builds/AAOS_Builder/&lt;BUILD_NUMBER&gt;/android-cts.zip<br/><br/>
+      description("""<p>Optional CTS test harness download URL.<br/>Use official CTS test harness (empty field) or one built from AAOS (SDV) Builder job and stored in GCS Bucket,<br/><br/>
+        Example for AAOS:<br/>gs://${ANDROID_BUILD_BUCKET_ROOT_NAME}/Android/Builds/AAOS_Builder/&lt;BUILD_NUMBER&gt;/android-cts.zip<br/><br/>
+        Example for AAOS SDV:<br/>gs://${ANDROID_BUILD_BUCKET_ROOT_NAME}/Android/Builds/AAOS_SDV_Builder/&lt;BUILD_NUMBER&gt;/android-cts.zip<br/><br/>
         <b>Note:</b>
           <ul><li>if build number is less than 2 digits, then zero pad , i.e. 1 to 9 must be 01 to 09.</li></ul)</p>""")
       trim(true)
@@ -264,7 +268,7 @@ e.g.<br/>gs://${ANDROID_BUILD_BUCKET_ROOT_NAME}/Android/Builds/AAOS_Builder/&lt;
     choiceParam {
       name('CUTTLEFISH_KEEP_ALIVE_TIME')
       choices(['0', '5', '15', '30', '60', '90', '120', '180'])
-      description('''<p>Time in minutes, to keep CVD alive before stopping the devices and instance.</br>.
+      description('''<p>Time in minutes, to keep CVD alive before stopping the devices and instance.<br/>
         Only applicable when <i>MTK_CONNECT_ENABLE</i> enabled so as to connect via HOST.</p>''')
     }
 
@@ -278,7 +282,12 @@ e.g.<br/>gs://${ANDROID_BUILD_BUCKET_ROOT_NAME}/Android/Builds/AAOS_Builder/&lt;
     stringParam {
       name('CVD_COMMAND_LINE')
       defaultValue('/usr/bin/cvd create --noresume -config=auto -report_anonymous_usage_stats=no --num_instances="${NUM_INSTANCES}" --cpus="${VM_CPUS}" --memory_mb="${VM_MEMORY_MB}" --console=true --setupwizard_mode DISABLED --enable_host_bluetooth false --gpu_mode guest_swiftshader')
-      description('''<p>Full <code>/usr/bin/cvd</code> command line. The default skips the setup wizard, disables host Bluetooth, and uses guest SwiftShader (software rendering) for typical CI agents without GPU passthrough; edit to suit your hosts. <code>NUM_INSTANCES</code>, <code>VM_CPUS</code>, and <code>VM_MEMORY_MB</code> in the default derive from the respective parameters in the job automatically.</p>''')
+      description('''<p>Full <code>/usr/bin/cvd</code> command line. The default skips the setup wizard, disables host Bluetooth, and uses guest SwiftShader (software rendering) for typical CI agents without GPU passthrough; edit to suit your hosts. <code>NUM_INSTANCES</code>, <code>VM_CPUS</code>, and <code>VM_MEMORY_MB</code> in the default derive from the respective parameters in the job automatically.<br/><br/>
+        For AAOS SDV image, use one of the options below:<br/><br/>
+        Option 1: single instance with default configurations (ignores: NUM_INSTANCES, VM_CPUS, VM_MEMORY_MB):<br/>
+        <code>./sdv-cf create --instance_name=instance1</code><br/><br/>
+        Option 2: multiple instances or specific demands (as specified with: NUM_INSTANCES, VM_CPUS, VM_MEMORY_MB):<br/>
+        <code>/usr/bin/cvd create -guest_enforce_security="true" -report_anonymous_usage_stats=y -extra_bootconfig_args="androidboot.sdv.instance_name=instance1 androidboot.sdv.boot_mode=locked androidboot.virt.address=3 androidboot.sdv.init_open_dice.sample_file=dice_handover_instance1 androidboot.sdv.vvmfactorytrust=c779a73d0595a6814ba0414a419e99ad4026ad0feb603f2ad80ee6a9e4d1adb7 androidboot.sdv.keymint.rpc.hbk=799da7577efd41d5b27810c5952fcec0291cbcfd687e77ac9a6cec8370651b1d androidboot.sdv.authz.enable=true androidboot.sdv.preprovisioned_vvmtruststore=img androidboot.sdv.ignore_avb_state=true androidboot.sdv.someip.enable=true" -default_vvmtruststore_file_name="vvmtruststore_preprovisioned_1.img" --enable_sandbox="true" --num_instances="${NUM_INSTANCES}" --cpus="${VM_CPUS}" --memory_mb="${VM_MEMORY_MB}"</code></p>''')
       trim(true)
     }
 

@@ -411,9 +411,11 @@ def runCvdGeminiAiReview(Map cfg = [:]) {
     def promptBase = "${env.WORKSPACE}/${promptDir}"
     sh """
     set +x
-    unzip -q -o "\${WORKSPACE}/test-results/cuttlefish_logs-\${BUILD_NUMBER}.zip" -d "\${WORKSPACE}/test-results/cvd" 2>/dev/null || true
-    # Keep cuttlefish_logs-*.zip for storage upload; remove unpacked tree after analysis (see below) to avoid storing duplicate bulk in GCS.
-    export REPO_ROOT="\${WORKSPACE}"
+    export GEMINI_ARTIFACTS_COMMAND='unzip -q -o "\${WORKSPACE}/test-results/cuttlefish_logs-\${BUILD_NUMBER}.zip" -d "\${WORKSPACE}/test-results/cvd" 2>/dev/null || true'
+    export PIPELINE_REPO_ROOT="\${WORKSPACE}"
+    export GEMINI_ANALYSIS_PATH="\${WORKSPACE}"
+    export GEMINI_SKIP_MOVE_ARTIFACTS=1
+    export GEMINI_AI_EXECUTION_TIMEOUT_HOURS=2
     export GEMINI_PREVIEW_FEATURES="\${GEMINI_PREVIEW_FEATURES}"
     [ "\${GEMINI_LOCATION_GLOBAL}" = "true" ] && export GOOGLE_CLOUD_LOCATION="global" || export GOOGLE_CLOUD_LOCATION="\${CLOUD_REGION}"
     export GOOGLE_CLOUD_PROJECT="\${CLOUD_PROJECT}"
@@ -423,15 +425,8 @@ def runCvdGeminiAiReview(Map cfg = [:]) {
     export GEMINI_PROMPT_FILE="\${CTS_PROMPT_DIR}/step1_triage.txt"
     export GEMINI_PROMPT_FILE_2="\${CTS_PROMPT_DIR}/step2_rca.txt"
     export GEMINI_PROMPT_FILE_3="\${CTS_PROMPT_DIR}/step3_fixes.txt"
-    "\${WORKSPACE}"/workloads/common/agentic-ai/gemini/gemini_initialise.sh
-    timeout 2h "\${WORKSPACE}"/workloads/common/agentic-ai/gemini/gemini_analysis.sh
-    # Drop unpacked guest logs (large); retain cuttlefish_logs-*.zip under test-results/ for smaller GCS upload — re-unzip when downloading for Utility/local triage.
-    rm -rf "\${WORKSPACE}/test-results/cvd" 2>/dev/null || true
-    export GEMINI_ARTIFACT_ROOT_NAME="\${ANDROID_BUILD_BUCKET_ROOT_NAME}"
-    export GEMINI_ARTIFACT_STORAGE_SOLUTION="\${CTS_ARTIFACT_STORAGE_SOLUTION}"
-    export STORAGE_LABELS="\${STORAGE_LABELS}"
-    "\${WORKSPACE}"/workloads/common/agentic-ai/gemini/gemini_storage.sh
-    find . -type f -name "headless*.json" -size 0 -delete
+    export GEMINI_POST_REVIEW_COMMAND='rm -rf "\${WORKSPACE}/test-results/cvd" 2>/dev/null || true; export GEMINI_ARTIFACT_ROOT_NAME="\${ANDROID_BUILD_BUCKET_ROOT_NAME}"; export GEMINI_ARTIFACT_STORAGE_SOLUTION="\${CTS_ARTIFACT_STORAGE_SOLUTION}"; export STORAGE_LABELS="\${STORAGE_LABELS}"; "\${WORKSPACE}/workloads/common/agentic-ai/gemini/gemini_storage.sh"; find . -type f -name "headless*.json" -size 0 -delete'
+    "\${WORKSPACE}"/workloads/common/agentic-ai/gemini/run_ai_review.sh
   """.stripIndent()
   }
   archiveArtifacts artifacts: 'gemini-assist/*', followSymlinks: false, onlyIfSuccessful: false, allowEmptyArchive: true

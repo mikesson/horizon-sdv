@@ -167,7 +167,13 @@ if [ -f "${ARTIFACT_SUMMARY}" ]; then
     printf '%b\n' '\033[1;34m================================================================================\033[0m'
     echo
     while IFS= read -r line; do
-        printf '%b%s%b\n' '\033[1;32m' "$line" '\033[0m'
+        # Lines with URLs must stay plain: printf '%b' + trailing \\033[0m on the same line is
+        # picked up by Jenkins / Argo log linkifiers as part of the href (%1B[0m in Console).
+        if [[ "$line" =~ https?:// ]]; then
+            echo "$line"
+        else
+            printf '%b%s%b\n' '\033[1;32m' "$line" '\033[0m'
+        fi
     done < "${ARTIFACT_SUMMARY}"
     echo
     printf '%b\n' '\033[1;34m================================================================================\033[0m'

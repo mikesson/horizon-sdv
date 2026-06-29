@@ -183,6 +183,14 @@ pipelineJob('Cloud-Workstations/Config-Admin-Operations/Update Existing Configur
     ''')
   }
 
+  // Block build if certain jobs are running.
+  blockOn('Cloud-Workstations/.*/(Create|Update|Delete|Add|Remove|Start|Stop).*') {
+    // Possible values are 'GLOBAL' and 'NODE' (default).
+    blockLevel('GLOBAL')
+    // Possible values are 'ALL', 'BUILDABLE' and 'DISABLED' (default).
+    scanQueueFor('BUILDABLE')
+  }
+
   definition {
     cpsScm {
       lightweight()

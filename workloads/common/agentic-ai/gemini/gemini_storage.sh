@@ -49,7 +49,7 @@ export STORAGE_CLOUD_URL=${STORAGE_CLOUD_URL:-https://console.cloud.google.com/s
 
 ARTIFACT_LIST=$(printf '%s\n' "${GEMINI_ARTIFACT_LIST[@]}")
 export ARTIFACT_LIST
-export ARTIFACT_SUMMARY="${WORKSPACE}/gemini-artifacts.txt"
+export ARTIFACT_SUMMARY="${GEMINI_ARTIFACT_WRITE_ROOT}/gemini-artifacts.txt"
 POST_CLEANUP_STRING=""
 export POST_CLEANUP_STRING
 POST_CLEANUP_STRING="$(printf "%s\n" "${POST_STORAGE_COMMANDS[@]}")"

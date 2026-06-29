@@ -56,33 +56,46 @@ import { SettingsTab } from './pages/admin/SettingsTab';
 import { ModulePage } from './pages/ModulePage';
 import { apiMm } from './utils/api';
 import type { ModuleResponse, StatusResponse } from './types';
-import { isReady } from './moduleStatus';
-import { HORIZON_LOGO_SRC } from './constants';
+import { deploymentStatus, isReady } from './moduleStatus';
+import { HORIZON_LOGO_SRC, READY_MODULES_REFRESH_EVENT } from './constants';
 import { getRouterBasename } from './utils/publicPath';
 
 const drawerWidth = 260;
 
-async function fetchReadyModuleNames(): Promise<string[]> {
+/** Per-module status can be slow (large Argo apps); do not block other modules or hang the sidebar tick forever. */
+const moduleStatusFetchTimeoutMs = 25_000;
+
+/** Sidebar lists modules that are READY for use, or still tearing down (UNINSTALL IN PROGRESS) so the entry does not vanish while Argo prunes. */
+async function fetchNavModuleNameIfRelevant(m: ModuleResponse): Promise<string | null> {
+  const ctrl = new AbortController();
+  const tid = window.setTimeout(() => ctrl.abort(), moduleStatusFetchTimeoutMs);
+  try {
+    const sr = await apiMm(`/modules/${encodeURIComponent(m.name)}/status`, { signal: ctrl.signal });
+    if (!sr.ok) {
+      return null;
+    }
+    const st = (await sr.json()) as StatusResponse;
+    const label = deploymentStatus(m.enabled, st);
+    if (isReady(m.enabled, st) || label === 'UNINSTALL IN PROGRESS') {
+      return m.name;
+    }
+    return null;
+  } catch {
+    return null;
+  } finally {
+    window.clearTimeout(tid);
+  }
+}
+
+async function fetchNavModuleNames(): Promise<string[]> {
   const r = await apiMm('/modules');
   if (!r.ok) {
     return [];
   }
   const list = (await r.json()) as ModuleResponse[];
-  const ready: string[] = [];
-  for (const m of list) {
-    if (!m.enabled) {
-      continue;
-    }
-    const sr = await apiMm(`/modules/${encodeURIComponent(m.name)}/status`);
-    if (!sr.ok) {
-      continue;
-    }
-    const st = (await sr.json()) as StatusResponse;
-    if (isReady(m.enabled, st)) {
-      ready.push(m.name);
-    }
-  }
-  return ready.sort((a, b) => a.localeCompare(b));
+  const parts = await Promise.all(list.map((m) => fetchNavModuleNameIfRelevant(m)));
+  const names = parts.filter((x): x is string => x != null);
+  return names.sort((a, b) => a.localeCompare(b));
 }
 
 function useReadyModules(): string[] {
@@ -90,16 +103,26 @@ function useReadyModules(): string[] {
   useEffect(() => {
     let cancelled = false;
     async function tick() {
-      const names = await fetchReadyModuleNames();
+      const names = await fetchNavModuleNames();
       if (!cancelled) {
         setMods(names);
       }
     }
     void tick();
-    const id = window.setInterval(() => void tick(), 12000);
+    const id = window.setInterval(() => void tick(), 4000);
+    const onVis = () => {
+      if (document.visibilityState === 'visible') {
+        void tick();
+      }
+    };
+    const onModulesAdminChanged = () => void tick();
+    document.addEventListener('visibilitychange', onVis);
+    window.addEventListener(READY_MODULES_REFRESH_EVENT, onModulesAdminChanged);
     return () => {
       cancelled = true;
       window.clearInterval(id);
+      document.removeEventListener('visibilitychange', onVis);
+      window.removeEventListener(READY_MODULES_REFRESH_EVENT, onModulesAdminChanged);
     };
   }, []);
   return mods;

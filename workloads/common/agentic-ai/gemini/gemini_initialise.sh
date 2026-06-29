@@ -38,6 +38,7 @@
 # Include common functions and variables.
 # shellcheck disable=SC1091
 source "$(dirname "${BASH_SOURCE[0]}")"/gemini_environment.sh "$0"
+cd "${GEMINI_ARTIFACT_WRITE_ROOT}" || exit 1
 
 RESULT=0
 

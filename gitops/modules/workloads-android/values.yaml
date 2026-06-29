@@ -26,11 +26,12 @@ repo:
   revision: HEAD
 
 # From MODULE_CONFIG (root module-manager Helm values): projectID, region, zone, namespacePrefix,
-# domain, workloads.android.url/branch, and pipeline auth via config.scm.authMethod (Module Manager → config.scm).
-# AAOS webhook Sensors (webhook-aaos-builder*) deploy from the aaos_builder and docker_image_template
-# Helm sources on workloads-android into namespacePrefix+argo-events (templates/workflow/sensors.yaml).
+# domain, workloads.android.url/branch, config.arm64 (Terraform placement), and pipeline auth via config.scm.authMethod.
+# AAOS / CF webhook Sensors (webhook-aaos-builder*, webhook-cf-instance-template-*) deploy from the aaos_builder,
+# docker_image_template, and cf_instance_template Helm sources on workloads-android into namespacePrefix+argo-events.
 # webhooks.enabled is retained for MODULE_CONFIG compatibility (previously gated a duplicate Argo Application).
 config:
+  # ARM64 placement (config.arm64) comes from MODULE_CONFIG / Terraform — not defaulted in this chart.
   workloads:
     android:
       webhooks:

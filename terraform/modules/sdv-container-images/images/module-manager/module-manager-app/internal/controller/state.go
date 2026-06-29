@@ -48,6 +48,15 @@ type State struct {
 	WorkflowsVisibility *WorkflowsVisibilitySettings `json:"workflowsVisibility,omitempty"`
 }
 
+// IsModulePinned reports whether moduleName has an explicit Git ref pin in persisted state.
+func IsModulePinned(state *State, moduleName string) bool {
+	if state == nil || state.ModuleTargetRevisions == nil {
+		return false
+	}
+	r, ok := state.ModuleTargetRevisions[moduleName]
+	return ok && strings.TrimSpace(r) != ""
+}
+
 // EffectiveTargetRevision returns the Git ref for moduleName from persisted state, or defaultRev when unset.
 func EffectiveTargetRevision(state *State, moduleName, defaultRev string) string {
 	defaultRev = strings.TrimSpace(defaultRev)

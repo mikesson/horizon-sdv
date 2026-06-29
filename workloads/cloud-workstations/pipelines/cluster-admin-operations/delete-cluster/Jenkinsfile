@@ -37,9 +37,12 @@ pipeline {
       yaml """\
         apiVersion: v1
         kind: Pod
+        metadata:
+          annotations:
+            cluster-autoscaler.kubernetes.io/safe-to-evict: "false"
         spec:
-          hostname: jenkins-cloud-ws-build-pod
           serviceAccountName: ${JENKINS_SERVICE_ACCOUNT}
+          terminationGracePeriodSeconds: 600
           containers:
           - name: cloud-ws-builder
             image: ${CLOUD_REGION}-docker.pkg.dev/${CLOUD_PROJECT}/${CLOUD_WS_WORKLOADS_ENV_IMAGE_NAME}:latest
@@ -65,7 +68,7 @@ pipeline {
   options {
     // Prevent any other "write" operation pipeline within the Cloud Workstations domain
     // from running concurrently with this job (and vice-versa).
-    buildBlocker(useBuildBlocker: true, blockLevel: 'GLOBAL', scanQueueFor: 'BUILDABLE', blockingJobs: '(?i)Cloud-Workstations/.*/(create|delete|add|remove|start|stop).*')
+    buildBlocker(useBuildBlocker: true, blockLevel: 'GLOBAL', scanQueueFor: 'BUILDABLE', blockingJobs: '(?i)Cloud-Workstations/.*/(create|update|delete|add|remove|start|stop).*')
 
     // Prevent this specific job from running concurrently with itself.
     disableConcurrentBuilds()

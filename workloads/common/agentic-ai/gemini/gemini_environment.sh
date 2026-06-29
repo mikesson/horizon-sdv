@@ -24,6 +24,10 @@
 #   GEMINI_ARTIFACT_ROOT_NAME  Storage URL for artifacts (used by storage jobs)
 #
 # Optional:
+#   GEMINI_ARTIFACT_WRITE_ROOT  Writable dir for .gemini/, CLI outputs, gemini-assist/ (default: WORKSPACE if
+#                          writable; else WORKSPACE/test-results if that dir is writable;
+#                          else /tmp/gemini-ai-review-<hostname>). Override when pipeline-repo mount is RO (Argo).
+#   ANALYSIS_WORKING_DIRECTORY  When set (ai-review CWT), used as GEMINI_ARTIFACT_WRITE_ROOT if root unset.
 #   GOOGLE_GENAI_USE_VERTEXAI  Use Vertex AI (default: True)
 #   GEMINI_PROMPT_FILE     Step 1 prompt path or base64. Unset → use repo default.
 #   GEMINI_PROMPT_FILE_2   Step 2 prompt (required for sequenced). Path or base64.
@@ -40,7 +44,7 @@
 #   GEMINI_SKILLS_YAML      Path to skills.yaml, or base64-encoded content (file upload).
 #                          gemini_initialise.sh decodes if base64 and converts to .gemini/skills/*/SKILL.md.
 #   GEMINI_STEP2_PRIOR_CONTEXT_BYTES  If set to a positive integer, max bytes of step1 output appended into step2 composed prompt (head -c).
-#                          Unset = no cap (full step1 text). AAOS Builder sets 131072 in ai-review CWT / Jenkinsfile. Use 0 for explicit no cap.
+#                          Unset = no cap (full step1 text). AAOS Builder sets 131072 in Argo gemini-review / Jenkinsfile. Use 0 for explicit no cap.
 #   GEMINI_STEP3_PRIOR_STEP1_BYTES  Max bytes of step1_output.md inlined into step 3 composed prompt (gemini_analysis.sh). Unset/0 = full file.
 #   GEMINI_STEP3_PRIOR_STEP2_BYTES  Max bytes of step2_output.md inlined into step 3 composed prompt. Unset/0 = full file.
 #   GEMINI_FORCE_FILE_STORAGE  Default true: skip OS keychain (required in headless containers without D-Bus).
@@ -79,6 +83,26 @@ GEMINI_SKILLS_YAML=${GEMINI_SKILLS_YAML:-}
 if [ -z "${WORKSPACE:-}" ]; then
     WORKSPACE="${HOME}"
 fi
+
+# Directory for mutable Gemini outputs (.gemini/, decoded prompts, gemini-assist/, *.json).
+# Argo ai-review mounts pipeline-repo at WORKSPACE read-only; Jenkins workspace is usually writable.
+if [ -z "${GEMINI_ARTIFACT_WRITE_ROOT:-}" ]; then
+    if [ -n "${ANALYSIS_WORKING_DIRECTORY:-}" ]; then
+        GEMINI_ARTIFACT_WRITE_ROOT="${ANALYSIS_WORKING_DIRECTORY}"
+    elif [ -n "${WORKSPACE:-}" ] && [ -w "${WORKSPACE}" ]; then
+        GEMINI_ARTIFACT_WRITE_ROOT="${WORKSPACE}"
+    elif [ -n "${WORKSPACE:-}" ]; then
+        mkdir -p "${WORKSPACE}/test-results" 2>/dev/null || true
+        if [ -d "${WORKSPACE}/test-results" ] && [ -w "${WORKSPACE}/test-results" ]; then
+            GEMINI_ARTIFACT_WRITE_ROOT="${WORKSPACE}/test-results"
+        fi
+    fi
+    if [ -z "${GEMINI_ARTIFACT_WRITE_ROOT:-}" ]; then
+        GEMINI_ARTIFACT_WRITE_ROOT="${TMPDIR:-/tmp}/gemini-ai-review-${HOSTNAME:-run}"
+    fi
+fi
+export GEMINI_ARTIFACT_WRITE_ROOT
+mkdir -p "${GEMINI_ARTIFACT_WRITE_ROOT}" 2>/dev/null || true
 
 # Colours for logging (define before first use so sourced under set -u is safe).
 GREEN='\033[1;32m'
@@ -124,11 +148,11 @@ export NO_COLOR=${NO_COLOR:-1}
 BUILD_NUMBER=${BUILD_NUMBER:-00}
 JOB_NAME=${JOB_NAME:-aaos}
 
-# Declare artifact array.
+# Declare artifact array (absolute paths so gemini_storage.sh works after cd to read-only WORKSPACE).
 declare -a GEMINI_ARTIFACT_LIST=()
 GEMINI_ARTIFACT_LIST+=(
-  "${WORKSPACE}/gemini-assist/"
-  "${WORKSPACE}/*.json"
+  "${GEMINI_ARTIFACT_WRITE_ROOT}/${GEMINI_ARTIFACT_PATH}/"
+  "${GEMINI_ARTIFACT_WRITE_ROOT}/*.json"
 )
 
 # Store additional artifacts.

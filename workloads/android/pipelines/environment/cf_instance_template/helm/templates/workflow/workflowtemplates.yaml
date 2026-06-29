@@ -1,0 +1,483 @@
+# Copyright (c) 2026 Accenture, All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#         http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# Argo WorkflowTemplates for Cuttlefish GCE instance templates (x86_64 and ARM64 profiles).
+# Exposed in Developer Portal when workloads-android is enabled. Sensors: templates/workflow/sensors.yaml.
+# spec.onExit runs orphan-packer-disk-cleanup in a separate pod so unattached packer-* boot disks are
+# still best-effort deleted when the main run-cf-template pod is killed (eviction, kill -9, etc.).
+# Cleanup matches every unattached packer-* disk in the zone (any size), not only the workflow boot size.
+{{- $root := . }}
+{{- range $root.Values.workflowProfiles }}
+{{- $p := . }}
+{{- $auth := include "cf-instance-template.scmAuthMethod" $root | trim }}
+{{- $umbrellaCreds := or (eq $auth "app") (eq $auth "userpass") }}
+---
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: {{ $p.workflowTemplateName | quote }}
+  namespace: {{ include "cf-instance-template.workflowNamespace" $root | quote }}
+  labels:
+    app.kubernetes.io/name: cf-instance-template
+    horizon-sdv.io/expose: "true"
+    horizon-sdv.io/module: workloads-android
+  annotations:
+    argocd.argoproj.io/sync-wave: "8"
+spec:
+  entrypoint: main
+{{- if $umbrellaCreds }}
+  onExit: orphan-packer-disk-exit-dag
+{{- else }}
+  onExit: orphan-packer-disk-cleanup
+{{- end }}
+  archiveLogs: true
+{{- if $root.Values.cfInstanceTemplateConcurrencyMutexName }}
+  synchronization:
+    mutex:
+      # One mutex for all cf-instance-template profiles (x86 + arm64): only one Cuttlefish publish run at a time.
+      name: {{ $root.Values.cfInstanceTemplateConcurrencyMutexName | quote }}
+{{- end }}
+  serviceAccountName: {{ include "cf-instance-template.workflowServiceAccountName" $root | quote }}
+{{- if $root.Values.podGcStrategy }}
+  podGC:
+    strategy: {{ $root.Values.podGcStrategy | quote }}
+{{- end }}
+{{- if $root.Values.workflowTtlSecondsAfterCompletion }}
+  ttlStrategy:
+    secondsAfterCompletion: {{ $root.Values.workflowTtlSecondsAfterCompletion }}
+{{- end }}
+  workflowMetadata:
+    annotations:
+      workflows.argoproj.io/title: 'Cuttlefish instance template ({{ $p.workflowTemplateName }})'
+      workflows.argoproj.io/description: '{{ "{{" }}workflow.parameters.cuttlefishRevision{{ "}}" }}'
+  arguments:
+    parameters:
+      # SCM, pipeline repo URL/revision, run stage, and cloud project/region/zone come from chart values / ConfigMap (GitOps), not submit-time parameters.
+      - name: horizonSubmittedFrom
+        value: ""
+        description: "Submit origin label (Horizon)."
+      - name: cuttlefishRevision
+        value: "main"
+        description: "android-cuttlefish branch or tag (maps to CUTTLEFISH_REVISION)."
+      - name: cuttlefishUrl
+        value: "https://github.com/google/android-cuttlefish.git"
+        description: "android-cuttlefish repository URL."
+      - name: cuttlefishPostCommand
+        value: ""
+        description: "Optional command to run in cuttlefish repo after checkout."
+      - name: cuttlefishInstanceName
+        value: ""
+        description: "Template name prefix (empty: derive from revision)."
+      - name: updateSshAuthorizedKeys
+        value: "false"
+        description: "Set true for stage 2 (refresh template SSH metadata without Packer rebuild)."
+      - name: delete
+        value: "false"
+        description: "When true, run delete stage only (cf_create_instance_template.sh stage 3)."
+      - name: machineType
+        value: {{ $p.defaults.machineType | quote }}
+        description: "GCE machine type (empty to use custom VM fields)."
+      - name: customVmType
+        value: ""
+        description: "Custom machine type when machineType empty."
+      - name: customCpu
+        value: ""
+        description: "Custom vCPU count when machineType empty."
+      - name: customMemory
+        value: ""
+        description: "Custom memory when machineType empty."
+      - name: osVersion
+        value: {{ $p.defaults.osVersion | quote }}
+        description: "Source image OS (x86 Debian vs ARM64 Ubuntu); drives ARCHITECTURE in script."
+      - name: osProject
+        value: {{ $p.defaults.osProject | quote }}
+        description: "GCE image project for OS_VERSION (OS_PROJECT; e.g. debian-cloud, ubuntu-os-cloud)."
+      - name: javaVersion
+        value: {{ $p.defaults.javaVersion | quote }}
+        description: "JDK apt package name."
+      - name: nodejsVersion
+        value: {{ $p.defaults.nodejsVersion | quote }}
+        description: "Node.js version for nvm (NODEJS_VERSION)."
+      - name: waitonVersion
+        value: {{ $p.defaults.waitonVersion | quote }}
+        description: "wait-on npm package version (WAITON_VERSION)."
+      - name: axiosVersion
+        value: {{ $p.defaults.axiosVersion | quote }}
+        description: "axios npm package version (AXIOS_VERSION)."
+      - name: additionalNetworking
+        value: {{ $p.defaults.additionalNetworking | quote }}
+        description: "Extra network flags (ARM64 often nic-type=IDPF)."
+      - name: bootDiskSize
+        value: {{ $p.defaults.bootDiskSize | quote }}
+        description: "Packer boot disk size (BOOT_DISK_SIZE; default 250GB)."
+      - name: bootDiskType
+        value: {{ $p.defaults.bootDiskType | quote }}
+        description: "Packer boot disk type (pd-balanced for x86; hyperdisk-balanced for c4a-*-metal on ARM64 profile defaults)."
+      - name: maxRunDuration
+        value: {{ $p.defaults.maxRunDuration | quote }}
+        description: "Cuttlefish instance template MAX_RUN_DURATION (default 12h): max run for VMs created from the template. Not the Packer builder VM; set PACKER_BUILD_MAX_RUN_DURATION separately (default 4h in script)."
+      - name: ctsAndroid16Url
+        value: {{ $p.defaults.ctsAndroid16Url | quote }}
+        description: "CTS Android 16 zip URL (CTS_ANDROID_16_URL)."
+      - name: ctsAndroid15Url
+        value: {{ $p.defaults.ctsAndroid15Url | quote }}
+        description: "CTS Android 15 zip URL (CTS_ANDROID_15_URL)."
+      - name: ctsAndroid14Url
+        value: {{ $p.defaults.ctsAndroid14Url | quote }}
+        description: "CTS Android 14 zip URL (CTS_ANDROID_14_URL)."
+{{- if $p.exposeNetworkSubnet }}
+      - name: subnet
+        value: {{ $root.Values.arm64.subnetwork | quote }}
+        description: "Subnet name (ARM64; GitOps Values.arm64 from Terraform config.arm64)."
+      - name: region
+        value: {{ $root.Values.arm64.region | quote }}
+        description: "GCE region for ARM64 (GitOps Values.arm64 from Terraform config.arm64)."
+      - name: zone
+        value: {{ $root.Values.arm64.zone | quote }}
+        description: "GCE zone for ARM64 (GitOps Values.arm64 from Terraform config.arm64)."
+{{- end }}
+      - name: forceImageBuild
+        value: "false"
+        description: "When true, always run aaos-builder-runtime-image before CF (aaos-builder parity)."
+      - name: repoUsername
+        value: ""
+        description: "Private cuttlefish repo username (optional)."
+      - name: repoPassword
+        value: ""
+        description: "Private cuttlefish repo password (optional)."
+  templates:
+{{- include "cf-instance-template.template.check-cf-builder-image" $root | nindent 4 }}
+{{- include "cf-instance-template.template.fail-workflow" $root | nindent 4 }}
+{{- if $umbrellaCreds }}
+    - name: orphan-packer-disk-exit-dag
+      dag:
+        tasks:
+          - name: prepare-pipeline-git-creds-exit
+            templateRef:
+              name: prepare-pipeline-git-creds
+              template: prepare-pipeline-git-creds
+              clusterScope: true
+            arguments:
+              parameters:
+                - name: scmAuthMethod
+                  value: {{ include "cf-instance-template.scmAuthMethod" $root | trim | quote }}
+                - name: pipelineStaticGitSecretName
+                  value: {{ $root.Values.spec.pipelineRepoSecret | default "workflow-pipeline-git-creds" | quote }}
+                - name: horizonSubmittedFrom
+                  value: '{{ "{{" }}workflow.parameters.horizonSubmittedFrom{{ "}}" }}'
+          - name: orphan-packer-disk-cleanup-run
+            depends: prepare-pipeline-git-creds-exit.Succeeded
+            template: orphan-packer-disk-cleanup
+{{- end }}
+    - name: orphan-packer-disk-cleanup
+      activeDeadlineSeconds: 900
+      inputs:
+        artifacts:
+          - name: pipeline-repo
+            path: /workspace
+            git:
+              repo: {{ $root.Values.spec.pipelineRepoUrl | quote }}
+              revision: {{ $root.Values.spec.pipelineRepoRevision | quote }}
+              depth: 1
+{{- include "cf-instance-template.gitArtifactCredsContent" $root | nindent 14 }}
+      container:
+        # cloud-sdk only (orphan-disks uses gcloud); do not require aaos-builder image on failed main runs.
+        image: "gcr.io/google.com/cloudsdktool/cloud-sdk:slim"
+        imagePullPolicy: IfNotPresent
+        workingDir: /workspace
+        env:
+{{ include "cf-instance-template.placementCloudEnvVars" (dict "root" $root "useArm64" $p.exposeNetworkSubnet) }}
+          - name: MACHINE_TYPE
+            value: '{{ "{{" }}workflow.parameters.machineType{{ "}}" }}'
+          - name: CUSTOM_VM_TYPE
+            value: '{{ "{{" }}workflow.parameters.customVmType{{ "}}" }}'
+          - name: CUSTOM_CPU
+            value: '{{ "{{" }}workflow.parameters.customCpu{{ "}}" }}'
+          - name: CUSTOM_MEMORY
+            value: '{{ "{{" }}workflow.parameters.customMemory{{ "}}" }}'
+          - name: BOOT_DISK_SIZE
+            value: '{{ "{{" }}workflow.parameters.bootDiskSize{{ "}}" }}'
+{{- if $p.exposeNetworkSubnet }}
+          - name: SUBNET
+            value: '{{ "{{" }}workflow.parameters.subnet{{ "}}" }}'
+          - name: REGION
+            value: '{{ "{{" }}workflow.parameters.region{{ "}}" }}'
+          - name: ZONE
+            value: '{{ "{{" }}workflow.parameters.zone{{ "}}" }}'
+{{- end }}
+        resources:
+          requests:
+            cpu: 100m
+            memory: 256Mi
+          limits:
+            memory: 512Mi
+        command: [bash, -euo, pipefail, -c]
+        args:
+          - |
+            export WORKSPACE=/workspace
+            cd workloads/android/pipelines/environment/cf_instance_template
+            exec ./cf_create_instance_template.sh orphan-disks
+    - name: main
+      dag:
+        tasks:
+{{- if $umbrellaCreds }}
+          - name: prepare-pipeline-git-creds
+            templateRef:
+              name: prepare-pipeline-git-creds
+              template: prepare-pipeline-git-creds
+              clusterScope: true
+            arguments:
+              parameters:
+                - name: scmAuthMethod
+                  value: {{ include "cf-instance-template.scmAuthMethod" $root | trim | quote }}
+                - name: pipelineStaticGitSecretName
+                  value: {{ $root.Values.spec.pipelineRepoSecret | default "workflow-pipeline-git-creds" | quote }}
+                - name: horizonSubmittedFrom
+                  value: '{{ "{{" }}workflow.parameters.horizonSubmittedFrom{{ "}}" }}'
+{{- end }}
+          # aaos-builder parity: check Artifact Registry tag, then templateRef build-defaults when missing.
+          # When UPDATE_SSH_AUTHORIZED_KEYS=true, run only stage 2 (SSH metadata); skip image check/build.
+          - name: check-cf-builder-image
+            template: check-cf-builder-image
+            when: >-
+              '{{ "{{" }}workflow.parameters.updateSshAuthorizedKeys{{ "}}" }}' != "true"
+          - name: build-cf-builder-image
+            templateRef:
+              name: {{ $root.Values.spec.aaosBuilderImageWorkflowTemplateName | default "aaos-builder-runtime-image" | quote }}
+              template: build-defaults
+            depends: >-
+              (check-cf-builder-image.Succeeded || check-cf-builder-image.Skipped)
+            when: >-
+              '{{ "{{" }}workflow.parameters.updateSshAuthorizedKeys{{ "}}" }}' != "true" &&
+              '{{ "{{" }}tasks.check-cf-builder-image.outputs.parameters.shouldBuild{{ "}}" }}' == "true"
+          - name: run-cf-template
+            template: run-cf-template
+{{- if $umbrellaCreds }}
+            depends: >-
+              prepare-pipeline-git-creds.Succeeded &&
+              (check-cf-builder-image.Succeeded || check-cf-builder-image.Skipped) &&
+              (build-cf-builder-image.Succeeded || build-cf-builder-image.Skipped)
+{{- else }}
+            depends: >-
+              (check-cf-builder-image.Succeeded || check-cf-builder-image.Skipped) &&
+              (build-cf-builder-image.Succeeded || build-cf-builder-image.Skipped)
+{{- end }}
+            arguments:
+              parameters:
+                - name: cuttlefishRevision
+                  value: '{{ "{{" }}workflow.parameters.cuttlefishRevision{{ "}}" }}'
+                - name: cuttlefishUrl
+                  value: '{{ "{{" }}workflow.parameters.cuttlefishUrl{{ "}}" }}'
+                - name: cuttlefishPostCommand
+                  value: '{{ "{{" }}workflow.parameters.cuttlefishPostCommand{{ "}}" }}'
+                - name: cuttlefishInstanceName
+                  value: '{{ "{{" }}workflow.parameters.cuttlefishInstanceName{{ "}}" }}'
+                - name: updateSshAuthorizedKeys
+                  value: '{{ "{{" }}workflow.parameters.updateSshAuthorizedKeys{{ "}}" }}'
+                - name: delete
+                  value: '{{ "{{" }}workflow.parameters.delete{{ "}}" }}'
+                - name: machineType
+                  value: '{{ "{{" }}workflow.parameters.machineType{{ "}}" }}'
+                - name: customVmType
+                  value: '{{ "{{" }}workflow.parameters.customVmType{{ "}}" }}'
+                - name: customCpu
+                  value: '{{ "{{" }}workflow.parameters.customCpu{{ "}}" }}'
+                - name: customMemory
+                  value: '{{ "{{" }}workflow.parameters.customMemory{{ "}}" }}'
+                - name: osVersion
+                  value: '{{ "{{" }}workflow.parameters.osVersion{{ "}}" }}'
+                - name: osProject
+                  value: '{{ "{{" }}workflow.parameters.osProject{{ "}}" }}'
+                - name: javaVersion
+                  value: '{{ "{{" }}workflow.parameters.javaVersion{{ "}}" }}'
+                - name: nodejsVersion
+                  value: '{{ "{{" }}workflow.parameters.nodejsVersion{{ "}}" }}'
+                - name: waitonVersion
+                  value: '{{ "{{" }}workflow.parameters.waitonVersion{{ "}}" }}'
+                - name: axiosVersion
+                  value: '{{ "{{" }}workflow.parameters.axiosVersion{{ "}}" }}'
+                - name: additionalNetworking
+                  value: '{{ "{{" }}workflow.parameters.additionalNetworking{{ "}}" }}'
+                - name: bootDiskSize
+                  value: '{{ "{{" }}workflow.parameters.bootDiskSize{{ "}}" }}'
+                - name: bootDiskType
+                  value: '{{ "{{" }}workflow.parameters.bootDiskType{{ "}}" }}'
+                - name: maxRunDuration
+                  value: '{{ "{{" }}workflow.parameters.maxRunDuration{{ "}}" }}'
+                - name: ctsAndroid16Url
+                  value: '{{ "{{" }}workflow.parameters.ctsAndroid16Url{{ "}}" }}'
+                - name: ctsAndroid15Url
+                  value: '{{ "{{" }}workflow.parameters.ctsAndroid15Url{{ "}}" }}'
+                - name: ctsAndroid14Url
+                  value: '{{ "{{" }}workflow.parameters.ctsAndroid14Url{{ "}}" }}'
+{{- if $p.exposeNetworkSubnet }}
+                - name: subnet
+                  value: '{{ "{{" }}workflow.parameters.subnet{{ "}}" }}'
+                - name: region
+                  value: '{{ "{{" }}workflow.parameters.region{{ "}}" }}'
+                - name: zone
+                  value: '{{ "{{" }}workflow.parameters.zone{{ "}}" }}'
+{{- end }}
+                - name: repoUsername
+                  value: '{{ "{{" }}workflow.parameters.repoUsername{{ "}}" }}'
+                - name: repoPassword
+                  value: '{{ "{{" }}workflow.parameters.repoPassword{{ "}}" }}'
+              artifacts:
+                - name: pipeline-repo
+                  path: /workspace
+                  git:
+                    repo: {{ $root.Values.spec.pipelineRepoUrl | quote }}
+                    revision: {{ $root.Values.spec.pipelineRepoRevision | quote }}
+{{- include "cf-instance-template.gitArtifactCredsContent" $root | nindent 20 }}
+          - name: fail-if-run-cf-template-failed
+            template: fail-workflow
+            # Failure-only via enhanced depends (no govaluate `when`): Sensor-triggered submits reject expr `when`; prior
+            # `when: tasks[...].status == …` misfired on success. `.Failed` / `.Errored` match Argo task outcomes.
+            depends: run-cf-template.Failed || run-cf-template.Errored
+    - name: run-cf-template
+      inputs:
+        parameters:
+          - name: cuttlefishRevision
+          - name: cuttlefishUrl
+          - name: cuttlefishPostCommand
+          - name: cuttlefishInstanceName
+          - name: updateSshAuthorizedKeys
+          - name: delete
+          - name: machineType
+          - name: customVmType
+          - name: customCpu
+          - name: customMemory
+          - name: osVersion
+          - name: osProject
+          - name: javaVersion
+          - name: nodejsVersion
+          - name: waitonVersion
+          - name: axiosVersion
+          - name: additionalNetworking
+          - name: bootDiskSize
+          - name: bootDiskType
+          - name: maxRunDuration
+          - name: ctsAndroid16Url
+          - name: ctsAndroid15Url
+          - name: ctsAndroid14Url
+{{- if $p.exposeNetworkSubnet }}
+          - name: subnet
+          - name: region
+          - name: zone
+{{- end }}
+          - name: repoUsername
+          - name: repoPassword
+        # DAG supplies git source under arguments.artifacts; without this block Argo never clones into path.
+        artifacts:
+          - name: pipeline-repo
+            path: /workspace
+{{- if or $root.Values.spec.cfRunPodLabels $root.Values.spec.cfRunPodAnnotations }}
+      metadata:
+{{- if $root.Values.spec.cfRunPodLabels }}
+        labels:
+{{- toYaml $root.Values.spec.cfRunPodLabels | nindent 10 }}
+{{- end }}
+{{- if $root.Values.spec.cfRunPodAnnotations }}
+        annotations:
+{{- toYaml $root.Values.spec.cfRunPodAnnotations | nindent 10 }}
+{{- end }}
+{{- end }}
+{{- if $root.Values.spec.cfRunPodHostname }}
+      hostname: {{ $root.Values.spec.cfRunPodHostname | quote }}
+{{- end }}
+{{- if $root.Values.spec.cfRunPodAffinity }}
+      affinity:
+{{- toYaml $root.Values.spec.cfRunPodAffinity | nindent 8 }}
+{{- end }}
+{{- if $root.Values.spec.nodeSelector }}
+      nodeSelector:
+{{- toYaml $root.Values.spec.nodeSelector | nindent 8 }}
+{{- end }}
+{{- if $root.Values.spec.tolerations }}
+      tolerations:
+{{- toYaml $root.Values.spec.tolerations | nindent 8 }}
+{{- end }}
+      container:
+        image: {{ include "cf-instance-template.builderImage" $root | quote }}
+        imagePullPolicy: Always
+        workingDir: /workspace
+        env:
+{{ include "cf-instance-template.placementCloudEnvVars" (dict "root" $root "useArm64" $p.exposeNetworkSubnet) }}
+        resources:
+{{- if $root.Values.spec.cfRunPodResources }}
+{{- toYaml $root.Values.spec.cfRunPodResources | nindent 10 }}
+{{- else }}
+          requests:
+            cpu: "8000m"
+            memory: "16Gi"
+          limits:
+            cpu: "32000m"
+            memory: "64Gi"
+{{- end }}
+        command: [bash, -euo, pipefail, -c]
+        args:
+          - |
+            export WORKSPACE=/workspace
+            # SSH key Secret lives in publisherIdentity namespace (not workflows).
+            export NAMESPACE={{ include "cf-instance-template.publisherIdentityNamespace" $root | quote }}
+            # KCC ComputeInstanceTemplate CRs live in workflows.
+            export WORKFLOWS_NAMESPACE={{ include "cf-instance-template.workflowNamespace" $root | quote }}
+            export ANDROID_CUTTLEFISH_REVISION="{{ "{{" }}inputs.parameters.cuttlefishRevision{{ "}}" }}"
+            export CUTTLEFISH_REVISION="${ANDROID_CUTTLEFISH_REVISION}"
+            export CUTTLEFISH_URL="{{ "{{" }}inputs.parameters.cuttlefishUrl{{ "}}" }}"
+            export CUTTLEFISH_POST_COMMAND="{{ "{{" }}inputs.parameters.cuttlefishPostCommand{{ "}}" }}"
+            export CUTTLEFISH_INSTANCE_NAME="{{ "{{" }}inputs.parameters.cuttlefishInstanceName{{ "}}" }}"
+            export MACHINE_TYPE="{{ "{{" }}inputs.parameters.machineType{{ "}}" }}"
+            export CUSTOM_VM_TYPE="{{ "{{" }}inputs.parameters.customVmType{{ "}}" }}"
+            export CUSTOM_CPU="{{ "{{" }}inputs.parameters.customCpu{{ "}}" }}"
+            export CUSTOM_MEMORY="{{ "{{" }}inputs.parameters.customMemory{{ "}}" }}"
+            export OS_VERSION="{{ "{{" }}inputs.parameters.osVersion{{ "}}" }}"
+            export OS_PROJECT="{{ "{{" }}inputs.parameters.osProject{{ "}}" }}"
+            export JAVA_VERSION="{{ "{{" }}inputs.parameters.javaVersion{{ "}}" }}"
+            export NODEJS_VERSION="{{ "{{" }}inputs.parameters.nodejsVersion{{ "}}" }}"
+            export WAITON_VERSION="{{ "{{" }}inputs.parameters.waitonVersion{{ "}}" }}"
+            export AXIOS_VERSION="{{ "{{" }}inputs.parameters.axiosVersion{{ "}}" }}"
+            export ADDITIONAL_NETWORKING="{{ "{{" }}inputs.parameters.additionalNetworking{{ "}}" }}"
+            export BOOT_DISK_SIZE="{{ "{{" }}inputs.parameters.bootDiskSize{{ "}}" }}"
+            export BOOT_DISK_TYPE="{{ "{{" }}inputs.parameters.bootDiskType{{ "}}" }}"
+            export MAX_RUN_DURATION="{{ "{{" }}inputs.parameters.maxRunDuration{{ "}}" }}"
+            export PACKER_USE_IAP="{{ $p.defaults.packerUseIap | default true | toString | lower }}"
+            export PACKER_SSH_TIMEOUT={{ $p.defaults.packerSshTimeout | default "15m" | quote }}
+            export PACKER_IAP_TUNNEL_LAUNCH_WAIT="{{ $p.defaults.packerIapTunnelLaunchWait | default 300 }}"
+            export CTS_ANDROID_16_URL="{{ "{{" }}inputs.parameters.ctsAndroid16Url{{ "}}" }}"
+            export CTS_ANDROID_15_URL="{{ "{{" }}inputs.parameters.ctsAndroid15Url{{ "}}" }}"
+            export CTS_ANDROID_14_URL="{{ "{{" }}inputs.parameters.ctsAndroid14Url{{ "}}" }}"
+{{- if $p.exposeNetworkSubnet }}
+            export SUBNET="{{ "{{" }}inputs.parameters.subnet{{ "}}" }}"
+            export REGION="{{ "{{" }}inputs.parameters.region{{ "}}" }}"
+            export ZONE="{{ "{{" }}inputs.parameters.zone{{ "}}" }}"
+{{- end }}
+            export REPO_USERNAME="{{ "{{" }}inputs.parameters.repoUsername{{ "}}" }}"
+            export REPO_PASSWORD="{{ "{{" }}inputs.parameters.repoPassword{{ "}}" }}"
+            export UPDATE_SSH_AUTHORIZED_KEYS="{{ "{{" }}inputs.parameters.updateSshAuthorizedKeys{{ "}}" }}"
+            export DELETE="{{ "{{" }}inputs.parameters.delete{{ "}}" }}"
+            _delete_norm=$(printf '%s' "${DELETE}" | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')
+            _update_ssh_norm=$(printf '%s' "${UPDATE_SSH_AUTHORIZED_KEYS}" | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')
+            # Stage selection: 1 when UPDATE_SSH_AUTHORIZED_KEYS is false; 2 when true; 3 when DELETE is true.
+            if [[ "${_delete_norm}" == "true" ]]; then
+              ST=3
+            elif [[ "${_update_ssh_norm}" == "true" ]]; then
+              ST=2
+            else
+              ST={{ $root.Values.spec.defaultRunStage | default "1" | quote }}
+            fi
+            cd workloads/android/pipelines/environment/cf_instance_template
+            exec ./cf_create_instance_template.sh "${ST}"
+{{- end }}
+

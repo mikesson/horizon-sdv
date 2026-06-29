@@ -1,0 +1,51 @@
+# Copyright (c) 2026 Accenture, All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#         http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# RBAC for the pipeline publisher service account to CRUD ComputeInstanceTemplate via KCC.
+{{- if and .Values.kcc .Values.kcc.instanceTemplates .Values.kcc.instanceTemplates.enabled }}
+{{- $targetNamespace := include "cf-instance-template.workflowNamespace" . }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: cuttlefish-kcc-instance-template-publisher
+  namespace: {{ $targetNamespace | quote }}
+  annotations:
+    # Argo prunes reverse sync-wave order: RoleBinding (wave 1) before Role (wave 0).
+    # Do not set PrunePropagationPolicy=foreground here or on the child Application: stacking it
+    # with multi-source Helm teardown was associated with resources-finalizer DeletionError on
+    # this Role after it was already removed (404 on a second delete pass).
+    argocd.argoproj.io/sync-wave: "0"
+rules:
+  - apiGroups: ["compute.cnrm.cloud.google.com"]
+    resources: ["computeinstancetemplates"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: cuttlefish-kcc-instance-template-publisher
+  namespace: {{ $targetNamespace | quote }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: cuttlefish-kcc-instance-template-publisher
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "cf-instance-template.publisherIdentityServiceAccountName" . | quote }}
+    namespace: {{ include "cf-instance-template.publisherIdentityNamespace" . | quote }}
+{{- end }}
+

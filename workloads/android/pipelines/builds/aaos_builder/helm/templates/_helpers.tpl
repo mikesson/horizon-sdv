@@ -51,7 +51,9 @@ Full Artifact Registry reference for the AAOS builder runtime image (tag from sp
 {{- end -}}
 
 {{/*
-Gemini CLI for ai-review: when spec.geminiModel is set, use gemini --model <name> --yolo --output-format json; else spec.geminiCommandLine.
+Gemini CLI for the AAOS **build** step only (`GEMINI_COMMAND_LINE` in build container).
+When **spec.geminiModel** is set, emits `gemini --model … --yolo --output-format json`; else **spec.geminiCommandLine**.
+The **`gemini-review`** DAG step is an **inline** container template: it sets **`GEMINI_*`** / **`CLOUD_*`** env and runs **`workloads/common/agentic-ai/gemini/run_ai_review.sh`**. **`spec.gemini*`** keys tune both **build** and **inline gemini-review** unless you split them later.
 */}}
 {{- define "aaos-builder.geminiCommandLineResolved" -}}
 {{- if .Values.spec.geminiModel -}}
@@ -77,10 +79,10 @@ Used by clean|init|build|storage only when sharedPipelineWorkspace is false.
 {{- end -}}
 
 {{/*
-True when ai-review should clone the pipeline repo via Argo git artifact into /workspace in its own pod.
+True when gemini-review should clone the pipeline repo via Argo git artifact into /workspace in its own pod.
 Always for remote git (even when other WT steps use shared pipeline-workspace PVC at /horizon).
 */}}
-{{- define "aaos-builder.useAiReviewGitArtifact" -}}
+{{- define "aaos-builder.useGeminiReviewGitArtifact" -}}
 {{- if and (not (or .Values.localRepoHostPath .Values.localRepoPvcName)) }}true{{- end -}}
 {{- end -}}
 
@@ -93,7 +95,7 @@ using shared pipeline-workspace PVC (avoids Argo reserving /workspace for git in
 {{- end -}}
 
 {{/*
-Kubernetes resources block for spec.workflowStepResources.<step> (fetchPipeline, init, clean, storage).
+Kubernetes resources block for spec.workflowStepResources.<step> (fetchPipeline, init, clean, storage, geminiReview).
 */}}
 {{- define "aaos-builder.workflowStepResources" -}}
 {{- $r := index .root.Values.spec.workflowStepResources .step }}
@@ -107,7 +109,7 @@ limits:
 
 {{/*
 Argo git artifact HTTPS credentials: GitHub App (per-workflow Secret) or PAT Secret name from spec.pipelineRepoSecret.
-Indent with nindent from each call site (e.g. nindent 10 under init git:, nindent 16 under ai-review git:).
+Indent with nindent from each call site (e.g. nindent 10 under init git:, nindent 16 under gemini-review git:).
 */}}
 {{- define "aaos-builder.gitArtifactCredsContent" -}}
 {{- $auth := include "aaos-builder.scmAuthMethod" . | trim -}}
@@ -126,4 +128,21 @@ passwordSecret:
   name: {{ .Values.spec.pipelineRepoSecret | quote }}
   key: password
 {{- end }}
+{{- end -}}
+
+{{/*
+Pod affinity: schedule this step on the same node as other pods for the same Argo Workflow
+(RWO PVC / node-local cache with siblings). Argo substitutes {{workflow.name}} at runtime.
+*/}}
+{{- define "aaos-builder.podAffinitySameWorkflow" -}}
+affinity:
+  podAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      - labelSelector:
+          matchExpressions:
+            - key: workflows.argoproj.io/workflow
+              operator: In
+              values:
+                - {{ "{{workflow.name}}" }}
+        topologyKey: kubernetes.io/hostname
 {{- end -}}

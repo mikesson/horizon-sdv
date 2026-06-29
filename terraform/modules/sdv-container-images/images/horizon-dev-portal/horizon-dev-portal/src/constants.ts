@@ -15,3 +15,6 @@
 import vehicleLogoUrl from './assets/Vehicle.svg?url';
 
 export const HORIZON_LOGO_SRC = vehicleLogoUrl;
+
+/** Fired after Administration → Modules changes module state so the shell sidebar re-fetches ready modules. */
+export const READY_MODULES_REFRESH_EVENT = 'horizon-dev-portal:refresh-ready-modules';

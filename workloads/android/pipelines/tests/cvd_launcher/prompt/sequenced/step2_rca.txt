@@ -1,1 +1,15 @@
+# Copyright (c) 2026 Accenture, All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#         http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 Run root cause analysis for CVD Launcher / Cuttlefish failures only. Step 1 output is in step1_output.md (context may be appended below). **Honour the `CVD_STATUS` header** from Phase 0: on `BOOT_OK`, focus RCA on **runtime** domains (logcat crashes, late kernel faults, WiFi/DHCP, resource pressure) and do not frame findings as boot failures; on `[CVD_HEALTHY]` emit a single confirmation section — do not invent findings. On `BOOT_FAILED` / `BOOT_UNKNOWN`, keep the existing guest-kernel-first priority. Follow your skill instructions.

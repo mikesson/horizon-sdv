@@ -214,17 +214,28 @@ func (s *Server) handleSubmit(w http.ResponseWriter, r *http.Request, p *auth.Pr
 			}
 		}
 	}
+	horizonSubmittedBy := workflow.ParseSubmittedByHeader(r)
+	if req.Parameters != nil {
+		if v := strings.TrimSpace(req.Parameters[workflow.SubmitParamSubmittedBy]); v != "" {
+			horizonSubmittedBy = v
+		}
+	}
+	if horizonSubmittedBy == "" {
+		horizonSubmittedBy = strings.TrimSpace(p.Subject)
+	}
 	body := map[string]interface{}{
-		"workflowTemplateName":      ent.TemplateName,
-		"workflowTemplateNamespace": ent.Namespace,
-		"horizonModule":             module,
-		"horizonSubmittedBy":        p.Subject,
-		"horizonSubmittedFrom":      submittedFrom,
+		"workflowTemplateName":            ent.TemplateName,
+		"workflowTemplateNamespace":       ent.Namespace,
+		"horizonModule":                   module,
+		workflow.WebhookFieldSubmittedBy:  horizonSubmittedBy,
+		workflow.SubmitParamSubmittedFrom: submittedFrom,
+	}
+	if horizonSubmittedBy != "" {
+		body[workflow.SubmitParamSubmittedBy] = horizonSubmittedBy
 	}
 	if req.Parameters != nil {
 		for k, v := range req.Parameters {
-			if k == workflow.SubmitParamSubmittedFrom {
-				// Keep the resolved value from header/default unless an explicit non-empty override was validated above.
+			if k == workflow.SubmitParamSubmittedFrom || k == workflow.SubmitParamSubmittedBy {
 				continue
 			}
 			body[k] = v
@@ -273,8 +284,8 @@ func validateParams(ent catalog.Entry, got map[string]string) error {
 		if p.Default != "" {
 			continue
 		}
-		// Resolved from X-Horizon-Submitted-From (default api) unless body override is non-empty.
-		if p.Name == workflow.SubmitParamSubmittedFrom {
+		// Resolved from X-Horizon-Submitted-From / X-Horizon-Submitted-By unless body override is non-empty.
+		if p.Name == workflow.SubmitParamSubmittedFrom || p.Name == workflow.SubmitParamSubmittedBy {
 			continue
 		}
 		if _, ok := got[p.Name]; !ok {

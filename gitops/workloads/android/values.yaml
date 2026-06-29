@@ -12,7 +12,31 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Defaults for `helm template` / CI; Argo CD Application workloads-android overrides via helm.values.
-# Workflow charts are additional sources on the workloads-android Application (gitops/modules/workloads-android).
+# Defaults for local `helm template` / CI. The workloads-android Application
+# (gitops/modules/workloads-android) injects Module Manager MODULE_CONFIG keys.
+#
+# Jenkins GCE plugin template URLs reference:
+#   global/instanceTemplates/instance-template-cuttlefish-vm-main
+#   global/instanceTemplates/instance-template-cuttlefish-vm-<versionTag>
+#   ...-main-arm64 and ...-<versionTag>-arm64
+# Keep versionTag aligned with gitops/workloads/values-jenkins.yaml
+# config.workloads.android.cuttlefish.tag (sanitized Cuttlefish revision, e.g. v1410).
+
 config:
   namespacePrefix: ""
+  projectID: ""
+  region: europe-west1
+  zone: europe-west1-d
+
+cuttlefish:
+  instanceTemplates:
+    enabled: false
+
+    # Kubernetes ServiceAccount used by the non-Argo publisher (e.g. Jenkins agents). It needs RBAC to
+    # create/patch/delete ComputeInstanceTemplate CRs in the workflows namespace. Argo workflow pods use
+    # workflow-executor*; their KCC RBAC is in gitops/templates/argo-workflows-init.yaml — see
+    # docs/workloads/android/environment/cf_instance_template.md (KCC RBAC: Argo vs publisherIdentity).
+    # Omit namespace so the cf_instance_template chart derives namespacePrefix + "jenkins".
+    publisherIdentity:
+      namespace: ""
+      serviceAccountName: jenkins-sa

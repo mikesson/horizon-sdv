@@ -15,7 +15,7 @@ limitations under the License.
 
 Description:
 Fail the workflow so the end result is Failed when the build step failed.
-Used after storage so ai-review and storage still run, but the workflow
+Used after storage so gemini-review and storage still run, but the workflow
 phase reflects the build failure.
 */ -}}
 

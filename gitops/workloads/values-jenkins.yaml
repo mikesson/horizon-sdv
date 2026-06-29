@@ -381,7 +381,7 @@ controller:
                 - bootDiskAutoDelete: true
                   bootDiskSizeGb: 10
                   bootDiskSizeGbStr: "10"
-                  bootDiskType: "https://www.googleapis.com/compute/v1/projects/{{ .Values.config.projectID }}/zones/us-central1-b/diskTypes/hyperdisk-balanced"
+                  bootDiskType: "https://www.googleapis.com/compute/v1/projects/{{ .Values.config.projectID }}/zones/{{ .Values.config.arm64.zone }}/diskTypes/hyperdisk-balanced"
                   description: "cuttlefish-vm-main-arm64"
                   javaExecPath: "/usr/bin/java"
                   labelSet:
@@ -395,7 +395,7 @@ controller:
                   numExecutors: 1
                   numExecutorsStr: "1"
                   oneShot: true
-                  region: "https://www.googleapis.com/compute/v1/projects/{{ .Values.config.projectID }}/regions/us-central1"
+                  region: "https://www.googleapis.com/compute/v1/projects/{{ .Values.config.projectID }}/regions/{{ .Values.config.arm64.region }}"
                   remoteFs: "/home/jenkins"
                   retentionTimeMinutes: 6
                   retentionTimeMinutesStr: "6"
@@ -404,7 +404,7 @@ controller:
                     customPrivateKeyCredentialsId: "jenkins-cuttlefish-vm-ssh-private-key"
                   template: "https://www.googleapis.com/compute/v1/projects/{{ .Values.config.projectID }}/global/instanceTemplates/instance-template-cuttlefish-vm-main-arm64"
                   useInternalAddress: true
-                  zone: "https://www.googleapis.com/compute/v1/projects/{{ .Values.config.projectID }}/zones/us-central1-f"
+                  zone: "https://www.googleapis.com/compute/v1/projects/{{ .Values.config.projectID }}/zones/{{ .Values.config.arm64.zone }}"
                 credentialsId: "gce-creds"
                 instanceCapStr: "20"
                 noDelayProvisioning: false
@@ -415,7 +415,7 @@ controller:
                 - bootDiskAutoDelete: true
                   bootDiskSizeGb: 10
                   bootDiskSizeGbStr: "10"
-                  bootDiskType: "https://www.googleapis.com/compute/v1/projects/{{ .Values.config.projectID }}/zones/us-central1-b/diskTypes/hyperdisk-balanced"
+                  bootDiskType: "https://www.googleapis.com/compute/v1/projects/{{ .Values.config.projectID }}/zones/{{ .Values.config.arm64.zone }}/diskTypes/hyperdisk-balanced"
                   description: "cuttlefish-vm-{{ .Values.config.workloads.android.cuttlefish.tag }}-arm64"
                   javaExecPath: "/usr/bin/java"
                   labelSet:
@@ -429,7 +429,7 @@ controller:
                   numExecutors: 1
                   numExecutorsStr: "1"
                   oneShot: true
-                  region: "https://www.googleapis.com/compute/v1/projects/{{ .Values.config.projectID }}/regions/us-central1"
+                  region: "https://www.googleapis.com/compute/v1/projects/{{ .Values.config.projectID }}/regions/{{ .Values.config.arm64.region }}"
                   remoteFs: "/home/jenkins"
                   retentionTimeMinutes: 6
                   retentionTimeMinutesStr: "6"
@@ -438,7 +438,7 @@ controller:
                     customPrivateKeyCredentialsId: "jenkins-cuttlefish-vm-ssh-private-key"
                   template: "https://www.googleapis.com/compute/v1/projects/{{ .Values.config.projectID }}/global/instanceTemplates/instance-template-cuttlefish-vm-{{ .Values.config.workloads.android.cuttlefish.tag }}-arm64"
                   useInternalAddress: true
-                  zone: "https://www.googleapis.com/compute/v1/projects/{{ .Values.config.projectID }}/zones/us-central1-f"
+                  zone: "https://www.googleapis.com/compute/v1/projects/{{ .Values.config.projectID }}/zones/{{ .Values.config.arm64.zone }}"
                 credentialsId: "gce-creds"
                 instanceCapStr: "20"
                 noDelayProvisioning: false
@@ -452,6 +452,12 @@ controller:
                   value: {{ .Values.config.zone }}
                 - key: "CLOUD_PROJECT"
                   value: {{ .Values.config.projectID }}
+                - key: "ARM64_REGION"
+                  value: {{ .Values.config.arm64.region }}
+                - key: "ARM64_ZONE"
+                  value: {{ .Values.config.arm64.zone }}
+                - key: "ARM64_SUBNETWORK"
+                  value: {{ .Values.config.arm64.subnetwork }}
                 - key: "GERRIT_CREDENTIALS_ID"
                   value: "jenkins-gerrit-http-password"
                 - key: "HORIZON_DOMAIN"

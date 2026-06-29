@@ -29,8 +29,8 @@ Dependencies: requires compute-vars output and clean completion.
       - name: pipeline-repo
         path: /workspace
         git:
-          repo: '{{ "{{" }}workflow.parameters.pipelineRepoUrl{{ "}}" }}'
-          revision: '{{ "{{" }}workflow.parameters.pipelineRepoRevision{{ "}}" }}'
+          repo: {{ .Values.spec.pipelineRepoUrl | quote }}
+          revision: {{ .Values.spec.pipelineRepoRevision | quote }}
 {{- include "aaos-builder.gitArtifactCredsContent" . | nindent 10 }}
 {{- end }}
   container:
@@ -42,6 +42,8 @@ Dependencies: requires compute-vars output and clean completion.
 {{- include "aaos-builder.commonEnv" . | nindent 6 }}
       - name: AAOS_GERRIT_MANIFEST_URL
         value: "{{ "{{workflow.parameters.manifestUrl}}" }}"
+      - name: AAOS_MANIFEST_NAME
+        value: "{{ "{{workflow.parameters.manifestName}}" }}"
 {{- include "aaos-builder.androidVersionEnv" . | nindent 6 }}
     resources:
       # spec.workflowStepResources.init (repo sync bounded by parallelSyncJobs).

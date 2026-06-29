@@ -1,3 +1,17 @@
+<!-- Copyright (c) 2026 Accenture, All Rights Reserved.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+        http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License. -->
+
 
 # Terraform
 
@@ -80,7 +94,8 @@ Main entry point for terraform execution is `env/main.tf` file. This file contai
 - sdv_gcp_region (GCP Cloud Region)
 - sdv_gcp_zone (GCP Cloud Zone)
 - sdv_gcp_backend_bucket (GCP Backend Bucket to store tfstate)
-- enable_arm64 (Toggle to enable or disable ARM64 support)
+- enable_arm64_dedicated_subnet (Create dedicated ARM64 VPC subnet/NAT in arm64_region; false = ARM64 uses primary sdv-subnet, jobs still supported)
+- arm64_region, arm64_zone, arm64_subnetwork (ARM64 Cuttlefish placement; independent of sdv_gcp_region/sdv_gcp_zone)
 - manual_secrets (Set Application Admin secret manually)
 
 

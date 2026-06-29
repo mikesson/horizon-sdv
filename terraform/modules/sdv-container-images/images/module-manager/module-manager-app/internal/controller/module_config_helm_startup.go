@@ -17,6 +17,7 @@ package controller
 import (
 	"context"
 	"fmt"
+	"log"
 	"strings"
 	"time"
 
@@ -28,6 +29,7 @@ import (
 // ModuleConfigHelmStartupSync runs once after cache warm-up and patches every parent module Argo CD Application so
 // spec.source.helm.values.config matches the current MODULE_CONFIG env. Rolling the module-manager Deployment thus
 // updates enabled modules without re-enable or target-revision API calls.
+// Lists only Applications labeled app-role=parent; child apps (multi-source spec.sources) are excluded.
 type ModuleConfigHelmStartupSync struct {
 	Client       client.Client
 	APIReader    client.Reader
@@ -50,14 +52,17 @@ func (s *ModuleConfigHelmStartupSync) Start(ctx context.Context) error {
 	ul.SetGroupVersionKind(schema.GroupVersionKind{Group: "argoproj.io", Version: "v1alpha1", Kind: "ApplicationList"})
 	if err := s.APIReader.List(ctx, ul,
 		client.InNamespace(s.ArgoNS),
-		client.MatchingLabels{"horizon-sdv.io/module-manager-managed": "true"},
+		client.MatchingLabels{
+			ModuleManagerManagedLabelKey: "true",
+			ModuleManagerAppRoleLabelKey: ModuleManagerAppRoleParent,
+		},
 	); err != nil {
 		return fmt.Errorf("list module-manager-managed Applications: %w", err)
 	}
 	for i := range ul.Items {
 		name := ul.Items[i].GetName()
 		if err := SyncApplicationHelmValuesConfig(ctx, s.Client, s.APIReader, s.ArgoNS, name, cfg); err != nil {
-			return fmt.Errorf("sync MODULE_CONFIG into Application %q: %w", name, err)
+			log.Printf("module-config helm startup sync: sync MODULE_CONFIG into Application %q: %v", name, err)
 		}
 	}
 	return nil

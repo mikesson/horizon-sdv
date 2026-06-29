@@ -30,6 +30,11 @@ spec:
   entrypoint: build
   # Align with Argo controller artifactRepository.archiveLogs (GCS); same as aaos-builder WorkflowTemplate.
   archiveLogs: true
+{{- if .Values.aaosBuilderRuntimeImageConcurrencyMutexName }}
+  synchronization:
+    mutex:
+      name: {{ .Values.aaosBuilderRuntimeImageConcurrencyMutexName | quote }}
+{{- end }}
   serviceAccountName: {{ include "aaos-builder-runtime-image.workflowServiceAccountName" . | quote }}
 {{- if .Values.workflowTtlSecondsAfterCompletion }}
   # TTL deletes workflow objects after completion (set via values).
@@ -46,61 +51,9 @@ spec:
       - name: horizonSubmittedFrom
         value: ""
         description: "Where the submit call originated (Horizon); mirrored on workflow label horizon-sdv.io/submitted-from."
-      - name: scmAuthMethod
-        value: {{ include "aaos-builder-runtime-image.scmAuthMethod" . | trim | quote }}
-        description: "SCM auth for pipeline git (app | userpass | none); passed to prepare-pipeline-git-creds when remote."
-      - name: pipelineStaticGitSecretName
-        value: {{ .Values.spec.pipelineRepoSecret | default "workflow-pipeline-git-creds" | quote }}
-        description: "Kubernetes Secret name (username/password) to copy from when scmAuthMethod is userpass."
-{{- if .Values.cloudEnvConfigMapName }}
-      - name: cloudProject
-        valueFrom:
-          configMapKeyRef:
-            name: {{ .Values.cloudEnvConfigMapName | quote }}
-            key: CLOUD_PROJECT
-        description: "GCP project — from platform ConfigMap when cloudEnvConfigMapName is set."
-      - name: cloudRegion
-        valueFrom:
-          configMapKeyRef:
-            name: {{ .Values.cloudEnvConfigMapName | quote }}
-            key: CLOUD_REGION
-        description: "GCP region — from platform ConfigMap when cloudEnvConfigMapName is set."
-      - name: cloudZone
-        valueFrom:
-          configMapKeyRef:
-            name: {{ .Values.cloudEnvConfigMapName | quote }}
-            key: CLOUD_ZONE
-        description: "GCP zone — from platform ConfigMap when cloudEnvConfigMapName is set."
-{{- else }}
-      - name: cloudProject
-        value: {{ .Values.spec.cloudProject | quote }}
-        description: "GCP project hosting the artifact registry (spec; set cloudEnvConfigMapName for platform ConfigMap)."
-      - name: cloudRegion
-        value: {{ .Values.spec.cloudRegion | quote }}
-        description: "GCP region hosting the artifact registry (spec; set cloudEnvConfigMapName for platform ConfigMap)."
-      - name: cloudZone
-        value: {{ .Values.spec.cloudZone | quote }}
-        description: "GCP zone (spec; set cloudEnvConfigMapName for platform ConfigMap)."
-{{- end }}
       - name: dockerArtifactPathName
         value: {{ .Values.spec.dockerArtifactPathName | quote }}
         description: "Artifact registry image path (repo/name)."
-      - name: dockerfileDir
-        value: {{ .Values.spec.dockerfileDir | quote }}
-        description: "Dockerfile directory for common-docker-image-build."
-      - name: buildArgs
-        value: |
-          ABFS="false"
-          LINUX_DISTRIBUTION={{ "{{" }}workflow.parameters.linuxDistribution{{ "}}" }}
-          NODEJS_VERSION={{ "{{" }}workflow.parameters.nodejsVersion{{ "}}" }}
-          GCLOUD_CLI_VERSION={{ "{{" }}workflow.parameters.gcloudCliVersion{{ "}}" }}
-          KUBECTL_VERSION={{ "{{" }}workflow.parameters.kubectlVersion{{ "}}" }}
-          ENABLE_GEMINI_AI_ASSISTANT={{ "{{" }}workflow.parameters.enableGeminiAiAssistant{{ "}}" }}
-          GEMINI_CLI_VERSION={{ "{{" }}workflow.parameters.geminiCliVersion{{ "}}" }}
-        description: "Build args for common-docker-image-build."
-      - name: platform
-        value: linux/amd64
-        description: "Target platform for buildctl."
       - name: dryRun
         value: {{ .Values.spec.dryRun | quote }}
         description: "When true, do not push built images."

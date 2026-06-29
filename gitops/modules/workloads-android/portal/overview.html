@@ -98,8 +98,8 @@ limitations under the License. -->
       <h1>workloads-android</h1>
       <p class="lead">
         Brings the Android / AAOS pipeline stack into the shared workflows namespace: curated GitOps under
-        <code>gitops/workloads/android</code>, the AAOS builder Helm release, reusable docker-image workflow templates,
-        and optional Gemini-assisted review workflows.
+        <code>gitops/workloads/android</code>, the AAOS builder Helm release, reusable docker-image workflow
+        templates, and Cuttlefish instance template workflows (x86_64 and ARM64).
       </p>
     </header>
     <div class="grid">
@@ -110,7 +110,7 @@ limitations under the License. -->
           <li><code>gitops/workloads/android</code> &mdash; umbrella values and wiring</li>
           <li><code>workloads/android/pipelines/builds/aaos_builder/helm</code> &mdash; builder pipelines</li>
           <li><code>workloads/android/pipelines/environment/docker_image_template/helm</code> &mdash; image build templates</li>
-          <li><code>workloads/common/agentic-ai/gemini/helm</code> &mdash; AI review workflow templates</li>
+          <li><code>workloads/android/pipelines/environment/cf_instance_template/helm</code> &mdash; Cuttlefish GCE instance templates (x86 and ARM64)</li>
         </ul>
       </article>
       <article class="card">

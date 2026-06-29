@@ -99,7 +99,7 @@ function mtkc_start() {
         echo "MTK_CONNECT_TESTBENCH_USER=${MTK_CONNECT_TESTBENCH_USER}"
         echo "MTK_CONNECT_HOST_LIST=${MTK_CONNECT_HOST_LIST}"
         echo "MTK_CONNECT_HOST_PORT_LIST=${MTK_CONNECT_HOST_PORT_LIST}"
-        echo "MTK_CONNECT_DELETE_OFFLINE=${MTK_CONNECT_DELETE_OFFLINE}"
+        echo "MTK_CONNECT_DELETE_OFFLINE_TESTBENCHES=${MTK_CONNECT_DELETE_OFFLINE_TESTBENCHES}"
         echo "MTK_CONNECT_LAUNCH_APPLICATION_NAME=${MTK_CONNECT_LAUNCH_APPLICATION_NAME}"
         echo "MTK_CONNECT_HOST_ONLY=${MTK_CONNECT_HOST_ONLY}"
         echo "MTK_CONNECT_DEVICE_PREFIX=${MTK_CONNECT_DEVICE_PREFIX}"
@@ -170,15 +170,36 @@ function mtkc_create_testbench() {
 }
 
 
+# Delete offline testbench(es) via MTK Connect API only (no agent download/start).
+function mtkc_delete_offline() {
+    mkdir -p "${scripts_path}"
+
+    cp -f "${MTK_CONNECT_FILE_PATH}"/remove-testbench.js "${MTK_CONNECT_FILE_PATH}"/package.json "${scripts_path}"
+
+    {
+        echo "MTK_CONNECT_DOMAIN=${MTK_CONNECT_DOMAIN}"
+        echo "MTK_CONNECT_USERNAME=${MTK_CONNECT_USERNAME}"
+        echo "MTK_CONNECT_PASSWORD=${MTK_CONNECT_PASSWORD}"
+        echo "MTK_CONNECT_TESTBENCH=${MTK_CONNECT_TESTBENCH}"
+        echo "MTK_CONNECT_DELETE_OFFLINE_TESTBENCHES=true"
+    } > "${scripts_path}/.env"
+
+    cd "${scripts_path}" || exit
+    npm install
+    node remove-testbench.js
+}
+
 # Stop MTK Connect agent and remove testbench.
 function mtkc_stop() {
     cd "${scripts_path}" || exit
     node remove-testbench.js
+    local stop_rc=$?
     if [ "${MTK_CONNECT_CONTAINER_ONLY}" == "false" ]; then
         # Clean up
         rm -rf /opt/mtk-connect-agent "${config_path}" "${app_path}" "${scripts_path}"
         pkill -9 -f runAgent.js
     fi
+    return "${stop_rc}"
 }
 
 # Print a summary of the MTK Connect agent.
@@ -194,12 +215,14 @@ function mtkc_summary() {
     fi
 }
 
-# Show variables.
+# Show variables (never log API password to stdout — CI/Argo captures this block).
+MTK_CONNECT_PASSWORD_LOG="<unset>"
+[[ -n "${MTK_CONNECT_PASSWORD:-}" ]] && MTK_CONNECT_PASSWORD_LOG="***redacted***"
 VARIABLES="
 Environment:
     MTK_CONNECT_DOMAIN=${MTK_CONNECT_DOMAIN}
     MTK_CONNECT_USERNAME=${MTK_CONNECT_USERNAME}
-    MTK_CONNECT_PASSWORD=${MTK_CONNECT_PASSWORD}
+    MTK_CONNECT_PASSWORD=${MTK_CONNECT_PASSWORD_LOG}
     MTK_CONNECTED_DEVICES=${MTK_CONNECTED_DEVICES}
     MTK_CONNECT_TESTBENCH=${MTK_CONNECT_TESTBENCH}
     MTK_CONNECT_TESTBENCH_USER=${MTK_CONNECT_TESTBENCH_USER}
@@ -218,14 +241,17 @@ echo "${VARIABLES}"
 # Main
 case "${1}" in
     --stop)
-        # Stop
         mtkc_stop
-        RESULT=0
+        RESULT=$?
         ;;
     --delete)
-        mtkc_start
-        mtkc_stop
-        RESULT=0
+        if [ "${MTK_CONNECT_DELETE_OFFLINE_TESTBENCHES}" == "true" ]; then
+            mtkc_delete_offline
+        else
+            mtkc_start
+            mtkc_stop
+        fi
+        RESULT=$?
         ;;
     --start|*)
         # Start

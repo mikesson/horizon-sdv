@@ -171,8 +171,39 @@ variable "sdv_gcp_backend_bucket" {
   type        = string
 }
 
-variable "enable_arm64" {
-  type = bool
+variable "enable_arm64_dedicated_subnet" {
+  description = "When true, create a dedicated ARM64 VPC subnet and NAT in arm64_region (use when GKE and ARM64 metal differ). When false, ARM64 Cuttlefish uses the primary platform subnet (sdv-subnet) in sdv_gcp_region; ARM jobs still run."
+  type        = bool
+}
+
+variable "arm64_region" {
+  description = "GCP region for ARM64 bare-metal subnet (independent of sdv_gcp_region / GKE)."
+  type        = string
+  default     = "us-central1"
+}
+
+variable "arm64_zone" {
+  description = "GCP zone for ARM64 Cuttlefish Packer builds and Jenkins GCE clouds (must be in arm64_region)."
+  type        = string
+  default     = "us-central1-b"
+}
+
+variable "arm64_subnetwork" {
+  description = "Subnet name for ARM64 instances in arm64_region."
+  type        = string
+  default     = "sdv-subnet-arm64"
+}
+
+variable "arm64_pods_secondary_range_name" {
+  description = "Secondary IP range name for pods on the ARM64 dedicated subnet. Default pods-range-arm64 (greenfield). Brownfield: override in tfvars to match GCP until migrated, or migrate GCP to -arm64."
+  type        = string
+  default     = "pods-range-arm64"
+}
+
+variable "arm64_services_secondary_range_name" {
+  description = "Secondary IP range name for services on the ARM64 dedicated subnet. Default services-range-arm64 (greenfield). Brownfield: override in tfvars to match GCP until migrated, or migrate GCP to -arm64."
+  type        = string
+  default     = "services-range-arm64"
 }
 
 # --- SUB-ENVIRONMENT CONFIGURATION ---
@@ -239,13 +270,48 @@ variable "sdv_sub_env_configs" {
   }
 }
 variable "sdv_abfs_build_node_pool_version" {
-  description = "Kubernetes version for the ABFS build node pool (e.g. 1.32.7-gke.1079000). Pins the node pool to this GKE version."
+  description = "Kubernetes version for the ABFS build node pool (GKE node version string)."
   type        = string
 }
 
 variable "sdv_cluster_version" {
-  description = "GKE cluster control plane version (e.g. 1.33.5-gke.2172001). Replaces release_channel so ABFS node pool can set auto_upgrade = false for CASFS kernel. Set to current master version when migrating."
+  description = "Cluster control plane min_master_version (floor; live master may be newer; not a downgrade pin)."
   type        = string
+}
+
+variable "sdv_cluster_release_channel" {
+  description = "GKE cluster release_channel."
+  type        = string
+  default     = "UNSPECIFIED"
+}
+
+variable "sdv_cluster_maintenance_recurring_window_start_time" {
+  description = "GKE cluster recurring maintenance window start time."
+  type        = string
+  default     = "2025-01-04T00:00:00Z"
+}
+
+variable "sdv_cluster_maintenance_recurring_window_end_time" {
+  description = "GKE cluster recurring maintenance window end time."
+  type        = string
+  default     = "2050-01-05T00:00:00Z"
+}
+
+variable "sdv_cluster_maintenance_recurring_window_recurrence" {
+  description = "GKE cluster recurring maintenance window recurrence rule."
+  type        = string
+  default     = "FREQ=WEEKLY;BYDAY=SA,SU"
+}
+
+variable "sdv_cluster_maintenance_exclusions" {
+  description = "GKE cluster maintenance exclusions (exclusion_name, start_time, end_time, scope)."
+  type = list(object({
+    exclusion_name = string
+    start_time     = string
+    end_time       = string
+    scope          = string
+  }))
+  default = []
 }
 
 variable "sdv_enable_network_policies" {

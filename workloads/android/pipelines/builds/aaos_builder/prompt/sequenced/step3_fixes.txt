@@ -1,3 +1,17 @@
+# Copyright (c) 2026 Accenture, All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#         http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 You are the android-fix skill. Generate proposed fixes under **gemini-assist/** per FILENAME_RULE. Follow your skill instructions.
 
 Latency: Prior-step **RCA context is appended below** (sequenced pipeline). **Anchor fixes on that text**—read the **smallest set** of source files needed for accurate diffs (paths named in RCA). **Hard budget:** at most **12** total **read_file** + **grep_search** + **list_directory**, and **at most 5 grep_search**. **run_shell_command:** prefer **none**; **max two** calls, only `head`/`tail`/`wc` on **one path from RCA** each—**never** `find`, `grep -r`, `rg`, `m`, or `ninja`. Prefer **one** `gemini_proposed_fixes_*.md` per primary failure. If the patch is clear from context alone, **write and finish** without extra exploration.

@@ -1,3 +1,17 @@
+<!-- Copyright (c) 2026 Accenture, All Rights Reserved.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+        http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License. -->
+
 # AAOS Builder Helm Chart
 
 This chart installs the AAOS builder Argo WorkflowTemplate. Run workflows with
@@ -5,19 +19,22 @@ This chart installs the AAOS builder Argo WorkflowTemplate. Run workflows with
 
 ## What’s in this chart
 
-- `Chart.yaml`: Helm chart metadata.
+- `Chart.yaml`: Helm chart metadata (no subchart dependencies).
 - `values.yaml`: Default values; update this for configuration.
 - `templates/workflow/workflowtemplates.yaml`: Argo WorkflowTemplate wrapper for the AAOS build pipeline.
-- `templates/workflow/_templates.tpl`: Aggregates all split workflow templates.
-- `templates/workflow/_main.tpl`: Main DAG task graph.
-- `templates/workflow/_compute-vars.tpl`: Computes derived values (e.g., SDK version).
-- `templates/workflow/_check-aaos-image.tpl`: Checks for the builder image in Artifact Registry.
-- `templates/workflow/_clean.tpl`: Clean step template.
-- `templates/workflow/_init.tpl`: Init template.
-- `templates/workflow/_build.tpl`: Build template.
-- `templates/workflow/_main.tpl`: Includes the ai-review step (no separate _ai-review.tpl); ai-review invokes the `ai-review` ClusterWorkflowTemplate.
-- `templates/workflow/_storage.tpl`: Storage/artifact template.
+- `templates/workflow/_templates.tpl`: Aggregates all split workflow templates (include order matches the list below).
+- `templates/workflow/_main.tpl`: Main DAG task graph (depends / `when:` wiring; includes **`gemini-review`** when Gemini is enabled).
+- `templates/workflow/_compute-vars.tpl`: Computes derived values (e.g. SDK Android version from lunch target).
+- `templates/workflow/_check-aaos-image.tpl`: Checks for the builder image in Artifact Registry (whether to run image build).
+- `templates/workflow/_fetch-pipeline.tpl`: Optional **fetch-pipeline** step when **`sharedPipelineWorkspace`** and remote git clone the monorepo into the pipeline-workspace PVC; **pod affinity** via **`aaos-builder.podAffinitySameWorkflow`**.
+- `templates/workflow/_clean.tpl`: **clean** step template (optional pre-sync cleanup).
+- `templates/workflow/_init.tpl`: **init** template (repo sync; bounded by **`parallelSyncJobs`**).
+- `templates/workflow/_build.tpl`: **build** template (AAOS compile).
+- `templates/workflow/_gemini-review.tpl`: **gemini-review** step — inline container that runs **`workloads/common/agentic-ai/gemini/run_ai_review.sh`** (mounts, **`GEMINI_*`** / hooks); **pod affinity** via **`aaos-builder.podAffinitySameWorkflow`**.
+- `templates/workflow/_storage.tpl`: **storage** / artifact template; **pod affinity** via **`aaos-builder.podAffinitySameWorkflow`**.
+- `templates/workflow/_fail-workflow.tpl`: **fail-if-build-failed** — marks the workflow failed after **storage** when the build step did not succeed.
 - `templates/_env.tpl`: Shared Helm env helpers used in the WorkflowTemplate.
+- `templates/_helpers.tpl`: Shared Helm helpers including **`aaos-builder.podAffinitySameWorkflow`** (same-node scheduling for steps that share RWO / cache volumes with sibling workflow pods).
 - `README.md`: This document.
 
 ## Why split templates
@@ -31,7 +48,7 @@ in a stable order.
 - Argo Workflows installed in the cluster
 - `kubectl` and `helm` available locally (or Argo CD to sync this chart)
 - The `aaos-builder-runtime-image` chart applied (WorkflowTemplate); runtime image tag must match `spec.imageBuild.imageTag` (default `argowf-latest`, distinct from a shared `:latest` tag in Artifact Registry)
-- ClusterWorkflowTemplate `common-docker-image-build` from Module Manager module **`workloads-common`** (Argo child Application, wave **2**). WorkflowTemplate **`ai-review`** from **`workloads/common/agentic-ai/gemini/helm`** is a source on **`workloads-android`** (wave **3**). **WorkflowTemplates** use resource sync wave **8**.
+- Module Manager module **`workloads-common`** (Argo child Application, wave **2**) publishes **ClusterWorkflowTemplate** **`common-docker-image-build`** and prepare-github CWTs. Module **`workloads-android`** (wave **3**) ships **aaos-builder**, which runs Gemini via **`workloads/common/agentic-ai/gemini/run_ai_review.sh`** in an **inline** DAG step.
 - GKE **Workload Identity** bound for the workflow Kubernetes service account (charts do not mount a GCP JSON key)
 
 ## Platform env (gitops ConfigMap)
@@ -42,7 +59,7 @@ For local clusters without that ConfigMap, set **`cloudEnvConfigMapName: ""`** (
 
 ## Pipeline repo (git workspace, non-local)
 
-On **GKE** (no **`localRepoHostPath`** / **`localRepoPvcName`**), init/clean/build/storage/ai-review use **Argo `git` artifacts** so **`/workspace`** is populated from Git. Repo URL and revision are **workflow parameters** **`pipelineRepoUrl`** and **`pipelineRepoRevision`**, with defaults from **`spec.pipelineRepoUrl`** and **`spec.pipelineRepoRevision`** in `values.yaml`.
+On **GKE** (no **`localRepoHostPath`** / **`localRepoPvcName`**), init/clean/build/storage/gemini-review use **Argo `git` artifacts** so **`/workspace`** is populated from Git. Repo URL and revision are **deploy-time values** (**`spec.pipelineRepoUrl`** and **`spec.pipelineRepoRevision`** in `values.yaml`), not submit-time parameters (they are hidden from the Argo Submit UI and the webhook Sensor payload).
 
 **Platform GitOps** deploys this chart (and **aaos-builder-runtime-image**) as **Helm sources** on **`workloads-android`** (`gitops/modules/workloads-android` via Module Manager), setting **`spec.pipelineRepoUrl`** and **`spec.pipelineRepoRevision`** from **`config.workloads.android.url`** and **`config.workloads.android.branch`** (passed through **`MODULE_CONFIG`**). Enable module **`workloads-android`** in Module Manager so that Application exists.
 
@@ -55,23 +72,21 @@ helm template aaos-builder workloads/android/pipelines/builds/aaos_builder/helm 
   | kubectl apply -f -
 ```
 
-For a **per-run** override: `argo submit --from workflowtemplate/aaos-builder -n <ns> -p pipelineRepoUrl=... -p pipelineRepoRevision=...`.
-
 **Private HTTPS repos:** Argo **`git` artifacts** use HTTPS username/password on the template. GitOps (**`gitops/templates/argo-workflows-init.yaml`**) wires credentials from GSM:
 
 - **`scm.authMethod: userpass`** — GSM backs **`workflow-pipeline-git-creds`** (see **`{{ namespacePrefix }}scm-password-b64`**). For a **remote** pipeline repo, the DAG runs **ClusterWorkflowTemplate** **`prepare-pipeline-git-creds`**, which copies **`workflow.parameters.pipelineStaticGitSecretName`** (default **`workflow-pipeline-git-creds`**, or **`spec.pipelineRepoSecret`** from **`workloads-android`**) into **`{{workflow.uid}}-pipeline-git-creds`** so git artifacts use the same per-run Secret shape as **app**.
-- **`scm.authMethod: app`** — ExternalSecret **`workflow-github-app`** (keys **`github-app-id-b64`**, **`github-app-private-key-pkcs8-b64`**, **`github-app-installation-id-b64`**) and **`prepare-pipeline-git-creds`**, which delegates to **`prepare-github-app-git-creds`** to mint a short-lived installation token into **`{{workflow.uid}}-pipeline-git-creds`**. With a **remote** repo, **`refresh-pipeline-git-creds-after-build`** runs the same umbrella after **`build`** so **`storage`** and **`ai-review`** clones use a fresh token.
+- **`scm.authMethod: app`** — ExternalSecret **`workflow-github-app`** (keys **`github-app-id-b64`**, **`github-app-private-key-pkcs8-b64`**, **`github-app-installation-id-b64`**) and **`prepare-pipeline-git-creds`**, which delegates to **`prepare-github-app-git-creds`** to mint a short-lived installation token into **`{{workflow.uid}}-pipeline-git-creds`**. With a **remote** repo, **`refresh-pipeline-git-creds-after-build`** runs the same umbrella after **`build`** so **`storage`** and **`gemini-review`** clones use a fresh token.
 
 **Local development** (`values-local.yaml` with **hostPath** or **PVC**): **git** artifacts are **omitted**; the pipeline tree is expected from the **mounted** path (`localRepoMountPath`). **`spec.pipelineRepoUrl`** / **`spec.pipelineRepoRevision`** are not used for those steps.
 
 ## Same cluster as GitOps: pause sync, local `helm apply`, resync
 
-If Argo CD manages this WorkflowTemplate (via **`workloads-android`**), a manual `helm template | kubectl apply` (for example with **`-f values-local.yaml`**) can be **reverted** when Argo syncs from Git. To test local manifests without losing them immediately:
+If Argo CD manages this WorkflowTemplate (via **`workloads-android`** for **aaos-builder**), a manual `helm template | kubectl apply` (for example with **`-f values-local.yaml`**) can be **reverted** when Argo syncs from Git. To test local manifests without losing them immediately:
 
-1. **Find the Application** (with GitOps **`namespacePrefix`**, e.g. **`dev-workloads-android`** in **`argocd`**):
+1. **Find the Application** (with GitOps **`namespacePrefix`**, e.g. **`dev-workloads-android`** and **`dev-workloads-common`** in **`argocd`**):
 
    ```bash
-   kubectl get applications -A | grep workloads-android
+   kubectl get applications -A | grep -E 'workloads-android|workloads-common'
    ```
 
 2. **Pause automated sync** (replace `APP_NAME` and `ARGOCD_NS` with values from step 1):
@@ -137,7 +152,7 @@ argo submit --from workflowtemplate/aaos-builder -n <namespace>
 
 ## Archived step logs (`main.log`) in GCS
 
-When the cluster’s Argo Workflows controller is configured with **`artifactRepository.archiveLogs: true`** and a **GCS artifact repository** (Horizon SDV: **`gitops/templates/argo-workflows.yaml`**, bucket pattern **`<project-id>-argo-workflows`**), archived workflow logs—including **`main.log`** per step—are stored in that bucket under **per-workflow prefixes** (for example `aaos-builder-<id>/...` for nested steps such as **ai-review**).
+When the cluster’s Argo Workflows controller is configured with **`artifactRepository.archiveLogs: true`** and a **GCS artifact repository** (Horizon SDV: **`gitops/templates/argo-workflows.yaml`**, bucket pattern **`<project-id>-argo-workflows`**), archived workflow logs—including **`main.log`** per step—are stored in that bucket under **per-workflow prefixes** (for example `aaos-builder-<id>/...` for nested steps such as **gemini-review**).
 
 The WorkflowTemplate also sets **`spec.archiveLogs: true`** so each submitted workflow explicitly opts in to log archival (same behavior as relying on the controller default alone).
 
@@ -281,8 +296,8 @@ to `/workspace-local` and the shared `/workspace` PVC can be used for
 pod-to-pod artifacts.
 
 Local repo PVCs are typically **RWO**, so only **one workflow at a time** should
-use the local repo mount. External repo checkouts (`pipelineRepoUrl`) do not
-share a PVC, so **multiple workflows can run in parallel**.
+use the local repo mount. Remote git artifact checkouts do not share a PVC, so
+**multiple workflows can run in parallel**.
 
 ## Common Options (values.yaml)
 
@@ -297,8 +312,8 @@ share a PVC, so **multiple workflows can run in parallel**.
 - `spec.buildCtsOnly`: `true` to build CTS only
 - `spec.forceImageBuild`: `true` to always rebuild the builder image
 - `spec.parallelSyncJobs`: Repo sync parallelism
-- `spec.enableGeminiAiAssistant`: `"true"` / `"false"` — enables ai-review on build failure (WorkflowTemplate default parameter)
-- `spec.geminiSkillsYaml`: **required** path to `skills.yaml` for the ai-review step (`GEMINI_SKILLS_YAML`)
+- `spec.enableGeminiAiAssistant`: `"true"` / `"false"` — enables **gemini-review** on build failure (WorkflowTemplate default parameter)
+- `spec.geminiSkillsYaml`: **required** path to `skills.yaml` for the **gemini-review** step (`GEMINI_SKILLS_YAML`)
 - `spec.manifestUrl`: Manifest URL for repo init
 - `spec.pipelineRepoUrl`: Pipeline repo URL
 - `spec.pipelineRepoRevision`: Pipeline repo revision
@@ -331,7 +346,7 @@ If the main container restarted, inspect the previous run: `kubectl logs -n <nam
 **Pod status / exit reason**
 
 - `kubectl describe pod -n <namespace> <pod-name>` — **State**, **Exit Code**, **Reason** (e.g. `Error`, `OOMKilled`), **Events**, and **Restart Count**
-- Match **`<pod-name>`** to the failing step (e.g. `…-build-…`, `…-storage-…`, `…-ai-review-…`). The **build** task’s pod reflects a real compile failure; use its logs first when the build breaks.
+- Match **`<pod-name>`** to the failing step (e.g. `…-build-…`, `…-storage-…`, `…-gemini-review-…`). The **build** task’s pod reflects a real compile failure; use its logs first when the build breaks.
 
 **How this interacts with `podGC` (`podGcStrategy`)**
 
@@ -344,13 +359,10 @@ This chart sets **`podGcStrategy`** on the WorkflowTemplate (default in `values.
 
 ## AI review (Gemini)
 
-When a build fails and `spec.enableGeminiAiAssistant` is enabled, the workflow runs the **ai-review** ClusterWorkflowTemplate (Helm chart `workloads/common/agentic-ai/gemini/helm/`). You can control behaviour with these options in `values.yaml` (under `spec`):
+When a build fails and `spec.enableGeminiAiAssistant` is enabled, the workflow runs an **inline** **`gemini-review`** container template (`templates/workflow/_gemini-review.tpl`). It mounts the same workflow volumes as **build**, sets **`GEMINI_*`** / **`CLOUD_*`** from **`spec`** (prompts, **`skills.yaml`**, CLI / timeout / Vertex flags — same knobs as the **build** step’s Gemini env), and executes **`workloads/common/agentic-ai/gemini/run_ai_review.sh`**. **AAOS-only** staging (**`/aaos-cache/aaos_builds`**, hook profile **`aaos`**, hooks under **`aaos_builder/hooks/`**) is encoded in that template; other pipelines reuse **`run_ai_review.sh`** with different **`GEMINI_ANALYSIS_PATH`** / **`GEMINI_HOOK_*`** env only.
 
-- **`spec.geminiPromptFile`** / **`spec.geminiPromptFile2`** / **`spec.geminiPromptFile3`** – Sequenced prompts (defaults: `prompt/sequenced/step1_triage.txt`, `step2_rca.txt`, `step3_fixes.txt` under `/workspace/.../aaos_builder/`).
-- **`spec.geminiSkillsYaml`** – **Required.** Path to `skills.yaml` for `gemini_initialise` (default: same folder as the sequenced prompts). The ai-review ClusterWorkflowTemplate passes this as `GEMINI_SKILLS_YAML`; with a local repo mount, `/workspace/...` is rewritten to `localRepoMountPath` like the prompt paths.
-- **`spec.geminiModel`** – Optional model pin. When set, the workflow passes `gemini --model <name> --yolo --output-format json` to ai-review; when empty, **`spec.geminiCommandLine`** is used as-is.
-- **`spec.geminiPreviewFeatures`** / **`spec.geminiLocationGlobal`** – Preview and location settings for Vertex AI. With preview disabled and a non-global location, set **`spec.geminiModel`** or add **`--model <model name>`** to **`spec.geminiCommandLine`** so the CLI does not auto-select preview models.
-- **`spec.geminiCommandLine`** – Full Gemini CLI invocation when **`spec.geminiModel`** is empty (e.g. `gemini --yolo --output-format json`).
+- **`spec.geminiPromptFile`** / **`spec.geminiPromptFile2`** / **`spec.geminiPromptFile3`** — Sequenced prompts for **gemini-review** (defaults under `prompt/sequenced/` in this chart).
+- **`spec.geminiSkillsYaml`** — **Required for gemini-review.** Path to `skills.yaml`; rewritten for local mounts like the prompts.
 
 ## Test / Verify
 

@@ -20,12 +20,31 @@
 # References:
 # https://source.android.com/docs/devices/cuttlefish/cts
 
+# Colours for logging (same pattern as cf_host_initialise.sh).
+GREEN='\033[1;32m'
+ORANGE='\033[1;33m'
+RED='\033[1;31m'
+NC='\033[0m'
+
 CTS_DOWNLOAD_URL=$(echo "${CTS_DOWNLOAD_URL}" | xargs)
 CTS_DOWNLOAD_URL=${CTS_DOWNLOAD_URL:-}
 # Strip any trailing slashes as this can impact on the download URL.
 CTS_DOWNLOAD_URL=${CTS_DOWNLOAD_URL%/}
-CTS_PATHNAME=$(echo "${CTS_PATHNAME}" | xargs)
-CTS_PATHNAME=${CTS_PATHNAME:-android-cts}
+# CTS installs always use /opt/android-cts (symlink to /opt/android-cts_<ver> from cts_initialise; not a job parameter).
+# Official Tradefed layout is ${CTS_ROOT}/android-cts/{tools,jdk,results,...}. Legacy images may symlink CTS_ROOT directly
+# to the inner android-cts tree (${CTS_ROOT}/tools). Use _cts_tradefed_home() for the directory that contains tools/.
+CTS_ROOT=/opt/android-cts
+export CTS_ROOT
+
+_cts_tradefed_home() {
+    if [[ -d "${CTS_ROOT}/android-cts/tools" ]]; then
+        echo "${CTS_ROOT}/android-cts"
+    elif [[ -d "${CTS_ROOT}/tools" ]]; then
+        echo "${CTS_ROOT}"
+    else
+        echo "${CTS_ROOT}/android-cts"
+    fi
+}
 CTS_TESTPLAN=$(echo "${CTS_TESTPLAN}" | xargs)
 CTS_TESTPLAN=${CTS_TESTPLAN:-cts-system-virtual}
 CTS_MAX_TESTCASE_RUN_COUNT=${CTS_MAX_TESTCASE_RUN_COUNT:-}
@@ -54,7 +73,7 @@ fi
 
 # Don't risk downloading CTS locally!
 if [ "$(uname -s)" = "Darwin" ]; then
-    echo "This script is only supported on Linux"
+    echo -e "${RED}This script is only supported on Linux${NC}" >&2
     exit 1
 fi
 
@@ -74,7 +93,8 @@ case "$0" in
         ANDROID_VERSION=${ANDROID_VERSION}
 
         CTS_DOWNLOAD_URL=${CTS_DOWNLOAD_URL}
-        CTS_PATHNAME=${CTS_PATHNAME}
+        CTS_ROOT=${CTS_ROOT}
+        BUILD_USER=${BUILD_USER:-}
 
         "
         ;;
@@ -87,6 +107,8 @@ case "$0" in
         CTS_RETRY_STRATEGY=${CTS_RETRY_STRATEGY}
         CTS_TEST=${CTS_TEST}
         CTS_TIMEOUT=${CTS_TIMEOUT}
+
+        CTS_ROOT=${CTS_ROOT}
 
         SHARD_COUNT=${SHARD_COUNT} (--shard-count ${SHARD_COUNT})
 

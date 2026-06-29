@@ -22,13 +22,14 @@ pipelineJob('OpenBSW/Builds/BSW Builder') {
   description("""
     <br/><h3 style="margin-bottom: 10px;">OpenBSW Build Job</h3>
     <p>This job is used to build the <a href="https://github.com/eclipse-openbsw/openbsw/tree/main" target="_blank">Eclipse Foundation OpenBSW.</a>.</p>
-    <h4>Reference documentation:</h4>
+    <h4 style="margin-bottom: 10px;">Reference documentation:</h4>
     <ul>
       <li><a href="https://eclipse-openbsw.github.io/openbsw/sphinx_docs/doc/dev/index.html" target="_blank">Welcome to Eclipse OpenBSW.</a></li>
       <li><a href="https://eclipse-openbsw.github.io/openbsw/sphinx_docs/doc/dev/learning/unit_tests/index.html" target="_blank">Building and Running Unit Tests.</a></li>
       <li><a href="https://eclipse-openbsw.github.io/openbsw/sphinx_docs/doc/dev/learning/setup/setup_posix_build.html#setup-posix-build" target="_blank">POSIX Platform.</a></li>
       <li><a href="https://eclipse-openbsw.github.io/openbsw/sphinx_docs/doc/dev/learning/setup/setup_s32k148_ubuntu_build.html" target="_blank">S32K148 Platform.</a></li>
     </ul>
+    <p>For <b>Rust</b> reference builds (<code>RTOS_PLATFORM=rust</code>, presets <code>posix-rust</code> / <code>s32k148-rust-gcc</code>), follow the numbered guide <b>Rust reference build (step by step)</b> in <code>workloads/openbsw/pipelines/builds/bsw_builder/README.md</code> (also under docs/workloads/openbsw/builds).</p>
     <br/><div style="border-top: 1px solid #ccc; width: 100%;"></div><br/>""")
 
   environmentVariables {
@@ -61,7 +62,7 @@ pipelineJob('OpenBSW/Builds/BSW Builder') {
 
     stringParam {
       name('POST_GIT_CLONE_COMMAND')
-      defaultValue('cd openbsw && git checkout b9e994e4 && cd -')
+      defaultValue('cd openbsw && git checkout 1c1450e && cd -')
       description('''<p>Optional additional commands post git clone and prior to build/make.<br/>
         <b>Note: </b>Single command line only, use logical operators to execute subsequent commands.<br/></p>''')
       trim(true)
@@ -69,8 +70,9 @@ pipelineJob('OpenBSW/Builds/BSW Builder') {
 
     choiceParam {
       name('RTOS_PLATFORM')
-      choices(['freertos', 'threadx'])
-      description('''<p>Select the <b>RTOS Kernel</b> implementation. <br/>
+      choices(['freertos', 'threadx', 'rust'])
+      description('''<p>Select the <b>RTOS Kernel</b> implementation (or Rust-enabled reference build). <br/>
+        <code>rust</code>: POSIX uses CMake preset <code>posix-rust</code> (FreeRTOS + Rust). S32K148 uses <code>s32k148-rust-gcc</code> only (GCC; Clang is ignored).<br/>
         Note: Ensure the selected toolchain supports the specific kernel port.</p>''')
     }
 
@@ -203,7 +205,7 @@ pipelineJob('OpenBSW/Builds/BSW Builder') {
       name('POSIX_BUILD_CMDLINE')
       defaultValue('cmake --preset posix-${RTOS_PLATFORM} && cmake --build --preset posix-${RTOS_PLATFORM} -j${CMAKE_SYNC_JOBS}')
       description('''<p>Default POSIX build command line<br/><br/>
-      <b>Options:</b><ul><li><code>posix-freertos</code></li><li><code>posix-threadx</code></li></ul></p>''')
+      <b>Options:</b><ul><li><code>posix-freertos</code></li><li><code>posix-threadx</code></li><li><code>posix-rust</code> (set RTOS_PLATFORM to <code>rust</code>)</li></ul></p>''')
       trim(true)
     }
 
@@ -211,7 +213,7 @@ pipelineJob('OpenBSW/Builds/BSW Builder') {
       name('POSIX_ARTIFACT')
       defaultValue('build/posix-${RTOS_PLATFORM}/executables/referenceApp/application/Release/app.referenceApp.elf')
       description('''<p>Default POSIX artifact.<br/><br/>
-      <b>Options:</b><ul><li><code>build/posix-freertos/...</code></li><li><code>build/posix-threadx/...</code></li></ul></p>''')
+      <b>Options:</b><ul><li><code>build/posix-freertos/...</code></li><li><code>build/posix-threadx/...</code></li><li><code>build/posix-rust/...</code></li></ul></p>''')
       trim(true)
     }
 
@@ -232,7 +234,8 @@ pipelineJob('OpenBSW/Builds/BSW Builder') {
       name('POSIX_PYTEST_CMDLINE')
       defaultValue('./tools/enet/bring-up-ethernet.sh && ./tools/can/bring-up-vcan0.sh && cd test/pyTest/ && pytest --target=posix --app=${RTOS_PLATFORM}')
       description('''<p>Default POSIX pyTest command line<br/><br/>
-      <b>Options:</b><ul><li><code>--app=freertos</code></li><li><code>--app=threadx</code></li></ul></p>''')
+      <b>Options:</b><ul><li><code>--app=freertos</code></li><li><code>--app=threadx</code></li><li><code>--app=rust</code> when <code>RTOS_PLATFORM=rust</code></li></ul>
+      <b>Rust + POSIX tests:</b> OpenBSW’s test file does not yet list Rust; when <code>RTOS_PLATFORM=rust</code>, this job pastes in the missing Rust entry so automated tests know which executable to start. That happens after the POSIX build and again right before pyTest (Jenkins runs pyTest in its own stage). Technical detail: <code>target_posix_rust.fragment.toml</code> → <code>test/pyTest/target_posix.toml</code> as <code>[rust.target_process]</code>.</p>''')
       trim(true)
     }
 
@@ -254,7 +257,8 @@ pipelineJob('OpenBSW/Builds/BSW Builder') {
       defaultValue('cmake --preset s32k148-${RTOS_PLATFORM}-${TOOLCHAIN} && cmake --build --preset s32k148-${RTOS_PLATFORM}-${TOOLCHAIN} -j${CMAKE_SYNC_JOBS}')
       description('''<p>Default NXP S32K148 build command line.<br/><br/>
       <b>Options:</b><ul><li><code>s32k148-freertos-gcc</code></li><li><code>s32k148-threadx-gcc</code></li>
-                         <li><code>s32k148-freertos-clang</code></li><li><code>s32k148-threadx-clang</code></li></ul><br/>
+                         <li><code>s32k148-freertos-clang</code></li><li><code>s32k148-threadx-clang</code></li>
+                         <li><code>s32k148-rust-gcc</code> when <code>RTOS_PLATFORM</code> is <code>rust</code> (preset fixed; not <code>s32k148-rust-clang</code>)</li></ul><br/>
       <b>Note:</b></p>''')
       trim(true)
     }
@@ -264,7 +268,8 @@ pipelineJob('OpenBSW/Builds/BSW Builder') {
       defaultValue('build/s32k148-${RTOS_PLATFORM}-${TOOLCHAIN}/executables/referenceApp/application/RelWithDebInfo/app.referenceApp.elf')
       description('''<p>Default NXP S32K148 artifact.<br/><br/>
       <b>Options:</b><ul><li><code>build/s32k148-freertos-gcc/...</code></li><li><code>build/s32k148-threadx-gcc...</code></li>
-                         <li><code>build/s32k148-freertos-clang/...</code></li><li><code>build/s32k148-threadx-clang/...</code></li></ul></p>''')
+                         <li><code>build/s32k148-freertos-clang/...</code></li><li><code>build/s32k148-threadx-clang/...</code></li>
+                         <li><code>build/s32k148-rust-gcc/...</code></li></ul></p>''')
       trim(true)
     }
 

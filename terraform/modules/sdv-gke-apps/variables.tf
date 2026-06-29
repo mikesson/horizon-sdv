@@ -152,3 +152,33 @@ variable "use_static_dns_a_records" {
   type        = bool
   default     = false
 }
+
+variable "enable_arm64_dedicated_subnet" {
+  description = "When true, arm64_placement_* uses arm64_* tfvars; when false, uses primary GKE region/zone/sdv-subnet for GitOps ARM64_* keys."
+  type        = bool
+  default     = false
+}
+
+variable "arm64_region" {
+  description = "GCP region for ARM64 bare-metal Cuttlefish."
+  type        = string
+  default     = "us-central1"
+}
+
+variable "arm64_zone" {
+  description = "GCP zone for ARM64 Cuttlefish (must be in arm64_region)."
+  type        = string
+  default     = "us-central1-b"
+}
+
+variable "arm64_subnetwork" {
+  description = "Subnet name for ARM64 instances in arm64_region."
+  type        = string
+  default     = "sdv-subnet-arm64"
+}
+
+variable "primary_subnetwork" {
+  description = "Primary platform subnet name (used for ARM64 placement when enable_arm64_dedicated_subnet is false)."
+  type        = string
+  default     = "sdv-subnet"
+}

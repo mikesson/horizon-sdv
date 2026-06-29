@@ -56,6 +56,8 @@ export interface ModuleResponse {
   targetRevision?: string;
   /** Module Manager cluster default ref (--target-revision). */
   clusterTargetRevision?: string;
+  /** True when the module has an explicit Git ref pin; false when following the platform default. */
+  pinned?: boolean;
 }
 
 /** GET/PUT /settings/workflows-visibility (Module Manager). */
@@ -70,10 +72,18 @@ export interface StatusResponse {
   operationPhase?: string;
   desiredRevision?: string;
   syncRevision?: string;
-  /** RFC3339; set when the Argo CD Application has metadata.deletionTimestamp */
+  /** RFC3339; set when the parent or any module-managed Application has metadata.deletionTimestamp */
   applicationDeletionTimestamp?: string;
   /** Module Manager: when module is disabled, parent+child Argo CD Applications still present */
   remainingManagedApplications?: number;
+  /** Module Manager: when module is enabled, labeled parent+child Application count (if list succeeded) */
+  managedApplicationCount?: number;
+  /** 2 for workloads-android / workloads-common (parent + prefixed child) */
+  expectedManagedApplicationCount?: number;
+  /** False when the labeled child Application is not on the cluster */
+  managedChildApplicationPresent?: boolean;
+  /** True during prefixed-module disable (parent skip-reconcile) */
+  parentSkipReconcile?: boolean;
 }
 
 export interface CatalogEntry {
@@ -142,6 +152,8 @@ export interface WorkflowDetail {
   workflowTemplate?: string;
   startedAt?: string;
   finishedAt?: string;
+  startedBy?: string;
+  submittedFrom?: string;
   message?: string;
   uid?: string;
   dependentWorkflowTemplates?: DependentWorkflowTemplate[];

@@ -17,5 +17,5 @@ apiVersion: v2
 name: horizon-dev-portal
 description: Horizon Developer Portal (SPA + API proxy)
 type: application
-version: 1.0.0
-appVersion: 1.0.0
+version: 1.1.0
+appVersion: 1.1.0

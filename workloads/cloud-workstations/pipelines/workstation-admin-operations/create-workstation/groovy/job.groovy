@@ -51,6 +51,14 @@ pipelineJob('Cloud-Workstations/Workstation-Admin-Operations/Create New Workstat
     stringParam('INITIAL_WORKSTATION_USER_EMAILS_TO_ADD', '', 'OPTIONAL: Comma-separated list of user emails (e.g., user1@example.com,user2@example.com) to grant access to upon creation. These users will get the "workstations.user" role.')
   }
 
+  // Block build if certain jobs are running.
+  blockOn('Cloud-Workstations/.*/(Create|Update|Delete|Add|Remove|Start|Stop).*') {
+    // Possible values are 'GLOBAL' and 'NODE' (default).
+    blockLevel('GLOBAL')
+    // Possible values are 'ALL', 'BUILDABLE' and 'DISABLED' (default).
+    scanQueueFor('BUILDABLE')
+  }
+
   definition {
     cpsScm {
       lightweight()

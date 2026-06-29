@@ -245,6 +245,14 @@ the repo credentials, i.e.
     }
 
     stringParam {
+      name('WORKFLOWS_NAMESPACE')
+      defaultValue('workflows')
+      description('''<p>Kubernetes namespace where the KCC <code>ComputeInstanceTemplate</code> resources are applied (namespaced Config Connector).<br/>
+        Default: <code>workflows</code>.</p>''')
+      trim(true)
+    }
+
+    stringParam {
       name('JAVA_VERSION')
       defaultValue('temurin-21-jdk')
       description('''<p>Apt package for the JDK on this job (x86 / Debian bookworm). Default <code>temurin-21-jdk</code> (Adoptium; script adds Adoptium apt when the name starts with <code>temurin-</code>).<br/>
@@ -256,7 +264,7 @@ the repo credentials, i.e.
       name('OS_VERSION')
       defaultValue('debian-12-bookworm-v20260114')
       description('''<p>Disk image OS version.<br/>
-        Select the OS version name based on project and family, e.g <code>`gcloud compute images list</code>`<br/>
+        Select the OS version name based on project and family, e.g. <code>gcloud compute images list</code><br/>
         Reference: <a href="https://cloud.google.com/sdk/gcloud/reference/compute/instance-templates/create" target="_blank">gcloud compute instance-templates create</a>, i.e. <i>--create-disk</i></p>''')
       trim(true)
     }
@@ -294,31 +302,31 @@ the repo credentials, i.e.
 
     stringParam {
       name('CTS_ANDROID_16_URL')
-      defaultValue("https://dl.google.com/dl/android/cts/android-cts-16_r4-linux_x86-x86.zip")
+      defaultValue("https://dl.google.com/dl/android/cts/android-cts-16_r5-linux_x86-x86.zip")
       description('''<p>Leave blank if the version is not needed, or specify your preferred version.<br/>
       Either download from official site, or from a local bucket if stored locally to improve download times, e.g.
-      <ul><li>Official downloads: <code>https://dl.google.com/dl/android/cts/android-cts-16_r4-linux_x86-x86.zip/code></li>
-          <li>Local GCS bucket download: <code>gs://${ANDROID_BUILD_BUCKET_ROOT_NAME}/Android/CTS/android-cts-16_r4-linux_x86-x86.zip</code></li></ul></p>''')
+      <ul><li>Official downloads: <code>https://dl.google.com/dl/android/cts/android-cts-16_r5-linux_x86-x86.zip</code></li>
+          <li>Local GCS bucket download: <code>gs://${ANDROID_BUILD_BUCKET_ROOT_NAME}/Android/CTS/android-cts-16_r5-linux_x86-x86.zip</code></li></ul></p>''')
       trim(true)
     }
 
     stringParam {
       name('CTS_ANDROID_15_URL')
-      defaultValue("https://dl.google.com/dl/android/cts/android-cts-15_r7-linux_x86-x86.zip")
+      defaultValue("https://dl.google.com/dl/android/cts/android-cts-15_r8-linux_x86-x86.zip")
       description('''<p>Leave blank if the version is not needed, or specify your preferred version.<br/>
       Either download from official site, or from a local bucket if stored locally to improve download times, e.g.
-      <ul><li>Official downloads: <code>https://dl.google.com/dl/android/cts/android-cts-15_r7-linux_x86-x86.zip/code></li>
-          <li>Local GCS bucket download: <code>gs://${ANDROID_BUILD_BUCKET_ROOT_NAME}/Android/CTS/android-cts-15_r7-linux_x86-x86.zip</code></li></ul></p>''')
+      <ul><li>Official downloads: <code>https://dl.google.com/dl/android/cts/android-cts-15_r8-linux_x86-x86.zip</code></li>
+          <li>Local GCS bucket download: <code>gs://${ANDROID_BUILD_BUCKET_ROOT_NAME}/Android/CTS/android-cts-15_r8-linux_x86-x86.zip</code></li></ul></p>''')
       trim(true)
     }
 
     stringParam {
       name('CTS_ANDROID_14_URL')
-      defaultValue("https://dl.google.com/dl/android/cts/android-cts-14_r11-linux_x86-x86.zip")
+      defaultValue("https://dl.google.com/dl/android/cts/android-cts-14_r12-linux_x86-x86.zip")
       description('''<p>Leave blank if the version is not needed, or specify your preferred version.<br/>
       Either download from official site, or from a local bucket if stored locally to improve download times, e.g.
-      <ul><li>Official downloads: <code>https://dl.google.com/dl/android/cts/android-cts-14_r11-linux_x86-x86.zip/code></li>
-          <li>Local GCS bucket download: <code>gs://${ANDROID_BUILD_BUCKET_ROOT_NAME}/Android/CTS/android-cts-14_r11-linux_x86-x86.zip</code></li></ul></p>''')
+      <ul><li>Official downloads: <code>https://dl.google.com/dl/android/cts/android-cts-14_r12-linux_x86-x86.zip</code></li>
+          <li>Local GCS bucket download: <code>gs://${ANDROID_BUILD_BUCKET_ROOT_NAME}/Android/CTS/android-cts-14_r12-linux_x86-x86.zip</code></li></ul></p>''')
       trim(true)
     }
   }

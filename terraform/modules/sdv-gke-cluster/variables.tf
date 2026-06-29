@@ -23,8 +23,14 @@ variable "cluster_name" {
 }
 
 variable "cluster_version" {
-  description = "GKE cluster control plane version (e.g. 1.33.5-gke.2172001). Used when not using release_channel; pins the cluster and allows node pools to set auto_upgrade = false."
+  description = "Cluster control plane min_master_version (floor; live master may be newer; not a downgrade pin)."
   type        = string
+}
+
+variable "release_channel" {
+  description = "GKE cluster release_channel."
+  type        = string
+  default     = "UNSPECIFIED"
 }
 
 variable "node_pool_name" {
@@ -87,7 +93,7 @@ variable "abfs_build_node_pool_max_node_count" {
 }
 
 variable "abfs_build_node_pool_version" {
-  description = "Kubernetes version for the ABFS build node pool (e.g. 1.32.7-gke.1079000). Pins the node pool to this GKE version."
+  description = "Kubernetes version for the ABFS build node pool (GKE node version string)."
   type        = string
 }
 
@@ -129,7 +135,7 @@ variable "utility_node_pool_node_count" {
 }
 
 variable "utility_node_pool_machine_type" {
-  description = "Machine type for the utility node pool. Size for pods with limits up to 32 CPU / 96Gi (e.g. workloads/common/agentic-ai/gemini/helm/values.yaml); n2-standard-32 allocatable CPU is often slightly under 32 cores after kube-reserved, so n2-standard-48 or larger is safer unless CPU limits are reduced."
+  description = "Machine type for the utility node pool. Size for pods with limits up to 32 CPU / 96Gi (e.g. Gemini AI review utility jobs / workloads/utilities/gemini_ai_assistant); n2-standard-32 allocatable CPU is often slightly under 32 cores after kube-reserved, so n2-standard-48 or larger is safer unless CPU limits are reduced."
   type        = string
 }
 
@@ -207,3 +213,39 @@ variable "kms_crypto_key_id" {
   default     = ""
 }
 
+variable "maintenance_recurring_window_start_time" {
+  description = "GKE cluster recurring maintenance window start time."
+  type        = string
+  default     = "2025-01-04T00:00:00Z"
+}
+
+variable "maintenance_recurring_window_end_time" {
+  description = "GKE cluster recurring maintenance window end time."
+  type        = string
+  default     = "2050-01-05T00:00:00Z"
+}
+
+variable "maintenance_recurring_window_recurrence" {
+  description = "GKE cluster recurring maintenance window recurrence rule."
+  type        = string
+  default     = "FREQ=WEEKLY;BYDAY=SA,SU"
+}
+
+variable "maintenance_exclusions" {
+  description = "GKE cluster maintenance exclusions (exclusion_name, start_time, end_time, scope)."
+  type = list(object({
+    exclusion_name = string
+    start_time     = string
+    end_time       = string
+    scope          = string
+  }))
+  default = []
+
+  validation {
+    condition = alltrue([
+      for e in var.maintenance_exclusions :
+      contains(["NO_UPGRADES", "NO_MINOR_UPGRADES", "NO_MINOR_OR_NODE_UPGRADES"], e.scope)
+    ])
+    error_message = "Each maintenance exclusion scope must be NO_UPGRADES, NO_MINOR_UPGRADES, or NO_MINOR_OR_NODE_UPGRADES."
+  }
+}

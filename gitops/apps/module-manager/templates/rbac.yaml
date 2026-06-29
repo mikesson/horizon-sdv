@@ -69,6 +69,63 @@ subjects:
     name: module-manager
     namespace: {{ .Values.namespace }}
 ---
+# workloads-android disable: remove Cuttlefish KCC ComputeInstanceTemplate CRs in {prefix}workflows
+# before / while tearing down the child Argo Application so ConfigConnectorContext is not blocked
+# (Addon/controller: "cannot finalize deletion until all Config Connector resources… have been removed").
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: module-manager-cnrm-computeinstancetemplates
+  labels:
+    app.kubernetes.io/name: module-manager
+rules:
+  - apiGroups: ["compute.cnrm.cloud.google.com"]
+    resources: ["computeinstancetemplates"]
+    verbs: ["get", "list", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: module-manager-cnrm-computeinstancetemplates
+  labels:
+    app.kubernetes.io/name: module-manager
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: module-manager-cnrm-computeinstancetemplates
+subjects:
+  - kind: ServiceAccount
+    name: module-manager
+    namespace: {{ .Values.namespace }}
+---
+# workloads-android disable: delete workflows-namespace ConfigConnectorContext when still live
+# (EnsureWorkflowsConfigConnectorContextRemoved after child Application and ComputeInstanceTemplate CRs).
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: module-manager-cnrm-configconnectorcontext
+  labels:
+    app.kubernetes.io/name: module-manager
+rules:
+  - apiGroups: ["core.cnrm.cloud.google.com"]
+    resources: ["configconnectorcontexts"]
+    verbs: ["get", "list", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: module-manager-cnrm-configconnectorcontext
+  labels:
+    app.kubernetes.io/name: module-manager
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: module-manager-cnrm-configconnectorcontext
+subjects:
+  - kind: ServiceAccount
+    name: module-manager
+    namespace: {{ .Values.namespace }}
+---
 # KCC finalizer stripper: Module Manager needs to list and patch KCC-managed resources in module
 # destination namespaces during platform drain so that cnrm.cloud.google.com/finalizers on
 # objects stuck in DeleteFailed do not block namespace termination.

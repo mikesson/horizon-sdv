@@ -22,7 +22,7 @@
 namespacePrefix: ""
 namespace: ""
 # Set by GitOps (userpass | app | none). Remote + userpass|app: prepare-pipeline-git-creds (umbrella) before git artifacts;
-# then again after the build step (refresh-pipeline-git-creds-after-build) so storage / ai-review clones use a fresh ~1h token.
+# then again after the build step (refresh-pipeline-git-creds-after-build) so storage / gemini-review clones use a fresh ~1h token.
 git:
   authMethod: ""
 workflowTemplateName: aaos-builder
@@ -40,14 +40,12 @@ aaosBuilderImageWorkflowTemplateName: aaos-builder-runtime-image
 # OnWorkflowCompletion keeps step pods until the entire workflow finishes (better live log streaming in
 # Argo/Horizon while the run is active). Horizon can still show per-step logs from GCS after pods are GC'd.
 podGcStrategy: OnWorkflowCompletion
-# WorkflowTemplate (namespaced) used for AI review step (gemini chart on workloads-android).
-aiReviewWorkflowTemplateName: ai-review
 # When set, steps use envFrom this ConfigMap for CLOUD_PROJECT, CLOUD_REGION, CLOUD_ZONE, HORIZON_DOMAIN (from gitops config; see gitops/templates/argo-workflows-init.yaml). Leave empty for local clusters without that ConfigMap.
 cloudEnvConfigMapName: "horizon-workflow-cloud-env"
 # When true (and not using localRepoHostPath/localRepoPvcName): clone the pipeline repo once into a
 # per-workflow PVC (pipeline-workspace) and reuse it for clean|init|build|storage (avoids per-pod git inits and
-# GitHub App token expiry on long runs for those steps). ai-review uses its own git artifact clone to /workspace
-# (separate WT), not this PVC — avoids volume mount merge issues with nested templateRef.
+# GitHub App token expiry on long runs for those steps). Inline gemini-review may use its own git artifact clone to /workspace
+# (not this PVC) when not using a local repo mount.
 # See docs/guides/plan_aaos_builder_shared_pipeline_workspace.md
 # Set here or override from GitOps workloads-android (same level as namespacePrefix / git).
 sharedPipelineWorkspace: true
@@ -80,6 +78,8 @@ spec:
   cloudRegion: europe-west1
   cloudZone: europe-west1-d
   manifestUrl: https://android.googlesource.com/platform/manifest
+  # Android Manifest Filename
+  manifestName: default.xml
   # Pipeline repo for Argo git artifacts when not using localRepoHostPath / localRepoPvcName.
   # Align with gitops config.workloads.android.url and .branch (Argo CD: workloads-android multi-source Helm values).
   pipelineRepoUrl: ""
@@ -98,13 +98,13 @@ spec:
   geminiSkillsYaml: /workspace/workloads/android/pipelines/builds/aaos_builder/prompt/sequenced/skills.yaml
   geminiPreviewFeatures: "true"
   geminiLocationGlobal: "true"
-  # Optional model pin. When non-empty, overrides geminiCommandLine with:
+  # Build step only: when non-empty, build pod GEMINI_COMMAND_LINE becomes
   #   gemini --model <geminiModel> --yolo --output-format json
+  # gemini-review pod (inline step) uses the same spec.gemini* keys as the build step for CLI / timeout / Vertex flags.
   geminiModel: ""
-  # Full CLI when geminiModel is empty. To pin a model without geminiModel, embed --model here (see README).
   geminiCommandLine: gemini --yolo --output-format json
   geminiAiExecutionTimeoutHours: "1"
-  # Pod CPU/memory for init, clean, and storage templates (not build; not ai-review — see gemini/helm chart).
+  # Pod CPU/memory for init, clean, storage, and inline gemini-review (Gemini) templates (not build).
   workflowStepResources:
     fetchPipeline:
       requests:
@@ -134,6 +134,13 @@ spec:
       limits:
         cpu: "16000m"
         memory: "32Gi"
+    geminiReview:
+      requests:
+        cpu: "16000m"
+        memory: "48Gi"
+      limits:
+        cpu: "32000m"
+        memory: "96Gi"
   # AAOS builder runtime image build defaults (match aaos-builder-runtime-image / docker_image_template chart).
   forceImageBuild: "false"
   imageBuild:

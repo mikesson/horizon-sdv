@@ -37,7 +37,7 @@ module "vpc" {
         subnet_flow_logs_filter   = "true"
       }
     ],
-    var.enable_arm64 ? [
+    var.enable_arm64_dedicated_subnet ? [
       {
         subnet_name               = var.arm64_subnetwork
         subnet_region             = var.arm64_region
@@ -66,14 +66,14 @@ module "vpc" {
         },
       ]
     },
-    var.enable_arm64 ? {
+    var.enable_arm64_dedicated_subnet ? {
       "${var.arm64_subnetwork}" = [
         {
-          range_name    = "pods-range-us"
+          range_name    = var.arm64_pods_secondary_range_name
           ip_cidr_range = var.arm64_pods_range
         },
         {
-          range_name    = "services-range-us"
+          range_name    = var.arm64_services_secondary_range_name
           ip_cidr_range = var.arm64_services_range
         }
       ]

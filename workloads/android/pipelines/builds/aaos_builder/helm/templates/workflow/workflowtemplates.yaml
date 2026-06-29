@@ -65,6 +65,9 @@ spec:
       - name: manifestUrl
         value: {{ .Values.spec.manifestUrl | quote }}
         description: "Base manifest URL for repo init."
+      - name: manifestName
+        value: {{ .Values.spec.manifestName | quote }}
+        description: "Android manifest filename."
       - name: cleanBuild
         value: {{ .Values.spec.cleanBuild | quote }}
         description: "Clean mode: NO_CLEAN, CLEAN_BUILD, or CLEAN_ALL."
@@ -83,18 +86,6 @@ spec:
       - name: parallelSyncJobs
         value: {{ .Values.spec.parallelSyncJobs | quote }}
         description: "Parallel repo sync jobs."
-      - name: pipelineRepoUrl
-        value: {{ .Values.spec.pipelineRepoUrl | quote }}
-        description: "Pipeline repo URL for Argo git artifacts (GKE/non-local). Match gitops config.workloads.android.url."
-      - name: pipelineRepoRevision
-        value: {{ .Values.spec.pipelineRepoRevision | quote }}
-        description: "Pipeline repo branch or tag. Match gitops config.workloads.android.branch."
-      - name: scmAuthMethod
-        value: {{ include "aaos-builder.scmAuthMethod" . | trim | quote }}
-        description: "SCM auth for pipeline git (app | userpass | none); passed to prepare-pipeline-git-creds when remote."
-      - name: pipelineStaticGitSecretName
-        value: {{ .Values.spec.pipelineRepoSecret | default "workflow-pipeline-git-creds" | quote }}
-        description: "Kubernetes Secret name (username/password) to copy from when scmAuthMethod is userpass."
   templateDefaults:
     metadata:
       annotations:
@@ -145,7 +136,7 @@ spec:
           requests:
             storage: {{ .Values.spec.pipelineWorkspaceStorageSize | quote }}
 {{- end }}
-  # local-repo is always defined so the ai-review step can mount /workspace-local (PVC, hostPath, or emptyDir).
+  # local-repo is always defined so the gemini-review step can mount /workspace-local (PVC, hostPath, or emptyDir).
   volumes:
     - name: local-repo
 {{- if .Values.localRepoHostPath }}
@@ -158,7 +149,7 @@ spec:
       persistentVolumeClaim:
         claimName: {{ .Values.localRepoPvcName | quote }}
 {{- else }}
-      # emptyDir when not using local repo; shared pipeline-workspace mounts at /horizon on WT steps only (not on ai-review).
+      # emptyDir when not using local repo; shared pipeline-workspace mounts at /horizon on WT steps only (not on gemini-review).
       emptyDir: {}
 {{- end }}
   templates:

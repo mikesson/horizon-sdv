@@ -19,7 +19,13 @@
 #
 # Script is only intended for use by cvd_create_instance_template.sh
 # for installing host tools on the base VM instance which is used to
-# create the CF instance template.
+# create the CF instance template. On Debian/Ubuntu (x86_64 and arm64),
+# installs linux-modules-extra for the running kernel before Cuttlefish debs
+# when the distro publishes that package for the booted kernel.
+#
+# Also installs Google Cloud Ops Agent (journald receiver) so ephemeral CVD/CTS
+# workflows can use Helm spec.guestLogSink: cloud. Live Argo logs default to
+# serial port 2 (getSerialPortOutput); Ops Agent is not required for serial.
 
 # Include common functions and variables.
 # shellcheck disable=SC1091
@@ -76,6 +82,33 @@ function verify_jdk() {
     /usr/bin/java --version
     /usr/bin/java -fullversion
     echo -e "${GREEN}JDK resolved: JAVA_HOME=${jdk_home} java=${java_bin}${NC}"
+}
+
+# Extra kernel modules package for the *running* kernel (Debian/Ubuntu on GCE images).
+# Some Cuttlefish packaging expects optional modules from linux-modules-extra-$(uname -r).
+# When that exact apt name is absent, we skip install (no candidate after apt-get update).
+function ensure_linux_modules_extra_for_kernel() {
+    # shellcheck source=/dev/null
+    [ -f /etc/os-release ] && . /etc/os-release
+    if [[ "${ID:-}" != "debian" && "${ID:-}" != "ubuntu" ]]; then
+        return 0
+    fi
+    local kver pkg
+    kver="$(uname -r)"
+    pkg="linux-modules-extra-${kver}"
+    echo -e "${GREEN}Checking apt for ${pkg}.${NC}"
+    if ! sudo env DEBIAN_FRONTEND=noninteractive apt-get update -y; then
+        echo -e "${ORANGE}WARNING: apt-get update failed before linux-modules-extra check; continuing.${NC}" >&2
+    fi
+    if ! apt-cache show "${pkg}" >/dev/null 2>&1; then
+        echo -e "${ORANGE}Skipping ${pkg}: not in apt indexes.${NC}" >&2
+        return 0
+    fi
+    if sudo env DEBIAN_FRONTEND=noninteractive apt-get install -y "${pkg}"; then
+        echo -e "${GREEN}${pkg} installed or already satisfied.${NC}"
+    else
+        echo -e "${ORANGE}WARNING: apt install failed for ${pkg}; continuing.${NC}" >&2
+    fi
 }
 
 # Mesa EGL loader, Vulkan loader, and Mesa Vulkan drivers (e.g. lavapipe) for host-side
@@ -152,6 +185,64 @@ function update_curl() {
     fi
 }
 
+# -----------------------------------------------------------------------------
+# ensure_google_cloud_ops_agent
+# -----------------------------------------------------------------------------
+# Optional Argo live logs via Cloud Logging (spec.guestLogSink: cloud | both).
+# Guest scripts pipe stdout through systemd-cat -t cvd-argo-guest; this agent
+# ships that journal stream to the project. Not used when guestLogSink is serial
+# (default). VM SA needs roles/logging.logWriter at runtime.
+# https://cloud.google.com/logging/docs/agent/ops-agent/installation
+
+function ensure_google_cloud_ops_agent() {
+    local ops_cfg="/etc/google-cloud-ops-agent/config.yaml"
+    local install_script="https://dl.google.com/cloudagents/add-google-cloud-ops-agent-repo.sh"
+
+    echo -e "${GREEN}Ensuring Google Cloud Ops Agent (optional guestLogSink: cloud).${NC}"
+
+    if ! dpkg -s google-cloud-ops-agent >/dev/null 2>&1; then
+        local tmp=""
+        tmp="$(mktemp -d)"
+        if ! curl -fsSL -o "${tmp}/add-google-cloud-ops-agent-repo.sh" "${install_script}"; then
+            echo -e "${RED}ERROR: could not download Ops Agent install script from ${install_script}${NC}" >&2
+            rm -rf "${tmp}"
+            exit 1
+        fi
+        if ! sudo bash "${tmp}/add-google-cloud-ops-agent-repo.sh" --also-install; then
+            echo -e "${RED}ERROR: Ops Agent install script failed.${NC}" >&2
+            rm -rf "${tmp}"
+            exit 1
+        fi
+        rm -rf "${tmp}"
+    else
+        echo -e "${GREEN}google-cloud-ops-agent package already installed.${NC}"
+    fi
+
+    # Journald only: guest stdout uses systemd-cat -t cvd-argo-guest (one line per message).
+    # Avoid tailing /var/log/syslog or /tmp/cvd-argo-guest-startup.log — duplicates cloud live logs.
+    sudo tee "${ops_cfg}" > /dev/null <<'EOF'
+logging:
+  receivers:
+    cvd_argo_journal:
+      type: systemd_journald
+  service:
+    pipelines:
+      cvd_argo_pipeline:
+        receivers:
+          - cvd_argo_journal
+EOF
+
+    sudo systemctl enable google-cloud-ops-agent
+    if ! sudo systemctl restart google-cloud-ops-agent; then
+        echo -e "${ORANGE}WARNING: Ops Agent restart failed; may start on GCE with instance SA.${NC}" >&2
+    fi
+    if ! systemctl is-active --quiet google-cloud-ops-agent; then
+        echo -e "${ORANGE}WARNING: google-cloud-ops-agent not active during image build (expected until GCE runtime).${NC}" >&2
+    else
+        echo -e "${GREEN}google-cloud-ops-agent is active.${NC}"
+    fi
+}
+
 # Disable unattended-upgrades
 function disable_unattended_upgrades() {
     sudo systemctl status unattended-upgrades || true
@@ -159,6 +250,10 @@ function disable_unattended_upgrades() {
     sudo env DEBIAN_FRONTEND=noninteractive apt autoremove -y
     sudo rm -rf /var/log/unattended-upgrades
 }
+
+# ---------------------------------------------------------------------------
+# CTS harness install under /opt/android-cts_<ver>
+# ---------------------------------------------------------------------------
 
 # Download from local storage of official (http)
 function download_cts() {
@@ -179,6 +274,34 @@ function download_cts() {
     su -l "${DEFAULT_USER}" -c "du -sh ${dest}"
 }
 
+# Install one CTS pack under /opt/android-cts_<ver>/android-cts (runtime symlinks /opt/android-cts in cts_initialise.sh — not here).
+function cuttlefish_install_cts_version() {
+    local ver="$1"
+    local url="$2"
+    local opt_root="/opt/android-cts_${ver}"
+    local zip_path="/tmp/android-cts_${ver}.zip"
+
+    echo -e "${GREEN}CTS ${ver}: ${opt_root}${NC}"
+    sudo mkdir -p "${opt_root}"
+    echo -e "${GREEN}Downloading.${NC} ${url}. ${ORANGE}This can take several minutes to complete, please wait!${NC}"
+    download_cts "${url}" "${zip_path}"
+    echo -e "${GREEN}Unpacking.${NC} ${zip_path} -> ${opt_root}. ${ORANGE}This can take several minutes to complete, please wait!${NC}"
+    sudo unzip -q "${zip_path}" -d "${opt_root}"
+    sudo rm -f "${zip_path}"
+    if [[ ! -d "${opt_root}/android-cts/tools" ]]; then
+        echo -e "${RED}CTS ${ver}: expected ${opt_root}/android-cts/tools missing after unzip.${NC}"
+        exit 1
+    fi
+    sudo chown -R "${DEFAULT_USER}:${DEFAULT_USER}" "${opt_root}"
+    sudo chmod -R a+rX "${opt_root}"
+    sudo find "${opt_root}/android-cts/tools" -type f \( -name '*.sh' -o -name 'cts-tradefed' \) -exec chmod a+x {} \; 2>/dev/null || true
+    if [[ -d "${opt_root}/android-cts/jdk/bin" ]]; then
+        sudo chmod a+x "${opt_root}/android-cts/jdk/bin/"* 2>/dev/null || true
+    fi
+    sudo mkdir -p "${opt_root}/android-cts/results"
+    sudo chmod 1777 "${opt_root}/android-cts/results"
+}
+
 # Install CTS test harness on instance to avoid lengthy CTS runs.
 function cuttlefish_install_cts() {
     if [ "$(uname -s)" = "Darwin" ]; then
@@ -187,38 +310,23 @@ function cuttlefish_install_cts() {
         return 0;
     fi
 
-    echo -e "${GREEN}Installing CTS test harness ... ${NC}"
+    echo -e "${GREEN}Installing CTS test harness under /opt/android-cts_<ver> ... ${NC}"
     local start=$SECONDS
 
     if [ ! -z "${CTS_ANDROID_16_URL}" ]; then
-        su -l "${DEFAULT_USER}" -c "mkdir -p android-cts_16"
-        echo -e "${GREEN}Downloading.${NC} ${CTS_ANDROID_16_URL}. ${ORANGE}This can take several minutes to complete, please wait!${NC}"
-        download_cts  "${CTS_ANDROID_16_URL}" android-cts_16.zip
-        echo -e "${GREEN}Unpacking.${NC} android-cts_16.zip. ${ORANGE}This can take several minutes to complete, please wait!${NC}"
-        su -l "${DEFAULT_USER}" -c "unzip -q android-cts_16.zip -d android-cts_16"
-        su -l "${DEFAULT_USER}" -c "rm -f android-cts_16.zip"
+        cuttlefish_install_cts_version 16 "${CTS_ANDROID_16_URL}"
     else
         echo -e "${ORANGE} Skipped Android 16 CTS, nothing to install.${NC}"
     fi
 
     if [ ! -z "${CTS_ANDROID_15_URL}" ]; then
-        su -l "${DEFAULT_USER}" -c "mkdir -p android-cts_15"
-        echo -e "${GREEN}Downloading.${NC} ${CTS_ANDROID_15_URL}. ${ORANGE}This can take several minutes to complete, please wait!${NC}"
-        download_cts  "${CTS_ANDROID_15_URL}" android-cts_15.zip
-        echo -e "${GREEN}Unpacking.${NC} android-cts_15.zip. ${ORANGE}This can take several minutes to complete, please wait!${NC}"
-        su -l "${DEFAULT_USER}" -c "unzip -q android-cts_15.zip -d android-cts_15"
-        su -l "${DEFAULT_USER}" -c "rm -f android-cts_15.zip"
+        cuttlefish_install_cts_version 15 "${CTS_ANDROID_15_URL}"
     else
         echo -e "${ORANGE} Skipped Android 15 CTS, nothing to install.${NC}"
     fi
 
     if [ ! -z "${CTS_ANDROID_14_URL}" ]; then
-        su -l "${DEFAULT_USER}" -c "mkdir -p android-cts_14"
-        echo -e "${GREEN}Downloading.${NC} ${CTS_ANDROID_14_URL}. ${ORANGE}This can take several minutes to complete, please wait!${NC}"
-        download_cts  "${CTS_ANDROID_14_URL}" android-cts_14.zip
-        echo -e "${GREEN}Unpacking.${NC} android-cts_14.zip. ${ORANGE}This can take several minutes to complete, please wait!${NC}"
-        su -l "${DEFAULT_USER}" -c "unzip -q android-cts_14.zip -d android-cts_14"
-        su -l "${DEFAULT_USER}" -c "rm -f android-cts_14.zip"
+        cuttlefish_install_cts_version 14 "${CTS_ANDROID_14_URL}"
     else
         echo -e "${ORANGE} Skipped Android 14 CTS, nothing to install.${NC}"
     fi
@@ -371,6 +479,9 @@ function cuttlefish_install() {
     # Disable unattended-upgrades
     disable_unattended_upgrades
 
+    # Kernel extras before Cuttlefish debs (Debian/Ubuntu x86_64 and arm64 Packer images).
+    ensure_linux_modules_extra_for_kernel
+
     # Install additional packages
     cuttlefish_install_additional_packages
 
@@ -412,6 +523,7 @@ function cuttlefish_initialise() {
             cuttlefish_install
         fi
     fi
+    ensure_google_cloud_ops_agent
     echo -e "${GREEN}Installing Cuttlefish revision ${CUTTLEFISH_REVISION} completed${NC}"
 }
 

@@ -188,6 +188,12 @@ module "base" {
 
   sdv_abfs_build_node_pool_version = var.sdv_abfs_build_node_pool_version
   sdv_cluster_version              = var.sdv_cluster_version
+  sdv_cluster_release_channel      = var.sdv_cluster_release_channel
+
+  sdv_cluster_maintenance_recurring_window_start_time = var.sdv_cluster_maintenance_recurring_window_start_time
+  sdv_cluster_maintenance_recurring_window_end_time   = var.sdv_cluster_maintenance_recurring_window_end_time
+  sdv_cluster_maintenance_recurring_window_recurrence = var.sdv_cluster_maintenance_recurring_window_recurrence
+  sdv_cluster_maintenance_exclusions                  = var.sdv_cluster_maintenance_exclusions
 
   env_name                = var.sdv_env_name
   domain_name             = var.sdv_root_domain
@@ -472,6 +478,13 @@ module "base" {
           {
             gke_ns = "cnrm-system"
             gke_sa = "cnrm-controller-manager-sample-soft-module-hello"
+          },
+          # Cuttlefish / workloads-android: ConfigConnectorContext in {namespacePrefix}workflows
+          # (default namespace name: workflows). Without this binding, ComputeInstanceTemplate and
+          # other CNRM resources fail with iam.serviceAccounts.getAccessToken / WI 403 when reconciling.
+          {
+            gke_ns = "cnrm-system"
+            gke_sa = "cnrm-controller-manager-workflows"
           }
         ]
         roles = toset([
@@ -570,8 +583,13 @@ module "base" {
     }
   }
 
-  #ARM64_ENABLEMENT
-  enable_arm64 = var.enable_arm64
+  # ARM64 networking (Cuttlefish bare metal; region/zone independent of GKE)
+  enable_arm64_dedicated_subnet       = var.enable_arm64_dedicated_subnet
+  arm64_region                        = var.arm64_region
+  arm64_zone                          = var.arm64_zone
+  arm64_subnetwork                    = var.arm64_subnetwork
+  arm64_pods_secondary_range_name     = var.arm64_pods_secondary_range_name
+  arm64_services_secondary_range_name = var.arm64_services_secondary_range_name
 
   # Network policies configuration
   sdv_enable_network_policies = var.sdv_enable_network_policies

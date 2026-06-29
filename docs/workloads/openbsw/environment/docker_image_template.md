@@ -1,3 +1,17 @@
+<!-- Copyright (c) 2026 Accenture, All Rights Reserved.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+        http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License. -->
+
 # Docker Image Template
 
 ## Table of contents
@@ -14,7 +28,7 @@ This need only be run once, or when Dockerfile is updated. There is an option no
 
 ### Dockerfile Overview
 
-The Dockerfile used in this project is based on the [Eclipse Foundation OpenBSW Dockerfile](https://github.com/eclipse-openbsw/openbsw/blob/main/docker/Dockerfile.dev), but has been customized for Horizon-SDV and Google Cloud Platform. Additionally, the job provide a flexible mechanism for users to update the tools and Linux distribution used to create the Docker image, which is utilized for builds and tests jobs.
+The Dockerfile used in this project follows the same tooling layout as [OpenBSW `docker/development/Dockerfile`](https://github.com/eclipse-openbsw/openbsw/blob/main/docker/development/Dockerfile) (ARM GCC, LLVM embedded, Python venv bootstrap, **Rust via rustup** for `posix-rust` / `s32k148-rust-gcc`), but has been customized for Horizon-SDV and Google Cloud Platform. The job provides build arguments for the Linux distribution, toolchain URLs, **and Rust (`RUST_DEFAULT_TOOLCHAIN`, `RUSTUP_PROFILE`, `RUST_EMBEDDED_TARGET`, `CBINDGEN_VERSION`)** so upgrades do not require editing the Dockerfile.
 
 ### References
 - [buildkit](https://hub.docker.com/r/moby/buildkit)
@@ -75,6 +89,22 @@ Python version version to install
 ### `TREEFMT_URL`
 
 URL of the treefmt tools to install in the Docker image.
+
+### `RUST_DEFAULT_TOOLCHAIN`
+
+Rust toolchain passed to `rustup` (`--default-toolchain`), e.g. `1.90.0` or `stable`.
+
+### `RUSTUP_PROFILE`
+
+`rustup` install profile (`minimal`, `default`, etc.).
+
+### `RUST_EMBEDDED_TARGET`
+
+Extra target triple installed with `rustup target add` for embedded Rust (e.g. `thumbv7em-none-eabihf` for OpenBSW S32K148-class builds).
+
+### `CBINDGEN_VERSION`
+
+Version pin for `cargo install cbindgen --locked`; bump when OpenBSW upstream requires it.
 
 ### `BUILDKIT_RELEASE_TAG`
 

@@ -1,3 +1,17 @@
+<!-- Copyright (c) 2026 Accenture, All Rights Reserved.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+        http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License. -->
+
 # CTS Execution Pipeline
 
 ## Table of contents
@@ -25,11 +39,21 @@ Note:
 - It allows users to keep the cuttlefish virtual devices alive for a certain amount of time after the CTS run has completed in order to facilitate debugging via MTK Connect. MTK Connect must be enabled for this option.
 - To view Test Results in Jenkins with CSS, you may wish to lower the [content security level](https://www.jenkins.io/doc/book/security/configuring-content-security-policy/) from `Script Console`, allowing the full HTML to be accessible, e.g. `System.setProperty("hudson.model.DirectoryBrowserSupport.CSP", "")`
 
+### Argo Workflows (`cts-execution-on-gce`) <a name="argo-workflows"></a>
+
+Same ephemeral GCE driver as CVD Launcher (**`cvd_argo_gce_ephemeral.sh`**, **`CVD_ARGO_MODE=cts`**). Overview: [`tests/README.md`](../../../../workloads/android/pipelines/tests/README.md). Helm: [`cts_execution/helm/README.md`](../../../../workloads/android/pipelines/tests/cts_execution/helm/README.md). GCP helpers: [`common/gcp/README.md`](../../../../workloads/android/pipelines/common/gcp/README.md).
+
+**WorkflowTemplate `cts-execution-on-gce`** (GitOps / **`argo submit`** / Sensor **`webhook-cts-execution-on-gce`**) defaults **`storageBucketDestination`** to **`gs://<project>-aaos/Android/Tests/CTS_Execution_Workflows`** and appends **`/<YYYY-MM-DD-HHMMSS>_<workflow.name>/`** per run (**aaos-builder** **`storage`** parity). **Jenkins** often uses **`gs://<ANDROID_BUILD_BUCKET_ROOT_NAME>/Android/Tests/CTS_Execution/<BUILD_NUMBER>/`** when **`STORAGE_BUCKET_DESTINATION`** is left at its job default.
+
+**CTS on the guest** is always under **`/opt/android-cts`** (symlink to **`/opt/android-cts_<ANDROID_VERSION>`** from baked CF images or **`CTS_DOWNLOAD_URL`**); not a workflow parameter.
+
+**Gemini:** When **`enableGeminiAiAssistant`** is true and not list-only, **`prepare-gemini-cts`** → **`gemini-review`** (**`run_ai_review.sh`**, preset **`cts`**); uploads via **`hooks/review-post-cts.sh`**. **`geminiAnalyseOnSuccess`** gates success-path review. MTK connect failure skips Gemini (Jenkins parity).
+
 ### CTS vs CVD Launcher (scope) <a name="cts-vs-cvd-launcher-scope"></a>
 
 This job is the **CTS Execution** pipeline: it runs **Tradefed** against Cuttlefish virtual devices and publishes **Compatibility Test Suite** results (XML/HTML under `android-cts-results/` and `android-cts-results-html/`). When **Gemini AI Review** is enabled on a failed build, it uses **`preset: 'cts'`** and sequenced prompts that **prioritize failed tests from Tradefed** when suite artifacts exist, and **still analyze guest `kernel.log` and other CVD logs** for boot and bring-up issues (including when **devices never became healthy** and Tradefed left no usable summary—see [Gemini prompts and artifacts](#gemini-prompts-and-artifacts)). See `prompt/sequenced/README_SKILLS.md`.
 
-The **[CVD Launcher](cvd_launcher.md)** job is **not** a substitute for CTS: it does **not** run the Compatibility Test Suite. It exists to exercise **Cuttlefish runtime** (launch, MTK Connect, logs) without Tradefed. Use it when you need a **dedicated deep dive into CVD runtime issues**—guest `kernel.log`, host orchestration, boot failures, and related artifacts—without CTS test-result correlation. Its AI Review uses **`preset: 'cvd'`** and **guest-first** prompts tuned only for that scenario. If your question is purely “why did the virtual device fail to boot or misbehave at runtime,” CVD Launcher (or its documentation) is the clearer entry point; if your question is “which CTS tests failed and why,” use this CTS job.
+The **[CVD Launcher](../cvd_launcher.md)** job is **not** a substitute for CTS: it does **not** run the Compatibility Test Suite. It exists to exercise **Cuttlefish runtime** (launch, MTK Connect, logs) without Tradefed. Use it when you need a **dedicated deep dive into CVD runtime issues**—guest `kernel.log`, host orchestration, boot failures, and related artifacts—without CTS test-result correlation. Its AI Review uses **`preset: 'cvd'`** and **guest-first** prompts tuned only for that scenario. If your question is purely “why did the virtual device fail to boot or misbehave at runtime,” CVD Launcher (or its documentation) is the clearer entry point; if your question is “which CTS tests failed and why,” use this CTS job.
 
 **Resources:**
 
@@ -44,7 +68,7 @@ The job’s **`Jenkinsfile`** (`workloads/android/pipelines/tests/cts_execution/
 
 Hook bodies are defined in **`ctsCvdPipelineHooks()`** (`workloads/common/jenkins/shared-libraries/cvd-pipeline-shared-library/vars/ctsCvdPipelineHooks.groovy`). The Jenkinsfile passes `preLaunchStages: ctsHooks.preLaunchStages` and `postMtkConnectStages: ctsHooks.postMtkConnectStages`.
 
-[CVD Launcher](cvd_launcher.md#jenkins-pipeline-and-shared-library) uses the same **`cvdPipeline`** without these hooks (Cuttlefish + MTK + keep-alive only). Full parameter and stage reference: **`workloads/common/jenkins/shared-libraries/cvd-pipeline-shared-library/vars/README.md`**.
+[CVD Launcher](../cvd_launcher/README.md#jenkins-pipeline-and-shared-library) uses the same **`cvdPipeline`** without these hooks (Cuttlefish + MTK + keep-alive only). Full parameter and stage reference: **`workloads/common/jenkins/shared-libraries/cvd-pipeline-shared-library/vars/README.md`**.
 
 ### References <a name="references"></a>
 
@@ -87,7 +111,8 @@ The URL must point to the bucket where the host packages and virtual devices ima
 - `cvd-host_package.tar.gz`
 - `osp_cf_x86_64_auto-img-builder.zip`
 
-URL is of the form `gs://<ANDROID_BUILD_BUCKET_ROOT_NAME>/Android/Builds/AAOS_Builder/<BUILD_NUMBER>` where `ANDROID_BUILD_BUCKET_ROOT_NAME` is a system environment variable defined in Jenkins CasC `values-jenkins.yaml` and `BUILD_NUMBER` is the Jenkins build number. Alternatively, `<STORAGE_BUCKET_DESTINATION>` if destination was overridden.
+- **Jenkins AAOS Builder:** `gs://<ANDROID_BUILD_BUCKET_ROOT_NAME>/Android/Builds/AAOS_Builder/<BUILD_NUMBER>/` (or `<STORAGE_BUCKET_DESTINATION>/` if overridden).
+- **Argo WorkflowTemplate `aaos-builder`:** `gs://<project>-aaos/Android/Builds/AAOS_Builder_Workflows/<YYYY-MM-DD-HHMMSS>_<workflow.name>/` (Helm **`spec.androidBuildsArtifactFolder`**). Use the directory that contains the Cuttlefish host packages and image zip.
 
 ### `CUTTLEFISH_INSTALL_WIFI`
 
@@ -95,7 +120,7 @@ This allows the user to install Wifi utility APK on all Cuttlefish virtual devic
 
 ### `ANDROID_VERSION`
 
-Defines the Android and thus CTS version to use. The Cuttlefish VM Instance is already pre-installed with Android 14, 15 and CTS, so this defines which version to use.
+Defines the Android and thus CTS version to use. Cuttlefish instance templates bake CTS under **`/opt/android-cts_<version>/android-cts`** (see **`cf_host_initialise.sh`**). At runtime, **`cts_initialise.sh`** symlinks **`/opt/android-cts`** to **`/opt/android-cts_<version>`** so Tradefed sees the standard layout **`/opt/android-cts/android-cts/{tools,jdk,results,...}`** (Jenkins and Argo; not configurable).
 
 ### `CTS_DOWNLOAD_URL`
 
@@ -107,7 +132,10 @@ The URL must point to the bucket where the Android CTS archive is stored:
 
 - `android-cts.zip`
 
-URL is of the form `gs://<ANDROID_BUILD_BUCKET_ROOT_NAME>/Android/Builds/AAOS_Builder/<BUILD_NUMBER>/android-cts.zip` where `ANDROID_BUILD_BUCKET_ROOT_NAME` is a system environment variable defined in Jenkins CasC `values-jenkins.yaml` and `BUILD_NUMBER` is the Jenkins build number. Alternatively, `<STORAGE_BUCKET_DESTINATION>/android-cts.zip` if destination was overridden.
+- **Jenkins:** `gs://<ANDROID_BUILD_BUCKET_ROOT_NAME>/Android/Builds/AAOS_Builder/<BUILD_NUMBER>/android-cts.zip` (or `<STORAGE_BUCKET_DESTINATION>/android-cts.zip` if overridden).
+- **Argo `aaos-builder`:** `gs://<project>-aaos/Android/Builds/AAOS_Builder_Workflows/<YYYY-MM-DD-HHMMSS>_<workflow.name>/android-cts.zip` when CTS was produced by the workflow **`storage`** step under that prefix.
+
+When set, the archive is unpacked under **`/opt/android-cts`**, replacing that directory’s contents for that job. If the zip layout is flat (**`tools/`** at the root), **`cts_initialise.sh`** nests it under **`android-cts/`** so Tradefed paths match the baked image.
 
 ### `CTS_TESTPLAN`
 
@@ -174,7 +202,7 @@ By default, testbenches are private and only visible to their creator and MTK Co
 
 ### `MTK_CONNECT_TUNNEL_PORT`
 
-ADB tunnel **`caller.port`** for MTK Connect testbench creation (`workloads/common/mtk-connect/create-testbench.js`). Default **8555**; override if the port conflicts on the agent. Used when MTK Connect runs (`MTK_CONNECT_ENABLE`). Same behavior as documented for [CVD Launcher](cvd_launcher.md#mtk_connect_tunnel_port).
+ADB tunnel **`caller.port`** for MTK Connect testbench creation (`workloads/common/mtk-connect/create-testbench.js`). Default **8555**; override if the port conflicts on the agent. Used when MTK Connect runs (`MTK_CONNECT_ENABLE`). Same behavior as documented for [CVD Launcher](../cvd_launcher/README.md#mtk_connect_tunnel_port).
 
 ### `CUTTLEFISH_KEEP_ALIVE_TIME`
 
@@ -185,9 +213,9 @@ It is only applicable when `MTK_CONNECT_ENABLE` is enabled.
 
 ### `CVD_COMMAND_LINE`
 
-Same semantics as in [CVD Launcher](cvd_launcher.md#cvd_command_line): default is the full `/usr/bin/cvd create …` line with shell placeholders `${NUM_INSTANCES}`, `${VM_CPUS}`, `${VM_MEMORY_MB}` and CI-oriented flags `--setupwizard_mode DISABLED`, `--enable_host_bluetooth false`, `--gpu_mode guest_swiftshader` (those values derive from the respective job parameters automatically); an empty value clears to the script default. Edit the parameter to change launch arguments.
+Same semantics as in [CVD Launcher](../cvd_launcher/README.md#cvd_command_line): default is the full `/usr/bin/cvd create …` line with shell placeholders `${NUM_INSTANCES}`, `${VM_CPUS}`, `${VM_MEMORY_MB}` and CI-oriented flags `--setupwizard_mode DISABLED`, `--enable_host_bluetooth false`, `--gpu_mode guest_swiftshader` (those values derive from the respective job parameters automatically); an empty value clears to the script default. Edit the parameter to change launch arguments.
 
-Optional `cvd` flags are **not** a separate parameter: add them **inside** the `CVD_COMMAND_LINE` string. Further example fragments (see [CVD Launcher — `CVD_COMMAND_LINE`](cvd_launcher.md#cvd_command_line) for context):
+Optional `cvd` flags are **not** a separate parameter: add them **inside** the `CVD_COMMAND_LINE` string. Further example fragments (see [CVD Launcher — `CVD_COMMAND_LINE`](../cvd_launcher/README.md#cvd_command_line) for context):
 
 - `--display0=width=1920,height=1080,dpi=160`
 - `--verbosity=DEBUG`
@@ -206,15 +234,15 @@ Notes:
 
 - AI Review still requires **`ENABLE_GEMINI_AI_ASSISTANT=true`** and still skips when `CTS_TEST_LISTS_ONLY` is `true` (`requireCtsNotListOnly`).
 - When **`GEMINI_ANALYSE_ON_SUCCESS=true`**, a failing Gemini step in AI Review can still mark the overall job **`FAILURE`** (same `catchError` behaviour as when AI Review runs after a failed pipeline).
-- **Offline CVD analysis via Gemini AI Assistant (success or failure):** to investigate CVD/Cuttlefish behaviour for a CTS run that has already completed — whether tests passed, tests failed, or devices never booted — use [**Workloads → Utilities → Gemini AI Assistant**](../utilities/gemini_ai_assistant.md) with the **CVD Launcher** sequenced prompts and `skills.yaml` from `workloads/android/pipelines/tests/cvd_launcher/prompt/sequenced/` (**not** the CTS Execution set; the CVD Launcher prompts cover both the boot-failure lane and the runtime-health lane via Phase 0). Point **`GEMINI_ARTIFACTS_COMMAND`** at the CTS Execution build's archived Cuttlefish/CVD artifacts (host `cvd*.log`, unpacked `cuttlefish_logs*.zip`, guest `kernel.log`/`launcher.log`/`logcat`, `wifi*.log`), then upload the three CVD Launcher prompts and matching **`GEMINI_SKILLS_YAML`**. **Phase 0 — CVD boot preflight** classifies `CVD_STATUS` from artifacts only (no pipeline state) and auto-routes to boot-failure triage on failed boots or runtime-health analysis on booted devices — leaving CTS suite/plan semantics to the normal CTS Execution AI Review.
+- **Offline CVD analysis via Gemini AI Assistant (success or failure):** to investigate CVD/Cuttlefish behaviour for a CTS run that has already completed — whether tests passed, tests failed, or devices never booted — use **`docs/workloads/utilities/gemini_ai_assistant.md`** (**Workloads → Utilities → Gemini AI Assistant**) with the **CVD Launcher** sequenced prompts and `skills.yaml` from `workloads/android/pipelines/tests/cvd_launcher/prompt/sequenced/` (**not** the CTS Execution set; the CVD Launcher prompts cover both the boot-failure lane and the runtime-health lane via Phase 0). Point **`GEMINI_ARTIFACTS_COMMAND`** at the CTS Execution build's archived Cuttlefish/CVD artifacts (host `cvd*.log`, unpacked `cuttlefish_logs*.zip`, guest `kernel.log`/`launcher.log`/`logcat`, `wifi*.log`), then upload the three CVD Launcher prompts and matching **`GEMINI_SKILLS_YAML`**. **Phase 0 — CVD boot preflight** classifies `CVD_STATUS` from artifacts only (no pipeline state) and auto-routes to boot-failure triage on failed boots or runtime-health analysis on booted devices — leaving CTS suite/plan semantics to the normal CTS Execution AI Review.
 
 ### Gemini prompts and artifacts <a name="gemini-prompts-and-artifacts"></a>
 
-The job uses prompt files from the repository only; there is no Jenkins parameter to override the default path. Sequenced prompts (order matters), under `workloads/android/pipelines/tests/cts_execution/prompt/sequenced/`: `step1_triage.txt`, `step2_rca.txt`, `step3_fixes.txt`. Outputs: `step1_output.md`, `step2_output.md`, `step3_output.md`. Skills are defined in `skills.yaml` (`triage-cts`, `rca-cts`, `fix-cts`); see `workloads/android/pipelines/tests/cts_execution/prompt/sequenced/README_SKILLS.md` for how `gemini_initialise.sh` loads them. [CVD Launcher](cvd_launcher.md#gemini-prompts-and-ai-review) uses a separate `cvd_launcher/prompt/sequenced` set when `preset: 'cvd'`—that preset is **dedicated to Cuttlefish/CVD runtime** triage without CTS suite semantics; see [CTS vs CVD Launcher (scope)](#cts-vs-cvd-launcher-scope) above.
+The job uses prompt files from the repository only; there is no Jenkins parameter to override the default path. Sequenced prompts (order matters), under `workloads/android/pipelines/tests/cts_execution/prompt/sequenced/`: `step1_triage.txt`, `step2_rca.txt`, `step3_fixes.txt`. Outputs: `step1_output.md`, `step2_output.md`, `step3_output.md`. Skills are defined in `skills.yaml` (`triage-cts`, `rca-cts`, `fix-cts`); see `workloads/android/pipelines/tests/cts_execution/prompt/sequenced/README_SKILLS.md` for how `gemini_initialise.sh` loads them. [CVD Launcher](../cvd_launcher.md#gemini-prompts-and-ai-review) uses a separate `cvd_launcher/prompt/sequenced` set when `preset: 'cvd'`—that preset is **dedicated to Cuttlefish/CVD runtime** triage without CTS suite semantics; see [CTS vs CVD Launcher (scope)](#cts-vs-cvd-launcher-scope) above.
 
-**CVD logs when devices do not boot:** On failure, AI Review still receives **Cuttlefish-oriented** artifacts (`**/cvd*.log`, **`cuttlefish_logs*.zip`**, guest logs under **`test-results/cvd/**` after unpack, Wi‑Fi logs, etc.) alongside any CTS XML/HTML. Skills **always** treat guest **`kernel.log`** as high signal: when Tradefed produced a failure report, triage correlates **failed tests** but still runs **early-boot / bootconfig-oriented** greps on **`kernel.log`** (those errors usually do **not** contain testcase names). When **no** usable Tradefed failure summary exists—typical if virtual devices **never came up** or CTS aborted before writing results—the skills follow a **CVD-only** path aligned with [CVD Launcher](cvd_launcher.md) (guest-first analysis and optional follow-up to run a **CVD Launcher** job with **`preset: 'cvd'`** for a dedicated boot/runtime pass). Details: `prompt/sequenced/README_SKILLS.md`.
+**CVD logs when devices do not boot:** On failure, AI Review still receives **Cuttlefish-oriented** artifacts (`**/cvd*.log`, **`cuttlefish_logs*.zip`**, guest logs under **`test-results/cvd/**` after unpack, Wi‑Fi logs, etc.) alongside any CTS XML/HTML. Skills **always** treat guest **`kernel.log`** as high signal: when Tradefed produced a failure report, triage correlates **failed tests** but still runs **early-boot / bootconfig-oriented** greps on **`kernel.log`** (those errors usually do **not** contain testcase names). When **no** usable Tradefed failure summary exists—typical if virtual devices **never came up** or CTS aborted before writing results—the skills follow a **CVD-only** path aligned with [CVD Launcher](../cvd_launcher.md) (guest-first analysis and optional follow-up to run a **CVD Launcher** job with **`preset: 'cvd'`** for a dedicated boot/runtime pass). Details: `prompt/sequenced/README_SKILLS.md`.
 
-Cuttlefish/CVD line-number grep guidance (example failure buckets, log paths, and substrings, plus what to do when the failure is non-obvious) is under `skills.yaml` → `global_constraints` → **“CVD errors — what to do”**. That block is aligned with [CVD Launcher](cvd_launcher.md#gemini-prompts-and-ai-review) and applies on this job’s **CVD-only** triage path when Tradefed suite artifacts are missing.
+Cuttlefish/CVD line-number grep guidance (example failure buckets, log paths, and substrings, plus what to do when the failure is non-obvious) is under `skills.yaml` → `global_constraints` → **“CVD errors — what to do”**. That block is aligned with [CVD Launcher](../cvd_launcher.md#gemini-prompts-and-ai-review) and applies on this job’s **CVD-only** triage path when Tradefed suite artifacts are missing.
 
 For AI Review, the shared library copies artifacts from the current build using the **CTS Execution** filter: `android-cts-results/**`, `android-cts-results-html/**`, plus shared Cuttlefish-oriented patterns (`**/wifi*.log`, `**/cvd*.log`, `**/cts_execution_parameters.txt`, `**/cuttlefish_logs*.zip`). The canonical filter list lives with **`cvdPipeline`** / **`aiReview`** in `workloads/common/jenkins/shared-libraries/cvd-pipeline-shared-library/vars/` (see that README for implementation pointers).
 
@@ -232,6 +260,7 @@ Refer to `docs/workloads/android/tests/cvd_launcher.md` for an example of how to
 ```
 ANDROID_VERSION=14 \
 ./workloads/android/pipelines/tests/cts_execution/cts_initialise.sh
+# CTS is always under /opt/android-cts (symlink to /opt/android-cts_${ANDROID_VERSION} when using baked CF images).
 CTS_TESTPLAN="cts-system-virtual" \
 CTS_MODULE="CtsDeqpTestCases" \
 CTS_TIMEOUT=600 \

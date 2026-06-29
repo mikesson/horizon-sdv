@@ -13,7 +13,11 @@
 # limitations under the License.
 
 FROM --platform=linux/amd64 node:22-alpine
-RUN apk update && apk upgrade && apk add --no-cache bash vim curl jq openssh-client
+RUN apk update && apk upgrade && apk add --no-cache bash vim curl jq
+# ISD requires openssh >= 10.3, not yet in Alpine 3.23 stable; pull it from the edge branch.
+RUN apk add --no-cache --upgrade \
+    --repository=https://dl-cdn.alpinelinux.org/alpine/edge/main \
+    openssh-client
 WORKDIR /home/node
 ADD --chown=node:node package.json ./
 ADD --chown=node:node keycloak.mjs ./

@@ -1,1 +1,15 @@
+# Copyright (c) 2026 Accenture, All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#         http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 Generate remediation artifacts for each distinct failure from Step 2 (host/CVD/guest/image/infra). Step 1 and Step 2 output are in step1_output.md and step2_output.md (context may be appended below). **Honour `CVD_STATUS`** from Phase 0: if Step 1 classified the run as **`[CVD_HEALTHY]`** (`BOOT_OK` with no actionable rows), write **one** file **`gemini-assist/proposed_fix_runtime_observations_<timestamp>.md`** summarising informational warnings and stating no remediation is required — or reply only `FIX_UNKNOWN: no action required.` if there were none. On `BOOT_OK` with runtime buckets (`[GUEST_RUNTIME]`, `[LOGCAT_*]`, `[NETWORK_WIFI]`), propose fixes for the **runtime** issue only; do not synthesize boot-failure narratives. **Strict:** write **only** under **`gemini-assist/`** — filenames **`gemini-assist/proposed_fix_{failure_type}_{timestamp}.md`** (never workspace root, never **`test-results/`**, never bare **`proposed_fix.md`**). Final reply: **only** a bullet list of paths (each must start with **`gemini-assist/`**) — or the `FIX_UNKNOWN` line above when `[CVD_HEALTHY]` with zero warnings. Follow your skill instructions.

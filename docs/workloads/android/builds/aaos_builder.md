@@ -1,3 +1,17 @@
+<!-- Copyright (c) 2026 Accenture, All Rights Reserved.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+        http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License. -->
+
 # Android Builds
 
 ## Table of contents
@@ -33,6 +47,7 @@ One-time setup requirements.
 
 - Before running this pipeline job, ensure that the following template has been created by running the corresponding job:
   - Docker image template: `Android Workflows/Environment/Docker Image Template`
+- For **AAOS SDV Builder**, paste **base64** of **`.gitcookies`** into the non-stored build parameter **`GERRIT_GITCOOKIES_BASE64`** (partner `*.googlesource.com`); **AAOS Builder** uses **Horizon Gerrit** HTTP credentials instead. See [`workloads/android/pipelines/builds/aaos_sdv_builder/README.md`](../../../../workloads/android/pipelines/builds/aaos_sdv_builder/README.md).
 
 ## Environment Variables/Parameters <a name="environment-variables"></a>
 
@@ -44,6 +59,10 @@ This provides the URL for the Android repo manifest. Such as:
 
 - https://dev.horizon-sdv.com/gerrit/android/platform/manifest (default Horizon manifest)
 - https://android.googlesource.com/platform/manifest (Google OSS manifest)
+
+### `AAOS_MANIFEST_NAME`
+
+Manifest XML filename inside the manifest repository. Defaults to `default.xml` when unset.
 
 ### `AAOS_REVISION`
 
@@ -203,6 +222,14 @@ This defines the directory name on the Filestore volume where the Mirror is loca
 ### `GERRIT_PROJECT` / `GERRIT_CHANGE_NUMBER / GERRIT_PATCHSET_NUMBER / GERRIT_TOPIC`
 
 These are optional but allow the user to fetch a specific Gerrit patchset if required.
+
+### Partner `*.googlesource.com` and `.gitcookies`
+
+For partner Android manifests over HTTPS, **Git** needs a valid **Netscape-format** `.gitcookies` file (tab-separated fields). **AAOS SDV Builder** uses build parameter **`GERRIT_GITCOOKIES_BASE64`** (non-stored password) whose value is **base64** of the raw `.gitcookies` bytes (see [AAOS SDV Builder — Jenkins and `.gitcookies`](../../../../workloads/android/pipelines/builds/aaos_sdv_builder/README.md) for encoding and how the **Initialise** step writes **`~/.gitcookies`** and sets **`git config --global http.cookiefile`**).
+
+### `GERRIT_AUTH_MODE` (optional)
+
+For Gerrit REST (topic queries), set **`username_password`**, **`gitcookies`**, **`none`**, or **`auto`** / leave unset to infer (username+password if both set, else cookie file if present, else unauthenticated). See the header comment in [`aaos_initialise.sh`](../../../../workloads/android/pipelines/builds/aaos_builder/aaos_initialise.sh) and [AAOS SDV Builder — Jenkins and `.gitcookies`](../../../../workloads/android/pipelines/builds/aaos_sdv_builder/README.md).
 
 ## Example Usage <a name="examples"></a>
 

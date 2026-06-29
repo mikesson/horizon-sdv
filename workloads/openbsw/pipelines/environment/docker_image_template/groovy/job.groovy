@@ -65,7 +65,7 @@ pipelineJob('OpenBSW/Environment/Docker Image Template') {
     }
     stringParam {
       name('POST_GIT_CLONE_COMMAND')
-      defaultValue('git checkout b9e994e4')
+      defaultValue('git checkout 1c1450e')
       description('''<p>Optional additional commands post git clone and prior to build/make.<br/>
         <b>Note: </b>Single command line only, use logical operators to execute subsequent commands.<br/></p>''')
       trim(true)
@@ -120,6 +120,30 @@ pipelineJob('OpenBSW/Environment/Docker Image Template') {
       name('TREEFMT_URL')
       defaultValue('https://github.com/numtide/treefmt/releases/download/v2.1.0/treefmt_2.1.0_linux_amd64.tar.gz')
       description('''<p>Treefmt archive URL.</p>''')
+      trim(true)
+    }
+    stringParam {
+      name('RUST_DEFAULT_TOOLCHAIN')
+      defaultValue('1.90.0')
+      description('''<p>Rust toolchain channel/version passed to <code>rustup</code> <code>--default-toolchain</code> (e.g. <code>1.90.0</code>, <code>stable</code>).</p>''')
+      trim(true)
+    }
+    stringParam {
+      name('RUSTUP_PROFILE')
+      defaultValue('minimal')
+      description('''<p><code>rustup</code> install profile (e.g. <code>minimal</code>, <code>default</code>).</p>''')
+      trim(true)
+    }
+    stringParam {
+      name('RUST_EMBEDDED_TARGET')
+      defaultValue('thumbv7em-none-eabihf')
+      description('''<p>Extra Rust target triple added via <code>rustup target add</code> for S32K148-class embedded builds (must match OpenBSW CMake when cross-compiling Rust).</p>''')
+      trim(true)
+    }
+    stringParam {
+      name('CBINDGEN_VERSION')
+      defaultValue('0.27.0')
+      description('''<p><code>cbindgen</code> version installed with <code>cargo install --locked</code> (pin OpenBSW-compatible releases).</p>''')
       trim(true)
     }
     separator {

@@ -1,3 +1,17 @@
+<!-- Copyright (c) 2026 Accenture, All Rights Reserved.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+        http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License. -->
+
 # Upgrade Guide: 3.1.0 to 4.0.0
 
 This guide explains how to upgrade an existing Horizon SDV 3.1.0 environment to 4.0.0.
@@ -37,7 +51,7 @@ Before starting the upgrade, ensure the following:
 
 - The **3.1.0 environment is fully deployed and healthy**. All Argo CD applications must be `Synced` and `Healthy` before starting.
 - You have access to new template `terraform/env/terraform.tfvars` ( based on `terraform/env/terraform.tfvars.sample`) and can run the deployment workflow.
-- You have `kubectl` connectivity to the cluster. Refer to [Connect to GKE via Connect Gateway](../deployment_guide.md#section-3b---connect-to-gke-via-connect-gateway) if needed.
+- You have `kubectl` connectivity to the cluster. Refer to [Connect to GKE via Connect Gateway](../deployment_guide.md#section-3c---connect-to-gke-via-connect-gateway) if needed.
 - You have the Argo CD admin credentials available. The admin password is stored in GCP Secret Manager under the secret named `argocd-admin-password-b64`.
 
 ---
@@ -225,7 +239,7 @@ Before running **Seed Workloads**, ensure operators and developers who will seed
 1. In Jenkins, open **Manage Jenkins** → **Manage and Assign Roles** → **Assign Roles**.
 2. Map users to the correct **Global** and **Item** roles as described in the guides below.
 
-Authoritative setup (Keycloak groups, role names, and **Assign Roles** steps): [Role Based Strategy — Pipeline Guide](../workloads/guides/pipeline_guide.md#rolebasedstrategy). Keycloak group membership: [Jenkins access via Keycloak groups](../deployment_guide.md#section-3d---jenkins-access-via-keycloak-groups).
+Authoritative setup (Keycloak groups, role names, and **Assign Roles** steps): [Role Based Strategy — Pipeline Guide](../workloads/guides/pipeline_guide.md#rolebasedstrategy). Keycloak group membership: [Jenkins access via Keycloak groups](../deployment_guide.md#section-3e---jenkins-access-via-keycloak-groups).
 
 #### Jenkins seed job
 
@@ -246,7 +260,7 @@ If you use Cuttlefish on GCE, **regenerate Cuttlefish instance templates from sc
 
 | Area | Documentation |
 |------|----------------|
-| Jenkins RBAC (**Manage and Assign Roles**) | [Pipeline Guide — Role Based Strategy](../workloads/guides/pipeline_guide.md#rolebasedstrategy); [Deployment Guide — Jenkins access via Keycloak groups](../deployment_guide.md#section-3d---jenkins-access-via-keycloak-groups) |
+| Jenkins RBAC (**Manage and Assign Roles**) | [Pipeline Guide — Role Based Strategy](../workloads/guides/pipeline_guide.md#rolebasedstrategy); [Deployment Guide — Jenkins access via Keycloak groups](../deployment_guide.md#section-3e---jenkins-access-via-keycloak-groups) |
 | Seed jobs & Jenkins parameters | [workloads/seed.md](../workloads/seed.md) |
 | How pipelines and jobs fit together | [workloads/guides/pipeline_guide.md](../workloads/guides/pipeline_guide.md) |
 | Docker image templates — Android | [workloads/android/environment/docker_image_template.md](../workloads/android/environment/docker_image_template.md) |

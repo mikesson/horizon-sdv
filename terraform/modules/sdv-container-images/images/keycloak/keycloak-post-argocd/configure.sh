@@ -37,14 +37,20 @@ kubectl -n ${NAMESPACE_PREFIX}argocd patch configmap argocd-cm --patch="
   }
 }"
 
+# POLICY_CSV must match line-for-line: terraform/modules/sdv-gke-apps/argocd-values.yaml.tpl → configs.rbac.policy.csv (edit the .tpl first).
+# This Job patches rbac after Keycloak; Helm upgrades still reapply from values — keep both copies equal or RBAC/UI diverges.
 read -r -d '' POLICY_CSV << 'POLICY_END' || true
 p, role:readonly, applications, get, */*, allow
+p, role:readonly, applications, list, */*, allow
 p, role:readonly, applicationsets, get, */*, allow
+p, role:readonly, applicationsets, list, */*, allow
 p, role:readonly, certificates, get, *, allow
 p, role:readonly, clusters, get, *, allow
+p, role:readonly, clusters, list, *, allow
 p, role:readonly, repositories, get, *, allow
 p, role:readonly, write-repositories, get, *, allow
 p, role:readonly, projects, get, *, allow
+p, role:readonly, projects, list, *, allow
 p, role:readonly, accounts, get, *, allow
 p, role:readonly, gpgkeys, get, *, allow
 p, role:readonly, logs, get, */*, allow
@@ -56,7 +62,9 @@ p, role:admin, applications, delete/*, */*, allow
 p, role:admin, applications, sync, */*, allow
 p, role:admin, applications, override, */*, allow
 p, role:admin, applications, action/*, */*, allow
+p, role:admin, applications, list, */*, allow
 p, role:admin, applicationsets, get, */*, allow
+p, role:admin, applicationsets, list, */*, allow
 p, role:admin, applicationsets, create, */*, allow
 p, role:admin, applicationsets, update, */*, allow
 p, role:admin, applicationsets, delete, */*, allow
@@ -66,6 +74,7 @@ p, role:admin, certificates, delete, *, allow
 p, role:admin, clusters, create, *, allow
 p, role:admin, clusters, update, *, allow
 p, role:admin, clusters, delete, *, allow
+p, role:admin, clusters, list, *, allow
 p, role:admin, repositories, create, *, allow
 p, role:admin, repositories, update, *, allow
 p, role:admin, repositories, delete, *, allow
@@ -75,6 +84,7 @@ p, role:admin, write-repositories, delete, *, allow
 p, role:admin, projects, create, *, allow
 p, role:admin, projects, update, *, allow
 p, role:admin, projects, delete, *, allow
+p, role:admin, projects, list, *, allow
 p, role:admin, accounts, update, *, allow
 p, role:admin, gpgkeys, create, *, allow
 p, role:admin, gpgkeys, delete, *, allow

@@ -151,6 +151,16 @@ func main() {
 		log.Fatalf("module-config helm startup sync: %v", err)
 	}
 
+	if err := mgr.Add(&controller.TargetRevisionStartupSync{
+		Client:          mgr.GetClient(),
+		APIReader:       apiReader,
+		ArgoNS:          argocdNamespace,
+		DefaultRevision: targetRevision,
+		StateStore:      stateStore,
+	}); err != nil {
+		log.Fatalf("target-revision startup sync: %v", err)
+	}
+
 	catalogReconciler := &controller.ModuleCatalogReconciler{
 		Client:          mgr.GetClient(),
 		APIReader:       apiReader,

@@ -41,5 +41,99 @@ configs:
         ignoreDifferences: |
           jsonPointers:
           - /status
+      # Namespaced Config Connector: operator sets status.healthy (kubebuilder CommonStatus).
+      # Without this, Argo treats the CR as Progressing forever and sync waves never complete.
+      # status.healthy == false is common while CNRM reconciles (e.g. many pipeline
+      # ComputeInstanceTemplate CRs) or finalizes during uninstall. Mapping that to Degraded
+      # makes Argo wait forever for "healthy state" on module disable / prune sync. Use
+      # Progressing instead so sync can complete; use Degraded only when the operator
+      # reports explicit errors. Terminating CCC is always Healthy (finalizer path).
+      core.cnrm.cloud.google.com_ConfigConnectorContext:
+        health.lua: |
+          hs = {}
+          if obj.metadata ~= nil and obj.metadata.deletionTimestamp ~= nil and obj.metadata.deletionTimestamp ~= "" then
+            hs.status = "Healthy"
+            hs.message = "Deleting (Config Connector context finalizing)"
+            return hs
+          end
+          hs.status = "Progressing"
+          hs.message = "Waiting for Config Connector operator (status.healthy unset)"
+          if obj.status ~= nil and obj.status.healthy ~= nil then
+            if obj.status.healthy == true then
+              hs.status = "Healthy"
+              hs.message = ""
+              return hs
+            end
+            if obj.status.healthy == false then
+              if obj.status.errors ~= nil and obj.status.errors[1] ~= nil and obj.status.errors[1] ~= "" then
+                hs.status = "Degraded"
+                hs.message = obj.status.errors[1]
+                return hs
+              end
+              hs.status = "Progressing"
+              hs.message = "status.healthy is false (CNRM reconciling; describe CCC if stuck)"
+              return hs
+            end
+          end
+          return hs
+  # policy.csv + scopes: keep identical to keycloak-post-argocd/configure.sh (POLICY_CSV + rbac-cm patch).
+  # Why here: argo-helm resets argocd-rbac-cm on upgrade if omitted. scopes '[roles]' matches Keycloak JWT roles claim; `list` lines satisfy Argo CD 3.x UI list APIs.
+  rbac:
+    policy.default: role:readonly
+    policy.matchMode: glob
+    scopes: '[roles]'
+    policy.csv: |
+      p, role:readonly, applications, get, */*, allow
+      p, role:readonly, applications, list, */*, allow
+      p, role:readonly, applicationsets, get, */*, allow
+      p, role:readonly, applicationsets, list, */*, allow
+      p, role:readonly, certificates, get, *, allow
+      p, role:readonly, clusters, get, *, allow
+      p, role:readonly, clusters, list, *, allow
+      p, role:readonly, repositories, get, *, allow
+      p, role:readonly, write-repositories, get, *, allow
+      p, role:readonly, projects, get, *, allow
+      p, role:readonly, projects, list, *, allow
+      p, role:readonly, accounts, get, *, allow
+      p, role:readonly, gpgkeys, get, *, allow
+      p, role:readonly, logs, get, */*, allow
+      p, role:admin, applications, create, */*, allow
+      p, role:admin, applications, update, */*, allow
+      p, role:admin, applications, update/*, */*, allow
+      p, role:admin, applications, delete, */*, allow
+      p, role:admin, applications, delete/*, */*, allow
+      p, role:admin, applications, sync, */*, allow
+      p, role:admin, applications, override, */*, allow
+      p, role:admin, applications, action/*, */*, allow
+      p, role:admin, applications, list, */*, allow
+      p, role:admin, applicationsets, get, */*, allow
+      p, role:admin, applicationsets, list, */*, allow
+      p, role:admin, applicationsets, create, */*, allow
+      p, role:admin, applicationsets, update, */*, allow
+      p, role:admin, applicationsets, delete, */*, allow
+      p, role:admin, certificates, create, *, allow
+      p, role:admin, certificates, update, *, allow
+      p, role:admin, certificates, delete, *, allow
+      p, role:admin, clusters, create, *, allow
+      p, role:admin, clusters, update, *, allow
+      p, role:admin, clusters, delete, *, allow
+      p, role:admin, clusters, list, *, allow
+      p, role:admin, repositories, create, *, allow
+      p, role:admin, repositories, update, *, allow
+      p, role:admin, repositories, delete, *, allow
+      p, role:admin, write-repositories, create, *, allow
+      p, role:admin, write-repositories, update, *, allow
+      p, role:admin, write-repositories, delete, *, allow
+      p, role:admin, projects, create, *, allow
+      p, role:admin, projects, update, *, allow
+      p, role:admin, projects, delete, *, allow
+      p, role:admin, projects, list, *, allow
+      p, role:admin, accounts, update, *, allow
+      p, role:admin, gpgkeys, create, *, allow
+      p, role:admin, gpgkeys, delete, *, allow
+      p, role:admin, exec, create, */*, allow
+      g, role:admin, role:readonly
+      g, administrators, role:admin
+      g, viewers, role:readonly
 global:
   domain: ${subdomain_name}.${domain_name}

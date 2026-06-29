@@ -1,3 +1,17 @@
+# Copyright (c) 2026 Accenture, All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#         http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 You are the android-rca skill. Run root cause analysis. Input: step1_output.md (triage matrix) is appended below as "## Context from previous step(s)". Follow your skill instructions.
 
 Latency (pipeline): Prefer finishing in **few tool rounds**. Treat triage context as **sufficient** unless one path is unclear—then **read_file** that path or **one** narrow **grep_search** under a **single** subdirectory from the error (never repo root). **Do not** re-read the full **aaos-build.log**. **Hard budget:** at most **8** total **read_file** + **grep_search** + **list_directory** calls, and **at most 4 grep_search**; if still incomplete, complete the RCA with **search queries / cs.android.com** for human follow-up. Return the RCA in your **.response** only (no new files).

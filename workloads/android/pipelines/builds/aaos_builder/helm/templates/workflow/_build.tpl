@@ -29,8 +29,8 @@ Dependencies: requires init and compute-vars output.
       - name: pipeline-repo
         path: /workspace
         git:
-          repo: '{{ "{{" }}workflow.parameters.pipelineRepoUrl{{ "}}" }}'
-          revision: '{{ "{{" }}workflow.parameters.pipelineRepoRevision{{ "}}" }}'
+          repo: {{ .Values.spec.pipelineRepoUrl | quote }}
+          revision: {{ .Values.spec.pipelineRepoRevision | quote }}
 {{- include "aaos-builder.gitArtifactCredsContent" . | nindent 10 }}
 {{- end }}
   # Enforce one build pod per node.
@@ -58,7 +58,7 @@ Dependencies: requires init and compute-vars output.
       - name: GEMINI_LOCATION_GLOBAL
         value: {{ .Values.spec.geminiLocationGlobal | quote }}
       - name: GEMINI_COMMAND_LINE
-        value: {{ .Values.spec.geminiCommandLine | quote }}
+        value: {{ include "aaos-builder.geminiCommandLineResolved" . | quote }}
       - name: GEMINI_AI_EXECUTION_TIMEOUT_HOURS
         value: {{ .Values.spec.geminiAiExecutionTimeoutHours | quote }}
     resources:

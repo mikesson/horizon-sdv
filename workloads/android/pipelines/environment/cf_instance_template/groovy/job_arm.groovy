@@ -244,6 +244,14 @@ the repo credentials, i.e.
     }
 
     stringParam {
+      name('WORKFLOWS_NAMESPACE')
+      defaultValue('workflows')
+      description('''<p>Kubernetes namespace where the KCC <code>ComputeInstanceTemplate</code> resources are applied (namespaced Config Connector).<br/>
+        Default: <code>workflows</code>.</p>''')
+      trim(true)
+    }
+
+    stringParam {
       name('JAVA_VERSION')
       defaultValue('openjdk-21-jdk-headless')
       description('''<p>Apt package for the JDK (ARM64 / Ubuntu). Default <code>openjdk-21-jdk-headless</code>.<br/>
@@ -255,7 +263,7 @@ the repo credentials, i.e.
       name('OS_VERSION')
       defaultValue('ubuntu-2204-jammy-arm64-v20251212')
       description('''<p>ARM64 Disk image OS version.<br/>
-        Select the OS version name based on project and family, e.g <code>`gcloud compute images list</code>`<br/>
+        Select the OS version name based on project and family, e.g. <code>gcloud compute images list</code><br/>
         Reference: <a href="https://cloud.google.com/sdk/gcloud/reference/compute/instance-templates/create" target="_blank">gcloud compute instance-templates create</a>, i.e. <i>--create-disk</i></p>''')
       trim(true)
     }
@@ -293,31 +301,31 @@ the repo credentials, i.e.
 
     stringParam {
       name('CTS_ANDROID_16_URL')
-      defaultValue("https://dl.google.com/dl/android/cts/android-cts-16_r4-linux_x86-arm.zip")
+      defaultValue("https://dl.google.com/dl/android/cts/android-cts-16_r5-linux_x86-arm.zip")
       description('''<p>Leave blank if the version is not needed, or specify your preferred version.<br/>
       Either download from official site, or from a local bucket if stored locally to improve download times, e.g.
-      <ul><li>Official downloads: <code>https://dl.google.com/dl/android/cts/android-cts-16_r4-linux_x86-arm.zip/code></li>
-          <li>Local GCS bucket download: <code>gs://${ANDROID_BUILD_BUCKET_ROOT_NAME}/Android/CTS/android-cts-16_r4-linux_x86-arm.zip</code></li></ul></p>''')
+      <ul><li>Official downloads: <code>https://dl.google.com/dl/android/cts/android-cts-16_r5-linux_x86-arm.zip</code></li>
+          <li>Local GCS bucket download: <code>gs://${ANDROID_BUILD_BUCKET_ROOT_NAME}/Android/CTS/android-cts-16_r5-linux_x86-arm.zip</code></li></ul></p>''')
       trim(true)
     }
 
     stringParam {
       name('CTS_ANDROID_15_URL')
-      defaultValue("https://dl.google.com/dl/android/cts/android-cts-15_r7-linux_x86-arm.zip")
+      defaultValue("https://dl.google.com/dl/android/cts/android-cts-15_r8-linux_x86-arm.zip")
       description('''<p>Leave blank if the version is not needed, or specify your preferred version.<br/>
       Either download from official site, or from a local bucket if stored locally to improve download times, e.g.
-      <ul><li>Official downloads: <code>https://dl.google.com/dl/android/cts/android-cts-15_r7-linux_x86-arm.zip/code></li>
-          <li>Local GCS bucket download: <code>gs://${ANDROID_BUILD_BUCKET_ROOT_NAME}/Android/CTS/android-cts-15_r7-linux_x86-arm.zip</code></li></ul></p>''')
+      <ul><li>Official downloads: <code>https://dl.google.com/dl/android/cts/android-cts-15_r8-linux_x86-arm.zip</code></li>
+          <li>Local GCS bucket download: <code>gs://${ANDROID_BUILD_BUCKET_ROOT_NAME}/Android/CTS/android-cts-15_r8-linux_x86-arm.zip</code></li></ul></p>''')
       trim(true)
     }
 
     stringParam {
       name('CTS_ANDROID_14_URL')
-      defaultValue("https://dl.google.com/dl/android/cts/android-cts-14_r11-linux_x86-arm.zip")
+      defaultValue("https://dl.google.com/dl/android/cts/android-cts-14_r12-linux_x86-arm.zip")
       description('''<p>Leave blank if the version is not needed, or specify your preferred version.<br/>
       Either download from official site, or from a local bucket if stored locally to improve download times, e.g.
-      <ul><li>Official downloads: <code>https://dl.google.com/dl/android/cts/android-cts-14_r11-linux_x86-arm.zip/code></li>
-          <li>Local GCS bucket download: <code>gs://${ANDROID_BUILD_BUCKET_ROOT_NAME}/Android/CTS/android-cts-14_r11-linux_x86-arm.zip</code></li></ul></p>''')
+      <ul><li>Official downloads: <code>https://dl.google.com/dl/android/cts/android-cts-14_r12-linux_x86-arm.zip</code></li>
+          <li>Local GCS bucket download: <code>gs://${ANDROID_BUILD_BUCKET_ROOT_NAME}/Android/CTS/android-cts-14_r12-linux_x86-arm.zip</code></li></ul></p>''')
       trim(true)
     }
 
@@ -337,22 +345,22 @@ the repo credentials, i.e.
 
     stringParam {
       name('SUBNET')
-      defaultValue("sdv-subnet-us")
-      description('''<p>ARM64 subnet or leave blank to use default platform value.</p>''')
+      defaultValue("${ARM64_SUBNETWORK}")
+      description('''<p>ARM64 subnet (<code>ARM64_SUBNETWORK</code> from Terraform / Jenkins global env). Clear to fall back to script env.</p>''')
       trim(true)
     }
 
     stringParam {
       name('REGION')
-      defaultValue("us-central1")
-      description('''<p>ARM64 region or leave blank to use default platform value.</p>''')
+      defaultValue("${ARM64_REGION}")
+      description('''<p>ARM64 GCP region (from Terraform / Jenkins <code>ARM64_REGION</code>). Clear to fall back to script env.</p>''')
       trim(true)
     }
 
     stringParam {
       name('ZONE')
-      defaultValue("us-central1-f")
-      description('''<p>ARM64 zone or leave blank to use default platform value.</p>''')
+      defaultValue("${ARM64_ZONE}")
+      description('''<p>ARM64 GCP zone (from Terraform / Jenkins <code>ARM64_ZONE</code>). Clear to fall back to script env.</p>''')
       trim(true)
     }
 

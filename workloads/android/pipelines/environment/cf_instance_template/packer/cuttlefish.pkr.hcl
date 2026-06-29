@@ -15,8 +15,11 @@
 packer {
   required_plugins {
     googlecompute = {
-      source  = "github.com/hashicorp/googlecompute"
-      version = ">= 1.1.6"
+      source = "github.com/hashicorp/googlecompute"
+      # max_run_duration_in_seconds / instance_termination_action need a recent 1.2.x plugin.
+      # Registry releases for this source only go through v1.2.x; there is no v1.5.0 line here.
+      # Cap below v1.2.5: Argo read-only /workspace hit SIGSEGV in StepImportOSLoginSSHKey with v1.2.5.
+      version = ">= 1.2.3, < 1.2.5"
     }
   }
 }
@@ -140,6 +143,34 @@ variable "ssh_public_key_b64" {
   sensitive = true
 }
 
+# GCE limit VM runtime on the ephemeral Packer builder only (not the baked image / instance template).
+# Prevents orphaned builders if Jenkins/Argo kills the client or Packer hangs. Requires a recent
+# hashicorp/googlecompute Packer plugin (see packer { required_plugins }).
+variable "packer_max_run_duration_seconds" {
+  type        = number
+  description = "Maximum wall-clock seconds the Packer builder instance may run before GCE deletes it."
+}
+
+# When Packer runs outside the builder VPC (e.g. Argo pod on GKE), plain SSH to the RFC1918 address
+# often never completes; IAP-tunneled SSH matches `gcloud compute ssh --tunnel-through-iap`.
+# Builder SA needs IAP-secured Tunnel User (e.g. roles/iap.tunnelResourceAccessor on the project).
+variable "use_iap" {
+  type    = bool
+  default = true
+}
+
+variable "ssh_timeout" {
+  type        = string
+  default     = "15m"
+  description = "How long to wait for SSH (boot + IAP tunnel ready). Default 15m for slow metal images."
+}
+
+variable "iap_tunnel_launch_wait" {
+  type        = number
+  default     = 300
+  description = "Seconds to wait for IAP tunnel before treating launch as failed (plugin default is shorter)."
+}
+
 source "googlecompute" "cuttlefish" {
   project_id              = var.project_id
   source_image_project_id = [var.source_image_project_id]
@@ -154,10 +185,16 @@ source "googlecompute" "cuttlefish" {
   subnetwork              = var.subnetwork
   omit_external_ip        = true
   use_internal_ip         = true
+  use_iap                 = var.use_iap
+  ssh_timeout             = var.ssh_timeout
+  iap_tunnel_launch_wait  = var.iap_tunnel_launch_wait
   ssh_username            = var.ssh_username
   image_name              = var.image_name
   image_description       = var.image_description
   image_storage_locations = [var.region]
+  # If the job fails or the Packer client disconnects, the builder can otherwise keep running until manual cleanup.
+  max_run_duration_in_seconds = var.packer_max_run_duration_seconds
+  instance_termination_action = "DELETE"
   metadata = {
     enable-oslogin = "true"
   }

@@ -17,7 +17,7 @@
 # - scmAuthMethod == userpass: copies username/password from a static Secret into
 #   workflow UID + "-pipeline-git-creds" so git artifacts use the same per-run Secret shape as app.
 #
-# Callers must pass workflow parameters scmAuthMethod and pipelineStaticGitSecretName (default in CWT).
+# Callers must pass template parameters scmAuthMethod and pipelineStaticGitSecretName (default in CWT).
 apiVersion: argoproj.io/v1alpha1
 kind: ClusterWorkflowTemplate
 metadata:
@@ -37,9 +37,14 @@ spec:
         value: ""
   templates:
     - name: prepare-pipeline-git-creds
+      inputs:
+        parameters:
+          - name: scmAuthMethod
+          - name: pipelineStaticGitSecretName
+          - name: horizonSubmittedFrom
       steps:
         - - name: github-app
-            when: "{{ "{{" }}workflow.parameters.scmAuthMethod{{ "}}" }} == app"
+            when: "{{ "{{" }}inputs.parameters.scmAuthMethod{{ "}}" }} == app"
             templateRef:
               name: prepare-github-app-git-creds
               template: prepare-github-app-git-creds
@@ -47,14 +52,14 @@ spec:
             arguments:
               parameters:
                 - name: horizonSubmittedFrom
-                  value: "{{ "{{" }}workflow.parameters.horizonSubmittedFrom{{ "}}" }}"
+                  value: "{{ "{{" }}inputs.parameters.horizonSubmittedFrom{{ "}}" }}"
         - - name: userpass-copy
-            when: "{{ "{{" }}workflow.parameters.scmAuthMethod{{ "}}" }} == userpass"
+            when: "{{ "{{" }}inputs.parameters.scmAuthMethod{{ "}}" }} == userpass"
             template: copy-static-pipeline-git-creds
             arguments:
               parameters:
                 - name: sourceSecretName
-                  value: "{{ "{{" }}workflow.parameters.pipelineStaticGitSecretName{{ "}}" }}"
+                  value: "{{ "{{" }}inputs.parameters.pipelineStaticGitSecretName{{ "}}" }}"
     - name: copy-static-pipeline-git-creds
       inputs:
         parameters:
