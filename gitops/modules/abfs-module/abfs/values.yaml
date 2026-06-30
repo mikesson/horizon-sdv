@@ -1,0 +1,93 @@
+# =============================================================================
+# ABFS Child Chart values (Workloads + KCC Infra)
+# =============================================================================
+
+# Injected by parent Application
+namespace: abfs
+gcpProjectId: ""
+parentModuleName: abfs
+
+# --- ABFS Container Images ---
+image:
+  repository: europe-docker.pkg.dev/abfs-binaries/abfs-containers-alpha/abfs-alpha
+  tag: "0.1.14"
+  pullPolicy: IfNotPresent
+
+uiImage:
+  repository: europe-docker.pkg.dev/abfs-binaries/abfs-containers-alpha/abfs-ui
+  tag: "0.1.14"
+  pullPolicy: IfNotPresent
+
+# --- Licensing State Gate ---
+# While false, only Config Connector / GSA bindings render. 
+# Set to true once the dedicated licensed node pool exists to start ABFS server/uploader.
+licensed: true
+
+# --- Infrastructure Properties ---
+spanner:
+  instance: abfs
+  database: abfs
+  config: regional-europe-west3
+  createTables: true
+
+storage:
+  bucket: abfs-blobs
+  location: europe-west3
+
+runtimeServiceAccountName: abfs-runtime
+
+# --- Service Accounts ---
+serviceAccounts:
+  server: abfs-server
+  uploader: abfs-uploader
+  ui: abfs-ui
+  pusher: abfs-pusher
+
+# --- Server Deployment Configuration ---
+server:
+  replicas: 1
+  port: 8080
+  grpcPort: 8082
+  resources:
+    requests:
+      cpu: "1"
+      memory: "2Gi"
+    limits:
+      cpu: "2"
+      memory: "4Gi"
+  persistence:
+    cacheSize: 100Gi
+    storageClass: standard-rwo
+
+# --- Uploader StatefulSet Configuration ---
+uploader:
+  replicas: 3
+  port: 8080
+  resources:
+    requests:
+      cpu: "1"
+      memory: "2Gi"
+    limits:
+      cpu: "2"
+      memory: "4Gi"
+  persistence:
+    size: 4Ti
+    storageClass: standard-rwo
+
+# --- UI Configuration ---
+ui:
+  replicas: 1
+  port: 80
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+# --- Workload Identity Service Account Mapping ---
+# Maps the K8s service accounts to the GCP service account via Workload Identity.
+workloadIdentity:
+  enabled: true
+  gcpServiceAccount: "abfs-runtime"

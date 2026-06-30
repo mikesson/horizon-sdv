@@ -1,0 +1,23 @@
+# Module name (injected by Module Manager when enabling). Used to derive child Application names.
+moduleName: "abfs"
+
+# Namespace where Module Manager runs.
+moduleManagerNamespace: module-manager
+
+# ArgoCD namespace and project for the child app-of-apps Application.
+argocd:
+  namespace: argocd
+  project: horizon-sdv
+
+# Repo URL and revision for the child Application (passed by Module Manager).
+repo:
+  url: ""
+  revision: HEAD
+
+# Namespaces
+abfsNamespace: abfs
+overviewServiceName: mod-abfs-overview
+overviewNamespace: abfs
+
+# Environment config injected dynamically by Module Manager (projectID, region, zone, namespacePrefix, etc.).
+config: {}

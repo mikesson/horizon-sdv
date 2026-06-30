@@ -63,6 +63,7 @@ config:
       - sample-module-hello
       - sample-hard-module-hello
       - sample-soft-module-hello
+      - abfs
 
     # Centralized KCC webhook cert monitor:
     # - thresholdSeconds: restart cnrm-webhook-manager when cert expires within this window.

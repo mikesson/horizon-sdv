@@ -1,0 +1,37 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: mod-{{ .Values.moduleName }}-data-plane
+  namespace: {{ .Values.argocd.namespace }}
+  labels:
+    app.kubernetes.io/name: {{ .Values.moduleName }}
+    horizon-sdv.io/module: {{ .Values.moduleName }}
+    horizon-sdv.io/app-role: child
+    horizon-sdv.io/expose: "true"
+    horizon-sdv.io/module-manager-managed: "true"
+  annotations:
+    horizon-sdv.io/portal-url: "/abfs"
+    horizon-sdv.io/portal-title: "ABFS Data Plane"
+    horizon-sdv.io/portal-id: abfs-data-plane
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: {{ .Values.argocd.project }}
+  source:
+    repoURL: {{ .Values.repo.url | quote }}
+    targetRevision: {{ .Values.repo.revision | quote }}
+    path: gitops/modules/abfs-module/abfs
+    helm:
+      values: |
+        namespace: {{ .Values.abfsNamespace }}
+        gcpProjectId: {{ .Values.config.projectID | default "horizon-sdv-deploy-1" | quote }}
+        parentModuleName: {{ .Values.moduleName | quote }}
+        config:
+{{ .Values.config | toYaml | nindent 10 }}
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: {{ .Values.abfsNamespace }}
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+    automated: {}
