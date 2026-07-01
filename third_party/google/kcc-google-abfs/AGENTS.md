@@ -55,21 +55,18 @@ bump `chart/abfs/Chart.yaml` `version`.
 - **Two-phase licensing.** The server, uploaders, and bootstrap Job render only when
   `licensed: true`. The ABFS license is supplied at the node level (GCE instance metadata) and
   must never be committed.
-- **Node identity.** The data plane runs on a dedicated node pool whose node service account is
-  the licensed runtime service account in GCE-metadata identity mode (not Workload Identity).
-  The nodes must have the `casfs` kernel module available, and the pods run privileged with
-  `hostPID`. This workload cannot run on a fully managed (Autopilot-style) node pool.
+- **Node identity and machine constraints.** The data plane runs on a dedicated node pool whose node service account is the licensed runtime service account in GCE-metadata identity mode (not Workload Identity). The nodes must have the `casfs` kernel module available, and the pods run privileged with `hostPID`. This workload cannot run on a fully managed (Autopilot-style) node pool.
+  - *Operational limitation:* When employing a custom node service account combined with GCE metadata service account identity mode, custom `ComputeClass` overrides or modern high-performance shapes (like `C4D` instances) may fail to provision or be ignored by GKE. This forces GKE to fall back to standard `N2` node instances.
+- **Uploader sharding.** The uploader pod names must equal the pusher-config pusher names (`<namePrefix>-<ordinal>`); both are derived from `uploader.count`. Because node identity constraints may force a fallback to lower-throughput `N2` instances, the uploaders must be explicitly sharded horizontally (increasing `uploader.count`) to compensate for node performance limits and avoid single-instance CPU serialization bottlenecks.
+- **CPU scaling.** The Go workloads set `GOMAXPROCS` from the pod's CPU request and run with no
+  CPU limit. Preserve this so they are not throttled on large nodes.
+- **License headers.** Source files carry the Apache-2.0 header; match the surrounding style.
 - **Spanner schema is declarative.** `infra/20-spanner.yaml` carries the DDL, gated by the
   `CREATE_TABLES` toggle. Do not edit `spec.ddl` after the database exists — that risks data
   loss. The server does not create the schema at runtime.
 - **StatefulSet immutability.** The uploader's `volumeClaimTemplates` are immutable: keep only
   stable selector labels on them (no version/chart labels), and recreate the StatefulSet to
   change disk size.
-- **Uploader sharding.** The uploader pod names must equal the pusher-config pusher names
-  (`<namePrefix>-<ordinal>`); both are derived from `uploader.count`.
-- **CPU scaling.** The Go workloads set `GOMAXPROCS` from the pod's CPU request and run with no
-  CPU limit. Preserve this so they are not throttled on large nodes.
-- **License headers.** Source files carry the Apache-2.0 header; match the surrounding style.
 
 ## Deploy end-to-end
 
