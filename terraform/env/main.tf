@@ -170,7 +170,7 @@ module "base" {
 
   sdv_cluster_name                   = "sdv-cluster"
   sdv_cluster_node_pool_name         = "sdv-node-pool"
-  sdv_cluster_node_pool_machine_type = "n1-standard-4"
+  sdv_cluster_node_pool_machine_type = "n2-standard-4"
   sdv_cluster_node_pool_count        = 3
   sdv_cluster_node_locations = [
     "${var.sdv_gcp_zone}"
@@ -187,6 +187,7 @@ module "base" {
   sdv_utility_node_pool_max_node_count = 10
 
   sdv_abfs_build_node_pool_version = var.sdv_abfs_build_node_pool_version
+  sdv_abfs_build_node_pool_machine_type = "n2-highcpu-32"
   sdv_cluster_version              = var.sdv_cluster_version
   sdv_cluster_release_channel      = var.sdv_cluster_release_channel
 
@@ -200,6 +201,9 @@ module "base" {
   gcp_backend_bucket_name = var.sdv_gcp_backend_bucket
 
   sdv_network_egress_router_name = "sdv-egress-internet"
+
+  enable_dedicated_abfs_cluster = var.enable_dedicated_abfs_cluster
+
 
   sdv_artifact_registry_repository_id      = "horizon-sdv"
   sdv_artifact_registry_repository_members = []

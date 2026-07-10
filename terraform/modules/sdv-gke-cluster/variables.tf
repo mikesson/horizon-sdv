@@ -97,6 +97,13 @@ variable "abfs_build_node_pool_version" {
   type        = string
 }
 
+variable "abfs_license" {
+  description = "ABFS license key string"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
 variable "openbsw_build_node_pool_name" {
   description = "Name of the OpenBSW build node pool"
   type        = string
@@ -249,3 +256,10 @@ variable "maintenance_exclusions" {
     error_message = "Each maintenance exclusion scope must be NO_UPGRADES, NO_MINOR_UPGRADES, or NO_MINOR_OR_NODE_UPGRADES."
   }
 }
+
+variable "enable_dedicated_abfs_cluster" {
+  description = "Whether to deploy ABFS workloads on a dedicated separate GKE cluster with UNSPECIFIED channel and auto_upgrade disabled."
+  type        = bool
+  default     = false
+}
+

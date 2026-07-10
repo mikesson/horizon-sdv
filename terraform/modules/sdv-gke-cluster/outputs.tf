@@ -26,3 +26,19 @@ output "cluster_id" {
   description = "The ID of the GKE cluster (for dependency management)"
   value       = google_container_cluster.sdv_cluster.id
 }
+
+output "abfs_cluster_name" {
+  description = "The name of the dedicated ABFS GKE cluster."
+  value       = var.enable_dedicated_abfs_cluster ? google_container_cluster.sdv_abfs_cluster[0].name : ""
+}
+
+output "abfs_cluster_location" {
+  description = "The location of the dedicated ABFS GKE cluster."
+  value       = var.enable_dedicated_abfs_cluster ? google_container_cluster.sdv_abfs_cluster[0].location : ""
+}
+
+output "abfs_cluster_id" {
+  description = "The ID of the dedicated ABFS GKE cluster."
+  value       = var.enable_dedicated_abfs_cluster ? google_container_cluster.sdv_abfs_cluster[0].id : ""
+}
+

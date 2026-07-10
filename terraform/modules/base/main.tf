@@ -176,6 +176,7 @@ module "sdv_gke_cluster" {
   abfs_build_node_pool_min_node_count = var.sdv_abfs_build_node_pool_min_node_count
   abfs_build_node_pool_max_node_count = var.sdv_abfs_build_node_pool_max_node_count
   abfs_build_node_pool_version        = var.sdv_abfs_build_node_pool_version
+  abfs_license                        = var.sdv_abfs_license
 
   maintenance_recurring_window_start_time = var.sdv_cluster_maintenance_recurring_window_start_time
   maintenance_recurring_window_end_time   = var.sdv_cluster_maintenance_recurring_window_end_time
@@ -199,7 +200,10 @@ module "sdv_gke_cluster" {
   # KMS encryption for GKE secrets
   enable_kms_encryption = var.sdv_enable_kms_encryption
   kms_crypto_key_id     = local.kms_crypto_key_id
+
+  enable_dedicated_abfs_cluster = var.enable_dedicated_abfs_cluster
 }
+
 
 module "sdv_gke_apps" {
   source = "../sdv-gke-apps"

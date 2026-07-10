@@ -336,3 +336,10 @@ variable "sdv_enable_kms_encryption" {
   type        = bool
   default     = false
 }
+
+variable "enable_dedicated_abfs_cluster" {
+  description = "Whether to deploy ABFS workloads on a dedicated separate GKE cluster with UNSPCEIFIED channel and auto_upgrade disabled."
+  type        = bool
+  default     = false
+}
+

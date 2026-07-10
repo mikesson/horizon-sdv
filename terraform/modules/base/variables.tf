@@ -280,6 +280,13 @@ variable "sdv_abfs_build_node_pool_version" {
   type        = string
 }
 
+variable "sdv_abfs_license" {
+  description = "ABFS license key string"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
 variable "sdv_cluster_maintenance_recurring_window_start_time" {
   description = "GKE cluster recurring maintenance window start time."
   type        = string
@@ -503,4 +510,11 @@ variable "sdv_enable_kms_encryption" {
   type        = bool
   default     = false
 }
+
+variable "enable_dedicated_abfs_cluster" {
+  description = "Whether to deploy ABFS workloads on a dedicated separate GKE cluster with UNSPECIFIED channel and auto_upgrade disabled."
+  type        = bool
+  default     = false
+}
+
 

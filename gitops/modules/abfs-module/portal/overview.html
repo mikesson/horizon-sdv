@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ABFS GKE Data Plane</title>
+  <style>
+    :root {
+      --bg: #f8f9fa;
+      --paper: #ffffff;
+      --text: #202124;
+      --muted: #5f6368;
+      --primary: #1a73e8;
+      --border: #e8eaed;
+      --hero-end: rgba(26, 115, 232, 0.08);
+      --hero-start: rgba(66, 133, 244, 0.22);
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #202124;
+        --paper: #292a2d;
+        --text: #e8eaed;
+        --muted: #9aa0a6;
+        --primary: #8ab4f8;
+        --border: #3c4043;
+        --hero-end: rgba(26, 115, 232, 0.12);
+        --hero-start: rgba(66, 133, 244, 0.28);
+      }
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Roboto", "Helvetica Neue", Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.55;
+      padding: 1.25rem clamp(1rem, 3vw, 1.75rem) 2rem;
+    }
+    .wrap { max-width: 960px; margin: 0 auto; }
+    .hero {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: clamp(1.25rem, 3vw, 2rem);
+      margin-bottom: 1.5rem;
+      background: linear-gradient(135deg, var(--hero-start) 0%, var(--hero-end) 45%, var(--paper) 100%);
+    }
+    .overline {
+      font-size: 0.7rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin: 0 0 0.35rem;
+    }
+    h1 { font-size: clamp(1.35rem, 2.5vw, 1.6rem); font-weight: 700; margin: 0 0 0.5rem; line-height: 1.2; }
+    .lead { color: var(--muted); margin: 0; max-width: 44rem; font-size: 0.95rem; }
+    .grid {
+      display: grid;
+      gap: 1rem;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    }
+    .card {
+      background: var(--paper);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1rem 1.1rem;
+      box-shadow: 0 1px 2px rgba(60, 64, 67, 0.12);
+    }
+    .card h2 {
+      margin: 0 0 0.45rem;
+      font-size: 1rem;
+      font-weight: 600;
+      color: var(--primary);
+    }
+    .card p { margin: 0; font-size: 0.875rem; color: var(--muted); }
+    code { font-size: 0.84em; color: var(--text); }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header class="hero">
+      <p class="overline">Horizon Module</p>
+      <h1>Android Build File System (ABFS)</h1>
+      <p class="lead">
+        ABFS provides high-performance, distributed, and cached filesystem capabilities for scaling large-scale AOSP (Android Open Source Project) compilations and builds natively inside your Horizon GKE clusters.
+      </p>
+    </header>
+    <div class="grid">
+      <article class="card">
+        <h2>KCC Infrastructure</h2>
+        <p>
+          Managing database states with <strong>Cloud Spanner</strong>, licensing payload storage in <strong>Cloud Storage (GCS)</strong>, and secrets inside <strong>Secret Manager</strong> using native Config Connector custom resources.
+        </p>
+      </article>
+      <article class="card">
+        <h2>Performance Caching</h2>
+        <p>
+          Utilizes the custom <code>casfs</code> kernel module compiled on <strong>Ubuntu Containerd</strong> nodes. Provides high throughput file replication and indexing backing the build pipeline.
+        </p>
+      </article>
+      <article class="card">
+        <h2>Continuous Integration</h2>
+        <p>
+          Includes full integration with <strong>Argo Workflows</strong> for automated code seeding, verification runs, and workspace provisioning directly inside isolated module namespaces.
+        </p>
+      </article>
+    </div>
+  </div>
+</body>
+</html>

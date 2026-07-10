@@ -48,6 +48,14 @@ resource "google_container_cluster" "sdv_cluster" {
   subnetwork               = var.subnetwork
   remove_default_node_pool = true
   initial_node_count       = 1
+
+  node_config {
+    shielded_instance_config {
+      enable_secure_boot          = true
+      enable_integrity_monitoring = true
+    }
+  }
+
   fleet {
     project = var.project_id
   }
@@ -167,7 +175,153 @@ resource "google_container_cluster" "sdv_cluster" {
   }
 }
 
+resource "google_container_cluster" "sdv_abfs_cluster" {
+  count                    = var.enable_dedicated_abfs_cluster ? 1 : 0
+  project                  = data.google_project.project.project_id
+  name                     = "sdv-abfs-cluster"
+  location                 = var.location
+  network                  = var.network
+  subnetwork               = var.subnetwork
+  remove_default_node_pool = true
+  initial_node_count       = 1
+
+  node_config {
+    disk_type    = "pd-standard"
+    disk_size_gb = 20
+    shielded_instance_config {
+      enable_secure_boot          = true
+      enable_integrity_monitoring = true
+    }
+  }
+
+  fleet {
+    project = var.project_id
+  }
+
+  deletion_protection = false
+
+  workload_identity_config {
+    workload_pool = "${var.project_id}.svc.id.goog"
+  }
+
+  master_authorized_networks_config {
+    gcp_public_cidrs_access_enabled = false
+  }
+
+  ip_allocation_policy {
+    stack_type                    = "IPV4"
+    cluster_secondary_range_name  = "pods-range"
+    services_secondary_range_name = "services-range"
+  }
+
+  private_cluster_config {
+    enable_private_nodes    = true
+    enable_private_endpoint = true
+    master_ipv4_cidr_block  = "10.0.1.0/28"
+  }
+
+  secret_manager_config {
+    enabled = true
+  }
+
+  release_channel {
+    channel = "UNSPECIFIED"
+  }
+
+  min_master_version = var.abfs_build_node_pool_version
+
+  addons_config {
+    network_policy_config {
+      disabled = false
+    }
+    http_load_balancing {
+      disabled = false
+    }
+    gcp_filestore_csi_driver_config {
+      enabled = true
+    }
+    config_connector_config {
+      enabled = true
+    }
+  }
+
+  network_policy {
+    enabled  = true
+    provider = "CALICO"
+  }
+
+  monitoring_config {
+    enable_components = ["SYSTEM_COMPONENTS", "APISERVER", "SCHEDULER", "CONTROLLER_MANAGER", "CADVISOR", "KUBELET"]
+    managed_prometheus {
+      enabled = true
+    }
+  }
+
+  enable_intranode_visibility = true
+
+  database_encryption {
+    state    = var.enable_kms_encryption ? "ENCRYPTED" : "DECRYPTED"
+    key_name = var.enable_kms_encryption ? var.kms_crypto_key_id : ""
+  }
+}
+
+resource "null_resource" "enable_gke_abfs_master_subnet_flow_logs" {
+  count = var.enable_dedicated_abfs_cluster ? 1 : 0
+  triggers = {
+    cluster_id = google_container_cluster.sdv_abfs_cluster[0].id
+  }
+
+  provisioner "local-exec" {
+    command = <<-EOT
+      set -e
+      
+      # Find the GKE master subnet
+      MASTER_SUBNET=$(gcloud compute networks subnets list \
+        --project=${var.project_id} \
+        --network=${var.network} \
+        --filter="name~'gke-sdv-abfs-cluster-.*-pe-subnet' AND region:${var.location}" \
+        --format="value(name)" \
+        --limit=1)
+      
+      if [ -z "$MASTER_SUBNET" ]; then
+        echo "ERROR: GKE master subnet not found for sdv-abfs-cluster."
+        exit 1
+      fi
+      
+      echo "Found GKE master subnet: $MASTER_SUBNET"
+      
+      # Check if flow logs are already enabled
+      FLOW_LOGS_ENABLED=$(gcloud compute networks subnets describe "$MASTER_SUBNET" \
+        --project="${var.project_id}" \
+        --region="${var.location}" \
+        --format="value(enableFlowLogs)" 2>/dev/null || echo "False")
+      
+      if [ "$FLOW_LOGS_ENABLED" = "True" ]; then
+        echo "Flow logs are already enabled on $MASTER_SUBNET"
+        exit 0
+      fi
+      
+      echo "Enabling flow logs on GKE master subnet: $MASTER_SUBNET"
+      
+      gcloud compute networks subnets update "$MASTER_SUBNET" \
+        --project="${var.project_id}" \
+        --region="${var.location}" \
+        --enable-flow-logs \
+        --logging-aggregation-interval=interval-5-min \
+        --logging-flow-sampling=0.5 \
+        --logging-metadata=include-all
+      
+      echo "✓ Flow logs successfully enabled on GKE master subnet"
+    EOT
+  }
+
+  depends_on = [
+    google_container_cluster.sdv_abfs_cluster
+  ]
+}
+
 # Automatically enable flow logs on the GKE-auto-created master subnet
+
 # GKE creates this subnet automatically for the private cluster control plane
 # This null_resource runs after cluster creation to enable flow logs
 resource "null_resource" "enable_gke_master_subnet_flow_logs" {
@@ -246,6 +400,11 @@ resource "google_container_node_pool" "sdv_main_node_pool" {
     workload_metadata_config {
       mode = "GKE_METADATA"
     }
+
+    shielded_instance_config {
+      enable_secure_boot          = true
+      enable_integrity_monitoring = true
+    }
   }
 
   autoscaling {
@@ -291,6 +450,11 @@ resource "google_container_node_pool" "sdv_build_node_pool" {
     workload_metadata_config {
       mode = "GKE_METADATA"
     }
+
+    shielded_instance_config {
+      enable_secure_boot          = true
+      enable_integrity_monitoring = true
+    }
   }
 
   autoscaling {
@@ -303,7 +467,7 @@ resource "google_container_node_pool" "sdv_build_node_pool" {
 resource "google_container_node_pool" "sdv_abfs_build_node_pool" {
   name           = var.abfs_build_node_pool_name
   location       = var.location
-  cluster        = google_container_cluster.sdv_cluster.name
+  cluster        = var.enable_dedicated_abfs_cluster ? google_container_cluster.sdv_abfs_cluster[0].name : google_container_cluster.sdv_cluster.name
   version        = var.abfs_build_node_pool_version
   node_count     = var.abfs_build_node_pool_node_count
   node_locations = var.node_locations
@@ -311,6 +475,7 @@ resource "google_container_node_pool" "sdv_abfs_build_node_pool" {
     preemptible  = false
     machine_type = var.abfs_build_node_pool_machine_type
     disk_size_gb = 500
+    disk_type    = "pd-standard"
     image_type   = "UBUNTU_CONTAINERD"
 
     # Google recommends custom service accounts that have cloud-platform
@@ -324,18 +489,27 @@ resource "google_container_node_pool" "sdv_abfs_build_node_pool" {
       workloadLabel = "android-abfs"
     }
 
-    taint {
-      key    = "workloadType"
-      value  = "android-abfs"
-      effect = "NO_SCHEDULE"
+    dynamic "taint" {
+      for_each = var.enable_dedicated_abfs_cluster ? [] : [1]
+      content {
+        key    = "workloadType"
+        value  = "android-abfs"
+        effect = "NO_SCHEDULE"
+      }
     }
 
     metadata = {
       disable-legacy-endpoints = "true"
+      abfs-license             = var.abfs_license
     }
 
     workload_metadata_config {
       mode = "GKE_METADATA"
+    }
+
+    shielded_instance_config {
+      enable_secure_boot          = true
+      enable_integrity_monitoring = true
     }
   }
 
@@ -357,9 +531,10 @@ resource "google_container_node_pool" "sdv_abfs_build_node_pool" {
   #   defer minor/node upgrades during CASFS-sensitive periods.
   management {
     auto_repair  = true
-    auto_upgrade = var.release_channel != "UNSPECIFIED"
+    auto_upgrade = var.enable_dedicated_abfs_cluster ? false : (var.release_channel != "UNSPECIFIED")
   }
 }
+
 
 resource "google_container_node_pool" "sdv_openbsw_build_node_pool" {
   name           = var.openbsw_build_node_pool_name
@@ -396,6 +571,11 @@ resource "google_container_node_pool" "sdv_openbsw_build_node_pool" {
 
     workload_metadata_config {
       mode = "GKE_METADATA"
+    }
+
+    shielded_instance_config {
+      enable_secure_boot          = true
+      enable_integrity_monitoring = true
     }
   }
 
@@ -439,6 +619,11 @@ resource "google_container_node_pool" "sdv_utility_node_pool" {
 
     workload_metadata_config {
       mode = "GKE_METADATA"
+    }
+
+    shielded_instance_config {
+      enable_secure_boot          = true
+      enable_integrity_monitoring = true
     }
   }
 

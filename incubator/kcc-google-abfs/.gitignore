@@ -1,0 +1,18 @@
+# Rendered, deployable manifests produced by scripts/render.sh (build artifacts).
+rendered/
+
+# ABFS license files and other local secrets — never commit these.
+abfs-license.json
+*-license.json
+*.key
+*.pem
+
+# Per-instance values (real environments). Only the sample is tracked.
+instances/*.env
+instances/*.b64
+!instances/example.env
+
+# OS / editor noise
+.DS_Store
+*.swp
+*~

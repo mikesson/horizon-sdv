@@ -1,0 +1,30 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: mod-{{ .Values.moduleName }}-argo-workflows
+  namespace: {{ .Values.argocd.namespace }}
+  labels:
+    app.kubernetes.io/name: {{ .Values.moduleName }}
+    horizon-sdv.io/module: {{ .Values.moduleName }}
+    horizon-sdv.io/app-role: child
+    horizon-sdv.io/module-manager-managed: "true"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: {{ .Values.argocd.project }}
+  source:
+    repoURL: {{ .Values.repo.url | quote }}
+    targetRevision: {{ .Values.repo.revision | quote }}
+    path: gitops/modules/abfs-module/argo-workflows
+    helm:
+      values: |
+        workflowNamespace: {{ .Values.config.namespacePrefix | default "" }}workflows
+        eventsNamespace: {{ .Values.config.namespacePrefix | default "" }}argo-events
+        gcpProjectId: {{ .Values.config.projectID | default "horizon-sdv-deploy-1" | quote }}
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: {{ .Values.config.namespacePrefix | default "horizon-sdv-workflows" }}workflows
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+    automated: {}
