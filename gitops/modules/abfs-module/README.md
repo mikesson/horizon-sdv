@@ -45,6 +45,32 @@ gitops/modules/abfs-module/
 
 ---
 
+## External Platform Dependencies (To Be Consolidated via KCC)
+
+For future releases, architectural changes aim to make this module fully self-contained. The following file modifications are currently located **outside** the `gitops/modules/abfs-module/` folder in order to support central GitOps catalog registration and the dedicated secondary cluster infrastructure:
+
+### A. Central GitOps Catalog Registration
+These files register the ABFS module with Horizon's central catalog registry and define default environment parameters:
+- **`gitops/apps/module-manager/templates/module-catalog.yaml`**: Appends the ABFS module configuration block to the central manager catalog.
+- **`gitops/values.yaml`**: Exposes default values, toggles, and global configuration values for the ABFS module.
+
+### B. GCP Terraform Infrastructure
+These files are modified under the root `terraform/` directories to provision the dedicated secondary GKE cluster, manage host kernel taint settings, and map Workload Identity:
+- **`terraform/env/main.tf`**: Configures variables, locks down the `n2-highcpu-32` node size, and triggers the dedicated secondary cluster flag.
+- **`terraform/env/providers.tf`**: Registers additional Google, Kubernetes, and Helm provider hooks for the new cluster.
+- **`terraform/env/variables.tf`**: Exposes configuration variables for the secondary GKE cluster name and locations.
+- **`terraform/modules/base/main.tf`**: Hooks network and routing rules into the secondary GKE control plane.
+- **`terraform/modules/base/provider.tf`**: Exposes GKE client authentication keys for the secondary control plane.
+- **`terraform/modules/base/variables.tf`**: Outlines environment variables for secondary cluster deployment.
+- **`terraform/modules/sdv-gke-cluster/main.tf`**, **`outputs.tf`**, **`variables.tf`**: Configures standard GKE node pool taint checks and bypass overrides.
+- **`terraform/modules/sdv-wi/main.tf`**: Applies bilateral Workload Identity trust permissions allowing Kubernetes service accounts inside the dedicated cluster namespace to impersonate GCP IAM credentials.
+
+### C. Incubator (Standalone Deployment Bundle)
+This root-level folder provides a decoupled, KCC-only operational package for running the ABFS engine standalone (without the core Horizon platform or Argo CD):
+- **`incubator/kcc-google-abfs/`**: Contains direct KCC manifests (`infra/`), schemas (`infra/schemas/`), and automation scripts (`scripts/render.sh`, `Makefile`) to run ABFS independently.
+
+---
+
 ## Getting Started
 
 Detailed integration steps, architectural constraints, and deployment runbooks are documented in:
