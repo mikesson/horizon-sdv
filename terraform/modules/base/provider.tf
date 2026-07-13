@@ -32,6 +32,11 @@ provider "docker" {
     username = "oauth2accesstoken"
     password = data.google_client_config.default.access_token
   }
+  registry_auth {
+    address  = "europe-west1-docker.pkg.dev"
+    username = "oauth2accesstoken"
+    password = data.google_client_config.default.access_token
+  }
 }
 
 provider "kubernetes" {
