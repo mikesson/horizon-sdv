@@ -91,6 +91,9 @@ setup_workspace() {
     SCM_PASSWORD=$(grep '^\s*scm_password\s*=' "$CONTAINER_CONFIG" | cut -d'"' -f2)
     SCM_PASSWORD=$(echo -n "$SCM_PASSWORD" | jq -sRr @uri)
 
+    # Configure safe.directory to bypass dubious ownership check when cloning from mounted volume
+    git config --global --add safe.directory '*' || true
+
     log_info "Cloning from ${SCM_REPO_URL} (Branch: ${SCM_REPO_BRANCH})..."
 
     # Handle authentication based on method
