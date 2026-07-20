@@ -1,0 +1,141 @@
+#!/usr/bin/env python3
+# Copyright 2026 Google LLC
+# Real-time Standalone ABFS Seeding Monitor & Completion Tracker
+
+import sys
+import re
+import time
+import subprocess
+from collections import defaultdict
+
+# ANSI escape codes for stunning terminal aesthetics
+CLEAR_SCREEN = "\033[2J\033[H"
+RESET = "\033[0m"
+BOLD = "\033[1m"
+GREEN = "\033[32m"
+CYAN = "\033[36m"
+YELLOW = "\033[33m"
+RED = "\033[31m"
+BLUE = "\033[34m"
+
+def run_cmd(cmd):
+    try:
+        res = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=10)
+        if res.returncode == 0:
+            return res.stdout
+        return ""
+    except Exception:
+        return ""
+
+def sum_submap(submap_str):
+    # Parses strings like "blob:12 map:0 object:4 ref:0 tree:10" and returns the sum of values
+    total = 0
+    matches = re.findall(r"(\w+):(\d+)", submap_str)
+    for key, val in matches:
+        if key in ["blob", "object", "tree", "ref", "map"]:
+            total += int(val)
+    return total
+
+def monitor_loop():
+    print(f"{CYAN}Initializing Standalone ABFS Seeding Monitor...{RESET}")
+    
+    # Verify kubectl context
+    nodes = run_cmd("kubectl get nodes")
+    if not nodes:
+        print(f"{RED}ERROR: Cannot communicate with GKE cluster. Make sure your kubectl context is active!{RESET}")
+        sys.exit(1)
+
+    try:
+        while True:
+            # 1. Fetch uploader pods
+            pods_raw = run_cmd("kubectl get pods -n abfs -l app.kubernetes.io/component=uploader -o jsonpath='{.items[*].metadata.name}'")
+            uploader_pods = pods_raw.strip().split()
+            
+            if not uploader_pods:
+                print(f"{YELLOW}Waiting for uploader pods to become ready...{RESET}")
+                time.sleep(5)
+                continue
+
+            active_repos = {}
+            total_queued_items = 0
+            total_running_items = 0
+
+            # 2. Query logs and parse current states
+            for pod in uploader_pods:
+                logs = run_cmd(f"kubectl logs {pod} -n abfs --tail=100")
+                if not logs:
+                    continue
+
+                # Parse lines like: "android.googlesource.com/... still uploading. Current states: map[...]"
+                lines = logs.split("\n")
+                for line in lines:
+                    if "still uploading. Current states:" in line:
+                        # Extract repo name and the full map content
+                        match = re.search(r"(\S+) still uploading\. Current states: map\[(.+)\]", line)
+                        if match:
+                            repo_name = match.group(1).replace("android.googlesource.com/", "")
+                            map_content = match.group(2)
+                            
+                            # Extract queued, running, failed, blocked maps
+                            queued_match = re.search(r"queued:map\[([^\]]+)\]", map_content)
+                            running_match = re.search(r"running:map\[([^\]]+)\]", map_content)
+                            failed_match = re.search(r"failed:map\[([^\]]+)\]", map_content)
+                            blocked_match = re.search(r"blocked:map\[([^\]]+)\]", map_content)
+
+                            queued = sum_submap(queued_match.group(1)) if queued_match else 0
+                            running = sum_submap(running_match.group(1)) if running_match else 0
+                            failed = sum_submap(failed_match.group(1)) if failed_match else 0
+                            blocked = sum_submap(blocked_match.group(1)) if blocked_match else 0
+
+                            # Only track repos that have actual pending activity
+                            if queued > 0 or running > 0:
+                                active_repos[repo_name] = {
+                                    "pod": pod,
+                                    "queued": queued,
+                                    "running": running,
+                                    "failed": failed,
+                                    "blocked": blocked
+                                }
+                                total_queued_items += queued
+                                total_running_items += running
+
+            # 3. Render Dashboard
+            sys.stdout.write(CLEAR_SCREEN)
+            print(f"{BOLD}{BLUE}======================================================================={RESET}")
+            print(f"{BOLD}{CYAN}             STANDALONE ABFS SEEDING MONITOR & PROGRESS                {RESET}")
+            print(f"{BOLD}{BLUE}======================================================================={RESET}")
+            print(f"Current Local Time: {YELLOW}{time.strftime('%Y-%m-%d %H:%M:%S')}{RESET}")
+            print(f"Active Uploaders   : {GREEN}{len(uploader_pods)} Replicas Online{RESET}")
+            print(f"Active Repos Syncing: {YELLOW}{len(active_repos)}{RESET}")
+            print(f"Pending Items      : Queued = {CYAN}{total_queued_items}{RESET} | Transferring = {GREEN}{total_running_items}{RESET}")
+            print(f"{BLUE}-----------------------------------------------------------------------{RESET}")
+
+            if active_repos:
+                print(f"{BOLD}{'AOSP REPOSITORY PATH':<65} {'UPLOADER':<25} {'QUEUED':<10} {'SYNCING':<10}{RESET}")
+                print(f"{BLUE}-----------------------------------------------------------------------{RESET}")
+                # Print top 15 active repos to avoid terminal overflow
+                for i, (repo, data) in enumerate(sorted(active_repos.items(), key=lambda x: x[1]['queued'] + x[1]['running'], reverse=True)):
+                    if i < 15:
+                        print(f"{repo:<65} {data['pod']:<25} {CYAN}{data['queued']:<10}{RESET} {GREEN}{data['running']:<10}{RESET}")
+                    else:
+                        remaining = len(active_repos) - 15
+                        print(f"... and {remaining} more active repository streams in progress.")
+                        break
+            else:
+                # 4. Seeding Completion Check
+                print("\n")
+                print(f"{BOLD}{GREEN}🎉🎉🎉 SEEDING HAS COMPLETED SUCCESSFULLY! 🎉🎉🎉{RESET}")
+                print(f"{GREEN}All AOSP repositories have finished initial replication to your standalone server.{RESET}")
+                print(f"{GREEN}All uploader queues are empty, and the client caches are ready for build pipelines.{RESET}\a") # Terminal bell notification
+                print("\n")
+                print(f"Monitoring will remain active. If AOSP releases new commits, they will appear here automatically.")
+
+            print(f"{BLUE}======================================================================={RESET}")
+            print(f"Refreshing in 5 seconds... Press {RED}Ctrl+C{RESET} to exit monitor.")
+            time.sleep(5)
+
+    except KeyboardInterrupt:
+        print(f"\n{YELLOW}Monitoring stopped.{RESET}")
+
+if __name__ == "__main__":
+    monitor_loop()
