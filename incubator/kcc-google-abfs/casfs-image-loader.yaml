@@ -1,0 +1,33 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: casfs-image-loader
+  namespace: abfs
+  labels:
+    app: casfs-image-loader
+spec:
+  selector:
+    matchLabels:
+      app: casfs-image-loader
+  template:
+    metadata:
+      labels:
+        app: casfs-image-loader
+    spec:
+      hostPID: true
+      tolerations:
+      - key: abfs.dev/dedicated
+        operator: Equal
+        value: "true"
+        effect: NoSchedule
+      nodeSelector:
+        cloud.google.com/gke-nodepool: abfs-data
+      initContainers:
+      - name: loader
+        image: alpine
+        securityContext:
+          privileged: true
+        command: ["sh", "-c", "echo '=== Loading casfs module on host ===' && nsenter -t 1 -m -u -i -n modprobe casfs && echo 'casfs loaded successfully'"]
+      containers:
+      - name: pause
+        image: registry.k8s.io/pause:3.9

@@ -1,0 +1,7 @@
+# Local gitignore for ABFS sandbox to prevent checking in private credentials
+abfs-license.b64
+abfs-license.json
+rendered/
+standalone.env
+*.env
+

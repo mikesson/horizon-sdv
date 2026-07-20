@@ -1,0 +1,37 @@
+# High-Performance Sandbox overrides for Standalone ABFS deployment
+# Configured for upgraded n4-standard-16 (16 vCPU, 64 GiB RAM) GKE nodes with Autoscaling.
+
+# Gate server/uploaders/bootstrap on the licensed node pool existing
+licensed: true
+
+# Spanner Instance & Database configurations (must match KCC names)
+spanner:
+  instance: abfs
+  database: abfs
+
+# GCS blob storage bucket name (must match KCC name)
+bucket: hrzn-deploy-abfs-standalone-1-abfs-blobs
+
+# ABFS Server Resource Scaling (Full production-grade allocation)
+server:
+  resources:
+    requests:
+      cpu: "8"
+      memory: 32Gi
+    limits:
+      memory: 32Gi
+
+# ABFS Uploader Resource & Replica Scaling (Full production-grade allocation)
+uploader:
+  # Single uploader shard for sandbox deployment
+  count: 1
+  resources:
+    requests:
+      cpu: "8"
+      memory: 32Gi
+    limits:
+      memory: 32Gi
+  dataDisk:
+    # 270 GiB matches sandbox quotas perfectly
+    size: 270Gi
+    storageClass: hyperdisk-balanced
