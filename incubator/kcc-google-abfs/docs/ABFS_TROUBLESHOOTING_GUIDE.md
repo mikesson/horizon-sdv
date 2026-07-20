@@ -9,6 +9,7 @@ This field guide documents real-world hurdles, organization policies, and infras
 3. [Cloud Spanner Schema Decoding & Cost Tuning](#3-cloud-spanner-schema-decoding--cost-tuning)
 4. [GKE Private Cluster DNS and Google API Isolation](#4-gke-private-cluster-dns-and-google-api-isolation)
 5. [Private Node Verification & SSH Blocker](#5-private-node-verification--ssh-blocker)
+6. [StatefulSet VolumeClaimTemplate Immutability & OOM Recovery](#6-statefulset-volumeclaimtemplate-immutability--oom-recovery)
 
 ---
 
@@ -130,3 +131,38 @@ In hardened enterprise GCP landing zones, several default organization policies 
     kubectl logs casfs-verify
     kubectl delete -f scratch-verify.yaml
     ```
+
+---
+
+## 6. StatefulSet VolumeClaimTemplate Immutability & OOM Recovery
+
+*   **Symptom**: 
+    1. One or more `abfs-gerrit-uploader` pods enter `CrashLoopBackOff` or are repeatedly restarted. Describing the pod shows:
+       ```
+       Last State:     Terminated
+         Reason:       OOMKilled
+         Exit Code:    137
+       ```
+    2. Attempting to deploy higher memory limits or customized disk layouts via Helm fails with:
+       ```
+       Error: UPGRADE FAILED: cannot patch "abfs-gerrit-uploader" with kind StatefulSet: StatefulSet.apps "abfs-gerrit-uploader" is invalid: spec: Forbidden: updates to statefulset spec for fields other than 'replicas', 'ordinals', 'template', ... are forbidden
+       ```
+
+*   **Root Cause**: 
+    *   **OOMKilled (Exit Code 137)**: Heavy git repositories containing massive git packs (such as core AOSP platform prebuilts or frameworks) require more memory than the default `32Gi` allocation during multi-threaded object index validation.
+    *   **Forbidden StatefulSet updates**: Kubernetes enforces that the `volumeClaimTemplates` field inside StatefulSets is completely immutable. When you modify storage values (such as downsizing/upsizing disk specifications or altering storage classes) in your `values-sandbox.yaml`, Helm's `kubectl patch` call is rejected by the Kubernetes API.
+
+*   **Remediation Playbook**:
+    Perform a **Kubernetes Orphan Deletion** of the StatefulSet controller. This deletes the StatefulSet resource definition but **leaves your active pods and data volumes untouched and running**. You can then safely run `helm upgrade`, which recreates the StatefulSet controller with the new specifications and adopts the pods back seamlessly with zero downtime:
+
+    ```bash
+    # 1. Orphan-delete the StatefulSet controller (safely keeps pods and PVCs intact)
+    kubectl delete statefulset abfs-gerrit-uploader -n abfs --cascade=orphan
+
+    # 2. Deploy your updated values-sandbox.yaml with 64Gi uploader memory limits
+    helm upgrade --install abfs ./incubator/kcc-google-abfs/rendered/standalone/chart/abfs -f ./incubator/kcc-google-abfs/values-sandbox.yaml -n abfs
+
+    # 3. Confirm all uploader shards are successfully updated and running
+    kubectl get pods -n abfs -l app.kubernetes.io/name=abfs-gerrit-uploader
+    ```
+

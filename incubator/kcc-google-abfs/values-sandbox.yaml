@@ -23,15 +23,16 @@ server:
 
 # ABFS Uploader Resource & Replica Scaling (Full production-grade allocation)
 uploader:
-  # Single uploader shard for sandbox deployment
-  count: 1
+  # 3 concurrent uploader streams for high-speed seeding
+  count: 3
   resources:
     requests:
       cpu: "8"
       memory: 32Gi
     limits:
-      memory: 32Gi
+      memory: 64Gi  # Raised memory limit to 64Gi prevents OOM indexing recycles on AOSP
   dataDisk:
     # 270 GiB matches sandbox quotas perfectly
     size: 270Gi
     storageClass: hyperdisk-balanced
+
