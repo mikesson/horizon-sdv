@@ -8,14 +8,15 @@ Our architecture leverages **GKE Standard** on the **Rapid Channel** combined wi
 ## 📖 Table of Contents
 1. [Architecture Overview](#1-architecture-overview)
 2. [Pre-Deployment Checklist & Quotas](#2-pre-deployment-checklist--quotas)
-3. [Phase 0: VPC Networking & NAT Gateway](#3-phase-0-vpc-networking--nat-gateway)
-4. [Phase 1: GKE Cluster Provisioning](#4-phase-1-gke-cluster-provisioning)
-5. [Phase 2: Config Connector (KCC) Operator Setup](#5-phase-2-config-connector-kcc-operator-setup)
-6. [Phase 3: Core Infrastructure Declarative Deployment](#6-phase-3-core-infrastructure-declarative-deployment)
-7. [Phase 4: Two-Phase SA and License Provisioning](#7-phase-4-two-phase-sa-and-license-provisioning)
-8. [Phase 5: Dedicated Node Pool Creation](#8-phase-5-dedicated-node-pool-creation)
-9. [Phase 6: Deploying ABFS Workloads (Helm)](#9-phase-6-deploying-abfs-workloads-helm)
-10. [Phase 7: Live Validation & Verification](#10-phase-7-live-validation--verification)
+3. [Phase 0.5: Workspace Navigation](#3-phase-05-workspace-navigation)
+4. [Phase 0: VPC Networking & NAT Gateway](#3-phase-0-vpc-networking--nat-gateway)
+5. [Phase 1: GKE Cluster Provisioning](#4-phase-1-gke-cluster-provisioning)
+6. [Phase 2: Config Connector (KCC) Operator Setup](#5-phase-2-config-connector-kcc-operator-setup)
+7. [Phase 3: Core Infrastructure Declarative Deployment](#6-phase-3-core-infrastructure-declarative-deployment)
+8. [Phase 4: Two-Phase SA and License Provisioning](#7-phase-4-two-phase-sa-and-license-provisioning)
+9. [Phase 5: Dedicated Node Pool Creation](#8-phase-5-dedicated-node-pool-creation)
+10. [Phase 6: Deploying ABFS Workloads (Helm)](#9-phase-6-deploying-abfs-workloads-helm)
+11. [Phase 7: Live Validation & Verification](#10-phase-7-live-validation--verification)
 
 ---
 
@@ -67,27 +68,37 @@ Go to **IAM & Admin > Quotas** in the GCP Console and ensure your target region 
 | Regional CPU limit (e.g., `N2_CPUS`) | **8** | **64** | Regional vCPUs for chosen machine family. |
 
 ---
+ 
+## 3. Phase 0.5: Workspace Navigation
+
+Before executing any commands, change your working directory to the consolidated module subdirectory. This guarantees that all relative paths for declarative YAML templates and Helm configurations (such as `rendered/` and `chart/`) resolve flawlessly:
+
+```bash
+cd incubator/kcc-google-abfs/
+```
+
+---
 
 ## 3. Phase 0: VPC Networking & NAT Gateway
-
+ 
 Private nodes are recommended. Create a dedicated private VPC with custom subnets, a Cloud Router, and NAT for outbound internet access (required for image downloads and GKE registration).
-
+ 
 ```bash
 # 1. Create a custom-mode VPC
 gcloud compute networks create vpc-abfs --subnet-mode=custom
-
+ 
 # 2. Create a private subnet with Private Google Access enabled (essential for KCC and GKE nodes)
 gcloud compute networks subnets create subnet-abfs \
   --network=vpc-abfs \
   --region=europe-west3 \
   --range=10.0.0.0/20 \
   --enable-private-ip-google-access
-
+ 
 # 3. Provision Cloud Router for egress
 gcloud compute routers create router-abfs \
   --network=vpc-abfs \
   --region=europe-west3
-
+ 
 # 4. Provision Cloud NAT Gateway attached to the router
 gcloud compute routers nats create nat-abfs \
   --router=router-abfs \
@@ -95,14 +106,16 @@ gcloud compute routers nats create nat-abfs \
   --auto-allocate-external-ip-addresses \
   --nat-all-subnet-ip-ranges
 ```
-
+ 
 ---
-
+ 
 ## 4. Phase 1: GKE Cluster Provisioning
-
+ 
 Deploy a GKE Standard cluster using the **Rapid Channel** to guarantee that the nodes boot into GKE version `1.36.0` or newer, ensuring Native CASFS module compatibility.
-
+ 
 ```bash
+# Note: You can omit --cluster-version to automatically select the default Rapid Channel release,
+# or list active Rapid channel releases via: gcloud container get-server-config --region=europe-west3
 gcloud container clusters create abfs \
   --region=europe-west3 \
   --node-locations=europe-west3-a \
