@@ -4,13 +4,16 @@
 # Gate server/uploaders/bootstrap on the licensed node pool existing
 licensed: true
 
+# GCP Project ID
+projectId: hrzn-deploy-abfs-standalone-1
+
 # Spanner Instance & Database configurations (must match KCC names)
 spanner:
   instance: abfs
   database: abfs
 
 # GCS blob storage bucket name (must match KCC name)
-bucket: YOUR_PROJECT_ID-abfs-blobs
+bucket: hrzn-deploy-abfs-standalone-1-abfs-blobs
 
 # ABFS Server Resource Scaling (Full production-grade allocation)
 server:
@@ -35,4 +38,16 @@ uploader:
     # 270 GiB matches sandbox quotas perfectly
     size: 270Gi
     storageClass: hyperdisk-balanced
+
+# ============================ PUSHER CONFIG ==================================
+pusher:
+  manifestProjectUrl: https://android.googlesource.com/platform/manifest
+  branchFiles:
+    - branch: main
+      file: default.xml
+    - branch: android-14.0.0_r1
+      file: default.xml
+    - branch: android-14.0.0_r2
+      file: default.xml
+
 
