@@ -42,7 +42,7 @@ spec:
   httpTarget:
     httpMethod: "POST"
     # Run the android-studio trigger created in 43-cloud-build.yaml.
-    uri: "https://cloudbuild.googleapis.com/v1/projects/hrzn-deploy-abfs-standalone-1/triggers/REPLACE_ANDROID_STUDIO_TRIGGER_ID:run"
+    uri: "https://cloudbuild.googleapis.com/v1/projects/YOUR_PROJECT_ID/triggers/REPLACE_ANDROID_STUDIO_TRIGGER_ID:run"
     oauthToken:
       serviceAccountRef:
         name: abfs-cicd-scheduler
@@ -63,7 +63,7 @@ spec:
     retryCount: 3
   httpTarget:
     httpMethod: "POST"
-    uri: "https://cloudbuild.googleapis.com/v1/projects/hrzn-deploy-abfs-standalone-1/triggers/REPLACE_ASFP_TRIGGER_ID:run"
+    uri: "https://cloudbuild.googleapis.com/v1/projects/YOUR_PROJECT_ID/triggers/REPLACE_ASFP_TRIGGER_ID:run"
     oauthToken:
       serviceAccountRef:
         name: abfs-cicd-scheduler
@@ -84,7 +84,7 @@ spec:
     retryCount: 3
   httpTarget:
     httpMethod: "POST"
-    uri: "https://cloudbuild.googleapis.com/v1/projects/hrzn-deploy-abfs-standalone-1/triggers/REPLACE_CODE_OSS_TRIGGER_ID:run"
+    uri: "https://cloudbuild.googleapis.com/v1/projects/YOUR_PROJECT_ID/triggers/REPLACE_CODE_OSS_TRIGGER_ID:run"
     oauthToken:
       serviceAccountRef:
         name: abfs-cicd-scheduler

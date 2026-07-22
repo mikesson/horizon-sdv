@@ -8,15 +8,16 @@ Our architecture leverages **GKE Standard** on the **Rapid Channel** combined wi
 ## 📖 Table of Contents
 1. [Architecture Overview](#1-architecture-overview)
 2. [Pre-Deployment Checklist & Quotas](#2-pre-deployment-checklist--quotas)
-3. [Phase 0.5: Workspace Navigation](#3-phase-05-workspace-navigation)
-4. [Phase 0: VPC Networking & NAT Gateway](#3-phase-0-vpc-networking--nat-gateway)
-5. [Phase 1: GKE Cluster Provisioning](#4-phase-1-gke-cluster-provisioning)
-6. [Phase 2: Config Connector (KCC) Operator Setup](#5-phase-2-config-connector-kcc-operator-setup)
-7. [Phase 3: Core Infrastructure Declarative Deployment](#6-phase-3-core-infrastructure-declarative-deployment)
-8. [Phase 4: Two-Phase SA and License Provisioning](#7-phase-4-two-phase-sa-and-license-provisioning)
-9. [Phase 5: Dedicated Node Pool Creation](#8-phase-5-dedicated-node-pool-creation)
-10. [Phase 6: Deploying ABFS Workloads (Helm)](#9-phase-6-deploying-abfs-workloads-helm)
-11. [Phase 7: Live Validation & Verification](#10-phase-7-live-validation--verification)
+3. [Workspace Navigation](#3-workspace-navigation)
+4. [Parameterizing your GCP Project ID](#4-parameterizing-your-gcp-project-id)
+5. [VPC Networking & NAT Gateway](#5-vpc-networking--nat-gateway)
+6. [GKE Cluster Provisioning](#6-gke-cluster-provisioning)
+7. [Config Connector (KCC) Operator Setup](#7-config-connector-kcc-operator-setup)
+8. [Core Infrastructure Declarative Deployment](#8-core-infrastructure-declarative-deployment)
+9. [Two-Phase SA and License Provisioning](#9-two-phase-sa-and-license-provisioning)
+10. [Dedicated Node Pool Creation](#10-dedicated-node-pool-creation)
+11. [Deploying ABFS Workloads (Helm)](#11-deploying-abfs-workloads-helm)
+12. [Live Validation & Verification](#12-live-validation--verification)
 
 ---
 
@@ -69,7 +70,7 @@ Go to **IAM & Admin > Quotas** in the GCP Console and ensure your target region 
 
 ---
  
-## 3. Phase 0.5: Workspace Navigation
+## 3. Workspace Navigation
 
 Before executing any commands, change your working directory to the consolidated module subdirectory. This guarantees that all relative paths for declarative YAML templates and Helm configurations (such as `rendered/` and `chart/`) resolve flawlessly:
 
@@ -79,7 +80,21 @@ cd incubator/kcc-google-abfs/
 
 ---
 
-## 3. Phase 0: VPC Networking & NAT Gateway
+## 4. Parameterizing your GCP Project ID
+
+Before deploying, you must substitute the template placeholder `YOUR_PROJECT_ID` across all manifests and Helm configurations with your actual GCP Project ID.
+
+You can execute this instantly across all files in your workspace with this single command:
+
+```bash
+# Replace 'my-gcp-project' with your actual GCP Project ID
+export MY_PROJECT_ID="my-gcp-project"
+find . -type f -not -path '*/.*' -exec sed -i "s/YOUR_PROJECT_ID/${MY_PROJECT_ID}/g" {} +
+```
+
+---
+
+## 5. VPC Networking & NAT Gateway
  
 Private nodes are recommended. Create a dedicated private VPC with custom subnets, a Cloud Router, and NAT for outbound internet access (required for image downloads and GKE registration).
  
@@ -109,7 +124,7 @@ gcloud compute routers nats create nat-abfs \
  
 ---
  
-## 4. Phase 1: GKE Cluster Provisioning
+## 6. GKE Cluster Provisioning
  
 Deploy a GKE Standard cluster using the **Rapid Channel** to guarantee that the nodes boot into GKE version `1.36.0` or newer, ensuring Native CASFS module compatibility.
  
@@ -136,7 +151,7 @@ gcloud container clusters create abfs \
 
 ---
 
-## 5. Phase 2: Config Connector (KCC) Operator Setup
+## 7. Config Connector (KCC) Operator Setup
 
 Enable the Config Connector addon in your cluster and link its controller manager to a privileged GCP Service Account (SA, short for "Service Account") using Workload Identity.
 
@@ -195,7 +210,7 @@ kubectl apply -f namespace.yaml
 
 ---
 
-## 6. Phase 3: Core Infrastructure Declarative Deployment
+## 8. Core Infrastructure Declarative Deployment
 
 Under KCC, apply your declarative resource manifest bundle representing Spanner, GCS Storage, Secret Manager, DNS, and Firewall configurations. 
 
@@ -215,7 +230,7 @@ kubectl get gcp -n abfs
 
 ---
 
-## 7. Phase 4: Two-Phase SA and License Provisioning
+## 9. Two-Phase SA and License Provisioning
 
 ABFS uses a strict Google-signed VM Identity token check. Follow this two-phase flow to generate the Licensed Service Account and retrieve your license.
 
@@ -238,7 +253,7 @@ ABFS uses a strict Google-signed VM Identity token check. Follow this two-phase 
 
 ---
 
-## 8. Phase 5: Dedicated Node Pool Creation
+## 10. Dedicated Node Pool Creation
 
 Provision the dedicated `abfs-data` node pool. **This pool bypasses Workload Identity** (`--workload-metadata=GCE_METADATA`) to expose the GCE metadata server directly to the pods, loaded with the base64-encoded license string.
 
@@ -267,7 +282,7 @@ gcloud container node-pools create abfs-data \
 
 ---
 
-## 9. Phase 6: Deploying ABFS Workloads (Helm)
+## 11. Deploying ABFS Workloads (Helm)
 
 Deploy the native **COS-integrated CASFS kernel module loader DaemonSet** to automatically load the pre-compiled `casfs` driver into kernel memory as nodes auto-scale:
 ```yaml
@@ -350,7 +365,7 @@ helm upgrade --install abfs ./rendered/standalone/chart/abfs -f values-sandbox.y
 
 ---
 
-## 10. Phase 7: Live Validation & Verification
+## 12. Live Validation & Verification
 
 1. Verify that the ABFS Server and Uploader pods schedule on the dedicated node pool and enter `Running` state:
    ```bash

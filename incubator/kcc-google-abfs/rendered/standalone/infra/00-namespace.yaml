@@ -16,13 +16,13 @@
 # (Helm chart). The project-id annotation tells Config Connector which Google
 # Cloud project to reconcile resources into (namespaced mode).
 #
-# hrzn-deploy-abfs-standalone-1 -> your Google Cloud project ID.
+# YOUR_PROJECT_ID -> your Google Cloud project ID.
 apiVersion: v1
 kind: Namespace
 metadata:
   name: abfs
   annotations:
-    cnrm.cloud.google.com/project-id: "hrzn-deploy-abfs-standalone-1"
+    cnrm.cloud.google.com/project-id: "YOUR_PROJECT_ID"
   labels:
     app.kubernetes.io/part-of: abfs
     # The ABFS pods run privileged + hostPID for the casfs mount. Enforce the

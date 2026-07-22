@@ -10,7 +10,7 @@ spanner:
   database: abfs
 
 # GCS blob storage bucket name (must match KCC name)
-bucket: hrzn-deploy-abfs-standalone-1-abfs-blobs
+bucket: YOUR_PROJECT_ID-abfs-blobs
 
 # ABFS Server Resource Scaling (Full production-grade allocation)
 server:

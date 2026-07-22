@@ -16,18 +16,18 @@
 # uses to reconcile resources for this namespace (namespaced mode).
 #
 # Prereqs (see docs/02-prerequisites-cluster-and-kcc.md):
-#   * GSA cnrm-system@hrzn-deploy-abfs-standalone-1.iam.gserviceaccount.com exists and has the
+#   * GSA cnrm-system@YOUR_PROJECT_ID.iam.gserviceaccount.com exists and has the
 #     roles needed to manage everything in infra/ (broad: roles/owner, or a tight
 #     custom set).
 #   * Workload Identity binding granting roles/iam.workloadIdentityUser to
-#     serviceAccount:hrzn-deploy-abfs-standalone-1.svc.id.goog[cnrm-system/cnrm-controller-manager-abfs]
+#     serviceAccount:YOUR_PROJECT_ID.svc.id.goog[cnrm-system/cnrm-controller-manager-abfs]
 apiVersion: core.cnrm.cloud.google.com/v1beta1
 kind: ConfigConnectorContext
 metadata:
   name: configconnectorcontext.core.cnrm.cloud.google.com
   namespace: abfs
 spec:
-  googleServiceAccount: "cnrm-system@hrzn-deploy-abfs-standalone-1.iam.gserviceaccount.com"
+  googleServiceAccount: "cnrm-system@YOUR_PROJECT_ID.iam.gserviceaccount.com"
   # See configconnector.yaml — Absent avoids autoscaling-field update loops and is
   # the recommended/default behavior. Per-namespace value in namespaced mode.
   stateIntoSpec: Absent

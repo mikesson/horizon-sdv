@@ -22,7 +22,7 @@
 # additionally hold Artifact Registry read on the project that hosts the ABFS image
 # (a separate project — grant that there, not here).
 #
-# member references the SA by email (abfs-runtime@hrzn-deploy-abfs-standalone-1...), so the
+# member references the SA by email (abfs-runtime@YOUR_PROJECT_ID...), so the
 # grants work whether the SA is created by 10-* or is a pre-existing, already-licensed
 # SA (e.g. abfs-sa).
 ---
@@ -32,11 +32,11 @@ metadata:
   name: abfs-runtime-spanner-dbuser
   namespace: abfs
 spec:
-  member: "serviceAccount:abfs-runtime@hrzn-deploy-abfs-standalone-1.iam.gserviceaccount.com"
+  member: "serviceAccount:abfs-runtime@YOUR_PROJECT_ID.iam.gserviceaccount.com"
   role: roles/spanner.databaseUser
   resourceRef:
     kind: Project
-    external: projects/hrzn-deploy-abfs-standalone-1
+    external: projects/YOUR_PROJECT_ID
 ---
 apiVersion: iam.cnrm.cloud.google.com/v1beta1
 kind: IAMPolicyMember
@@ -44,11 +44,11 @@ metadata:
   name: abfs-runtime-storage-objectadmin
   namespace: abfs
 spec:
-  member: "serviceAccount:abfs-runtime@hrzn-deploy-abfs-standalone-1.iam.gserviceaccount.com"
+  member: "serviceAccount:abfs-runtime@YOUR_PROJECT_ID.iam.gserviceaccount.com"
   role: roles/storage.objectAdmin
   resourceRef:
     kind: Project
-    external: projects/hrzn-deploy-abfs-standalone-1
+    external: projects/YOUR_PROJECT_ID
 ---
 apiVersion: iam.cnrm.cloud.google.com/v1beta1
 kind: IAMPolicyMember
@@ -56,11 +56,11 @@ metadata:
   name: abfs-runtime-monitoring-metricwriter
   namespace: abfs
 spec:
-  member: "serviceAccount:abfs-runtime@hrzn-deploy-abfs-standalone-1.iam.gserviceaccount.com"
+  member: "serviceAccount:abfs-runtime@YOUR_PROJECT_ID.iam.gserviceaccount.com"
   role: roles/monitoring.metricWriter
   resourceRef:
     kind: Project
-    external: projects/hrzn-deploy-abfs-standalone-1
+    external: projects/YOUR_PROJECT_ID
 ---
 apiVersion: iam.cnrm.cloud.google.com/v1beta1
 kind: IAMPolicyMember
@@ -68,11 +68,11 @@ metadata:
   name: abfs-runtime-monitoring-viewer
   namespace: abfs
 spec:
-  member: "serviceAccount:abfs-runtime@hrzn-deploy-abfs-standalone-1.iam.gserviceaccount.com"
+  member: "serviceAccount:abfs-runtime@YOUR_PROJECT_ID.iam.gserviceaccount.com"
   role: roles/monitoring.viewer
   resourceRef:
     kind: Project
-    external: projects/hrzn-deploy-abfs-standalone-1
+    external: projects/YOUR_PROJECT_ID
 ---
 apiVersion: iam.cnrm.cloud.google.com/v1beta1
 kind: IAMPolicyMember
@@ -80,11 +80,11 @@ metadata:
   name: abfs-runtime-stackdriver-metadatawriter
   namespace: abfs
 spec:
-  member: "serviceAccount:abfs-runtime@hrzn-deploy-abfs-standalone-1.iam.gserviceaccount.com"
+  member: "serviceAccount:abfs-runtime@YOUR_PROJECT_ID.iam.gserviceaccount.com"
   role: roles/stackdriver.resourceMetadata.writer
   resourceRef:
     kind: Project
-    external: projects/hrzn-deploy-abfs-standalone-1
+    external: projects/YOUR_PROJECT_ID
 ---
 apiVersion: iam.cnrm.cloud.google.com/v1beta1
 kind: IAMPolicyMember
@@ -92,8 +92,8 @@ metadata:
   name: abfs-runtime-logging-logwriter
   namespace: abfs
 spec:
-  member: "serviceAccount:abfs-runtime@hrzn-deploy-abfs-standalone-1.iam.gserviceaccount.com"
+  member: "serviceAccount:abfs-runtime@YOUR_PROJECT_ID.iam.gserviceaccount.com"
   role: roles/logging.logWriter
   resourceRef:
     kind: Project
-    external: projects/hrzn-deploy-abfs-standalone-1
+    external: projects/YOUR_PROJECT_ID

@@ -35,7 +35,7 @@ metadata:
   namespace: abfs
 spec:
   projectRef:
-    external: "projects/hrzn-deploy-abfs-standalone-1"
+    external: "projects/YOUR_PROJECT_ID"
   # e.g. europe-west4
   location: europe-west3
   displayName: "ABFS CI/CD private build pool"
@@ -46,7 +46,7 @@ spec:
     # --- VPC-SC / private egress (peer the pool to your VPC) ---
     # networkConfig:
     #   peeredNetworkRef:
-    #     external: "projects/hrzn-deploy-abfs-standalone-1/global/networks/vpc-abfs"
+    #     external: "projects/YOUR_PROJECT_ID/global/networks/vpc-abfs"
     #   egressOption: NO_PUBLIC_EGRESS
     #   peeredNetworkIPRange: /29
 ---
@@ -62,7 +62,7 @@ metadata:
   namespace: abfs
 spec:
   projectRef:
-    external: projects/hrzn-deploy-abfs-standalone-1
+    external: projects/YOUR_PROJECT_ID
   replication:
     automatic: true
 ---
@@ -80,12 +80,12 @@ spec:
   disabled: false
   # abfs-cloudbuild GSA (see 46-cicd-iam.yaml). external = full SA resource name.
   serviceAccountRef:
-    external: "projects/hrzn-deploy-abfs-standalone-1/serviceAccounts/abfs-cloudbuild@hrzn-deploy-abfs-standalone-1.iam.gserviceaccount.com"
+    external: "projects/YOUR_PROJECT_ID/serviceAccounts/abfs-cloudbuild@YOUR_PROJECT_ID.iam.gserviceaccount.com"
   # Webhook fired by Secure Source Manager on push. secretRef -> a VERSION of the
   # abfs-cicd-webhook SecretManagerSecret above.
   webhookConfig:
     secretRef:
-      external: "projects/hrzn-deploy-abfs-standalone-1/secrets/abfs-cicd-webhook/versions/latest"
+      external: "projects/YOUR_PROJECT_ID/secrets/abfs-cicd-webhook/versions/latest"
   # The repo + branch to build (SSM repo via URI; SSM has no repoType -> UNKNOWN).
   sourceToBuild:
     uri: "REPLACE_SSM_REPO_URL"
@@ -116,10 +116,10 @@ spec:
   description: "Rebuild the android-studio-for-platform workstation image on push to the SSM repo"
   disabled: false
   serviceAccountRef:
-    external: "projects/hrzn-deploy-abfs-standalone-1/serviceAccounts/abfs-cloudbuild@hrzn-deploy-abfs-standalone-1.iam.gserviceaccount.com"
+    external: "projects/YOUR_PROJECT_ID/serviceAccounts/abfs-cloudbuild@YOUR_PROJECT_ID.iam.gserviceaccount.com"
   webhookConfig:
     secretRef:
-      external: "projects/hrzn-deploy-abfs-standalone-1/secrets/abfs-cicd-webhook/versions/latest"
+      external: "projects/YOUR_PROJECT_ID/secrets/abfs-cicd-webhook/versions/latest"
   sourceToBuild:
     uri: "REPLACE_SSM_REPO_URL"
     ref: "refs/heads/main"
@@ -147,10 +147,10 @@ spec:
   description: "Rebuild the code-oss workstation image on push to the SSM repo"
   disabled: false
   serviceAccountRef:
-    external: "projects/hrzn-deploy-abfs-standalone-1/serviceAccounts/abfs-cloudbuild@hrzn-deploy-abfs-standalone-1.iam.gserviceaccount.com"
+    external: "projects/YOUR_PROJECT_ID/serviceAccounts/abfs-cloudbuild@YOUR_PROJECT_ID.iam.gserviceaccount.com"
   webhookConfig:
     secretRef:
-      external: "projects/hrzn-deploy-abfs-standalone-1/secrets/abfs-cicd-webhook/versions/latest"
+      external: "projects/YOUR_PROJECT_ID/secrets/abfs-cicd-webhook/versions/latest"
   sourceToBuild:
     uri: "REPLACE_SSM_REPO_URL"
     ref: "refs/heads/main"

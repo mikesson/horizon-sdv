@@ -14,7 +14,7 @@
 
 # GCS bucket for ABFS blobs.
 #
-# Bucket names are globally unique: hrzn-deploy-abfs-standalone-1-abfs-blobs must be a name you own,
+# Bucket names are globally unique: YOUR_PROJECT_ID-abfs-blobs must be a name you own,
 # e.g. abfs-<random-suffix>. Choose your own stable, unique name here (a random
 # hex suffix is a common way to keep it globally unique).
 #
@@ -22,7 +22,7 @@
 apiVersion: storage.cnrm.cloud.google.com/v1beta1
 kind: StorageBucket
 metadata:
-  name: hrzn-deploy-abfs-standalone-1-abfs-blobs
+  name: YOUR_PROJECT_ID-abfs-blobs
   namespace: abfs
   annotations:
     # Abandon on CR delete so removing the resource never deletes the ABFS content
