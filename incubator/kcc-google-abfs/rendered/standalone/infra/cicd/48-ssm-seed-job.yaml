@@ -41,7 +41,7 @@ metadata:
   name: abfs-cloudbuild
   namespace: abfs
   annotations:
-    iam.gke.io/gcp-service-account: abfs-cloudbuild@hrzn-deploy-abfs-standalone-1.iam.gserviceaccount.com
+    iam.gke.io/gcp-service-account: abfs-cloudbuild@YOUR_PROJECT_ID.iam.gserviceaccount.com
 ---
 apiVersion: batch/v1
 kind: Job

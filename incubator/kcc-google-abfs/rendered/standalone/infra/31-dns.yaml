@@ -34,7 +34,7 @@ spec:
   privateVisibilityConfig:
     networks:
       - networkRef:
-          external: "projects/hrzn-deploy-abfs-standalone-1/global/networks/vpc-abfs"
+          external: "projects/YOUR_PROJECT_ID/global/networks/vpc-abfs"
 ---
 apiVersion: dns.cnrm.cloud.google.com/v1beta1
 kind: DNSRecordSet
@@ -81,7 +81,7 @@ spec:
   privateVisibilityConfig:
     networks:
       - networkRef:
-          external: "projects/hrzn-deploy-abfs-standalone-1/global/networks/vpc-abfs"
+          external: "projects/YOUR_PROJECT_ID/global/networks/vpc-abfs"
 ---
 apiVersion: dns.cnrm.cloud.google.com/v1beta1
 kind: DNSRecordSet

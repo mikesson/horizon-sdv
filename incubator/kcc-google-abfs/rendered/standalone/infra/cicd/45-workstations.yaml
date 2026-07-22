@@ -35,13 +35,13 @@ metadata:
   namespace: abfs
 spec:
   projectRef:
-    external: "projects/hrzn-deploy-abfs-standalone-1"
+    external: "projects/YOUR_PROJECT_ID"
   # e.g. europe-west4
   location: europe-west3
   networkRef:
-    external: "projects/hrzn-deploy-abfs-standalone-1/global/networks/vpc-abfs"
+    external: "projects/YOUR_PROJECT_ID/global/networks/vpc-abfs"
   subnetworkRef:
-    external: "projects/hrzn-deploy-abfs-standalone-1/regions/europe-west3/subnetworks/subnet-abfs"
+    external: "projects/YOUR_PROJECT_ID/regions/europe-west3/subnetworks/subnet-abfs"
   # --- Private endpoint (uncomment to make the cluster endpoint private) ---
   # privateClusterConfig:
   #   enablePrivateEndpoint: true
@@ -66,7 +66,7 @@ spec:
       bootDiskSizeGB: 100
       # abfs-cws-runner GSA (see 46-cicd-iam.yaml).
       serviceAccountRef:
-        external: "abfs-cws-runner@hrzn-deploy-abfs-standalone-1.iam.gserviceaccount.com"
+        external: "abfs-cws-runner@YOUR_PROJECT_ID.iam.gserviceaccount.com"
       # No public IP on the workstation VM.
       disablePublicIPAddresses: true
       # Enable nested virtualization.
@@ -78,7 +78,7 @@ spec:
         enableIntegrityMonitoring: true
   container:
     # The :latest tag built by the android-studio pipeline into Artifact Registry.
-    image: "europe-west3-docker.pkg.dev/hrzn-deploy-abfs-standalone-1/abfs-workstation-images/android-studio:latest"
+    image: "europe-west3-docker.pkg.dev/YOUR_PROJECT_ID/abfs-workstation-images/android-studio:latest"
   # Persistent home disk: 1000GB pd-ssd ext4, reclaim RETAIN.
   persistentDirectories:
     - mountPath: "/home"
@@ -104,7 +104,7 @@ spec:
       machineType: "n2-standard-4"
       bootDiskSizeGB: 100
       serviceAccountRef:
-        external: "abfs-cws-runner@hrzn-deploy-abfs-standalone-1.iam.gserviceaccount.com"
+        external: "abfs-cws-runner@YOUR_PROJECT_ID.iam.gserviceaccount.com"
       disablePublicIPAddresses: true
       enableNestedVirtualization: true
       shieldedInstanceConfig:
@@ -112,7 +112,7 @@ spec:
         enableVTPM: true
         enableIntegrityMonitoring: true
   container:
-    image: "europe-west3-docker.pkg.dev/hrzn-deploy-abfs-standalone-1/abfs-workstation-images/android-studio-for-platform:latest"
+    image: "europe-west3-docker.pkg.dev/YOUR_PROJECT_ID/abfs-workstation-images/android-studio-for-platform:latest"
   persistentDirectories:
     - mountPath: "/home"
       gcePD:
@@ -137,7 +137,7 @@ spec:
       machineType: "n2-standard-4"
       bootDiskSizeGB: 100
       serviceAccountRef:
-        external: "abfs-cws-runner@hrzn-deploy-abfs-standalone-1.iam.gserviceaccount.com"
+        external: "abfs-cws-runner@YOUR_PROJECT_ID.iam.gserviceaccount.com"
       disablePublicIPAddresses: true
       enableNestedVirtualization: true
       shieldedInstanceConfig:
@@ -145,7 +145,7 @@ spec:
         enableVTPM: true
         enableIntegrityMonitoring: true
   container:
-    image: "europe-west3-docker.pkg.dev/hrzn-deploy-abfs-standalone-1/abfs-workstation-images/code-oss:latest"
+    image: "europe-west3-docker.pkg.dev/YOUR_PROJECT_ID/abfs-workstation-images/code-oss:latest"
   persistentDirectories:
     - mountPath: "/home"
       gcePD:

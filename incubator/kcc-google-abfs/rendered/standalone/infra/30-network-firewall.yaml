@@ -34,7 +34,7 @@ spec:
   priority: 1000
   networkRef:
     # Reference to the pre-existing VPC (not created by KCC).
-    external: "projects/hrzn-deploy-abfs-standalone-1/global/networks/vpc-abfs"
+    external: "projects/YOUR_PROJECT_ID/global/networks/vpc-abfs"
   sourceRanges:
     - "10.0.0.0/24"   # abfs-west4 subnet
   allow:
@@ -52,7 +52,7 @@ spec:
   direction: INGRESS
   priority: 1000
   networkRef:
-    external: "projects/hrzn-deploy-abfs-standalone-1/global/networks/vpc-abfs"
+    external: "projects/YOUR_PROJECT_ID/global/networks/vpc-abfs"
   sourceRanges:
     - "10.0.0.0/24"
   allow:

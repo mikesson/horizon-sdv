@@ -23,7 +23,7 @@
 # =============================================================================
 
 # -- projectId -- GCP project; MUST match infra/ and your cluster. (REPLACE token)
-projectId: hrzn-deploy-abfs-standalone-1
+projectId: YOUR_PROJECT_ID
 # -- region -- GCP region for the data plane.
 region: europe-west4
 # -- zone -- GCP zone (single-zone resources, if any).
@@ -64,7 +64,7 @@ spanner:
   # -- spanner.database -- Spanner database id.
   database: abfs
 # -- bucket -- GCS blob bucket name. (REPLACE token)
-bucket: hrzn-deploy-abfs-standalone-1-abfs-blobs
+bucket: YOUR_PROJECT_ID-abfs-blobs
 
 # -- gitLfsEnabled -- enable Git LFS.
 gitLfsEnabled: false

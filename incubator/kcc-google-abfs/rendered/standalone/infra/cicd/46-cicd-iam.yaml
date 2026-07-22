@@ -56,7 +56,7 @@ metadata:
   name: abfs-cloudbuild-wi
   namespace: abfs
 spec:
-  member: "serviceAccount:hrzn-deploy-abfs-standalone-1.svc.id.goog[abfs/abfs-cloudbuild]"
+  member: "serviceAccount:YOUR_PROJECT_ID.svc.id.goog[abfs/abfs-cloudbuild]"
   role: roles/iam.workloadIdentityUser
   resourceRef:
     apiVersion: iam.cnrm.cloud.google.com/v1beta1
@@ -76,7 +76,7 @@ spec:
   role: roles/artifactregistry.writer
   resourceRef:
     kind: Project
-    external: projects/hrzn-deploy-abfs-standalone-1
+    external: projects/YOUR_PROJECT_ID
 ---
 # Cloud Build SA -> write build logs
 apiVersion: iam.cnrm.cloud.google.com/v1beta1
@@ -91,7 +91,7 @@ spec:
   role: roles/logging.logWriter
   resourceRef:
     kind: Project
-    external: projects/hrzn-deploy-abfs-standalone-1
+    external: projects/YOUR_PROJECT_ID
 ---
 # Cloud Build SA -> standard build permissions (storage, logs, etc). The
 # user-specified build SA needs this when triggers set serviceAccountRef.
@@ -107,7 +107,7 @@ spec:
   role: roles/cloudbuild.builds.builder
   resourceRef:
     kind: Project
-    external: projects/hrzn-deploy-abfs-standalone-1
+    external: projects/YOUR_PROJECT_ID
 ---
 # Cloud Build SA -> read the SSM repo source (project-level read).
 # NOTE: roles/securesourcemanager.repoReader does NOT appear in the vendored KCC
@@ -125,7 +125,7 @@ spec:
   role: roles/securesourcemanager.repoReader
   resourceRef:
     kind: Project
-    external: projects/hrzn-deploy-abfs-standalone-1
+    external: projects/YOUR_PROJECT_ID
 ---
 # Cloud Build SA -> read the webhook secret (used by the CloudBuildTrigger
 # webhookConfig.secretRef in 43-cloud-build.yaml).
@@ -157,7 +157,7 @@ spec:
   role: roles/cloudbuild.builds.editor
   resourceRef:
     kind: Project
-    external: projects/hrzn-deploy-abfs-standalone-1
+    external: projects/YOUR_PROJECT_ID
 ---
 # Workstation creators. The principal is provided as a member string
 # (user:/group:/serviceAccount:...) so leave it a REPLACE_ token.
@@ -173,7 +173,7 @@ spec:
   role: roles/workstations.workstationCreator
   resourceRef:
     kind: Project
-    external: projects/hrzn-deploy-abfs-standalone-1
+    external: projects/YOUR_PROJECT_ID
 ---
 # Workstation users (the developers who launch and use the workstations).
 # NOTE: roles/workstations.user does NOT appear in the vendored KCC samples/tests
@@ -188,4 +188,4 @@ spec:
   role: roles/workstations.user
   resourceRef:
     kind: Project
-    external: projects/hrzn-deploy-abfs-standalone-1
+    external: projects/YOUR_PROJECT_ID
