@@ -155,6 +155,12 @@ gcloud container clusters create abfs \
 
 Enable the Config Connector addon in your cluster and link its controller manager to a privileged GCP Service Account (SA, short for "Service Account") using Workload Identity.
 
+Enable vertical autoscaling:
+```bash
+gcloud container clusters update abfs \
+  --region=europe-west3 \
+  --project=YOUR_PROJECT_ID \
+  --enable-vertical-pod-autoscaling
 ```bash
 # 1. Enable KCC addon on the cluster
 gcloud container clusters update abfs \
