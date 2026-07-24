@@ -428,5 +428,9 @@ helm upgrade --install abfs ./rendered/standalone/chart/abfs -f values-sandbox.y
    # Run a check on the uploader pod to ensure casfs is mounted
    kubectl exec -it abfs-gerrit-uploader-0 -n abfs -- df -h | grep casfs
    ```
+4. Track the seeding phase:
 
+```bash
+# inside horizon-sdv/incubator/kcc-google-abfs
+python scripts/track-seeding.py
 
