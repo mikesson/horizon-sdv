@@ -183,7 +183,7 @@ gcloud iam service-accounts add-iam-policy-binding \
   --project=YOUR_PROJECT_ID
 ```
 
-Apply the core operator ConfigConnector configuration (already parameterized by the bulk substitution step in Section 4):
+Apply the core operator ConfigConnector configuration:
 
 ```bash
 kubectl apply -f rendered/standalone/infra/setup/configconnector.yaml
@@ -228,7 +228,7 @@ gcloud projects add-iam-policy-binding ${PROJECT_ID} \
 # 5. Force token refresh by restarting the controller pod
 
 kubectl delete pod cnrm-controller-manager-0 -n cnrm-system
-Create the dedicated `abfs` workload namespace, annotated with your GCP project ID (already parameterized by the bulk substitution step in Section 4):
+Create the dedicated `abfs` workload namespace, annotated with your GCP project ID:
 
 ```bash
 kubectl apply -f rendered/standalone/infra/setup/namespace.yaml
