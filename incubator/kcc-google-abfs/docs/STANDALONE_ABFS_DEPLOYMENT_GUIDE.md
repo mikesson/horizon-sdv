@@ -282,7 +282,7 @@ ABFS uses a strict Google-signed VM Identity token check. Follow this two-phase 
    ```bash
    gcloud iam service-accounts describe abfs-runtime@YOUR_PROJECT_ID.iam.gserviceaccount.com --project=YOUR_PROJECT_ID --format="value(uniqueId)"
    ```
-3. Submit this **SA Email** and **Unique ID** to the Google license team to obtain your `abfs-license.json`.
+3. Submit this **SA Email** and **Unique ID**  as well as your **Project ID** and **Project Number** to the Google license team to obtain your `abfs-license.json`.
 
 ### Phase B: Pre-stage the License
 1. Once you receive `abfs-license.json`, Base64-encode it (without line wraps):
