@@ -25,7 +25,8 @@ metadata:
   # the ConfigConnector object is a singleton and must be named "configconnector.core.cnrm.cloud.google.com"
   name: configconnector.core.cnrm.cloud.google.com
 spec:
-  mode: namespaced
+  mode: cluster
+  googleServiceAccount: cnrm-system@YOUR_PROJECT_ID.iam.gserviceaccount.com
   # Prevent KCC from writing unspecified server-side fields back into resource
   # specs. Required to avoid endless update loops with autoscaling/autoupdating
   # fields — e.g. the SpannerInstance autoscalingConfig in infra/20-spanner.yaml.
