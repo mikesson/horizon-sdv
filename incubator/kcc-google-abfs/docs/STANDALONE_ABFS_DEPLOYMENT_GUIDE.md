@@ -183,20 +183,14 @@ gcloud iam service-accounts add-iam-policy-binding \
   --project=YOUR_PROJECT_ID
 ```
 
-Apply the following core operator ConfigConnector configuration:
+Apply the core operator ConfigConnector configuration. First, replace the placeholder with your GCP Project ID in the pre-existing file:
 
-```yaml
-# configconnector.yaml
-apiVersion: core.cnrm.cloud.google.com/v1beta1
-kind: ConfigConnector
-metadata:
-  name: configconnector.core.cnrm.cloud.google.com
-spec:
-  mode: cluster
-  googleServiceAccount: cnrm-system@YOUR_PROJECT_ID.iam.gserviceaccount.com
-```
 ```bash
-kubectl apply -f configconnector.yaml
+# Update the placeholder in the setup manifest
+sed -i 's/YOUR_PROJECT_ID/your-gcp-project-id/g' incubator/kcc-google-abfs/rendered/standalone/infra/setup/configconnector.yaml
+
+# Apply the ConfigConnector configuration
+kubectl apply -f incubator/kcc-google-abfs/rendered/standalone/infra/setup/configconnector.yaml
 ```
 ### Troubleshooting
 
