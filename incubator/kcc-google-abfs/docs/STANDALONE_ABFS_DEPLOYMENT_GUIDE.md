@@ -186,7 +186,7 @@ kind: ConfigConnector
 metadata:
   name: configconnector.core.cnrm.cloud.google.com
 spec:
-  mode: namespaced
+  mode: cluster
   googleServiceAccount: cnrm-system@YOUR_PROJECT_ID.iam.gserviceaccount.com
 ```
 ```bash
