@@ -232,19 +232,14 @@ gcloud projects add-iam-policy-binding ${PROJECT_ID} \
 # 5. Force token refresh by restarting the controller pod
 
 kubectl delete pod cnrm-controller-manager-0 -n cnrm-system
-Create the dedicated `abfs` workload namespace, annotated with your GCP project ID:
+Create the dedicated `abfs` workload namespace, annotated with your GCP project ID. First, replace the placeholder with your GCP Project ID in the pre-existing file:
 
-```yaml
-# namespace.yaml
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: abfs
-  annotations:
-    cnrm.cloud.google.com/project-id: "YOUR_PROJECT_ID"
-```
 ```bash
-kubectl apply -f namespace.yaml
+# Update the project-id annotation in the namespace manifest
+sed -i 's/YOUR_PROJECT_ID/your-gcp-project-id/g' incubator/kcc-google-abfs/rendered/standalone/infra/setup/namespace.yaml
+
+# Apply the namespace configuration
+kubectl apply -f incubator/kcc-google-abfs/rendered/standalone/infra/setup/namespace.yaml
 ```
 
 ---
