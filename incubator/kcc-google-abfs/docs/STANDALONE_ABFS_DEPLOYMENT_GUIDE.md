@@ -118,7 +118,7 @@ gcloud compute routers create router-abfs \
 gcloud compute routers nats create nat-abfs \
   --router=router-abfs \
   --region=europe-west3 \
-  --auto-allocate-external-ip-addresses \
+ --auto-allocate-nat-external-ips \
   --nat-all-subnet-ip-ranges
 ```
  
