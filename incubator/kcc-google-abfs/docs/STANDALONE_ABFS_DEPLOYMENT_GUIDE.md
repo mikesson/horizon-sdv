@@ -192,7 +192,46 @@ spec:
 ```bash
 kubectl apply -f configconnector.yaml
 ```
+### Troubleshooting
 
+#### Configuring Workload Identity for Config Connector (Cluster Mode)
+
+When setting up a new cluster or enabling the GKE Config Connector Add-on, you must link the Kubernetes controller to a Google Cloud Service Account and grant the appropriate IAM permissions so it can provision infrastructure.
+
+Run the following commands to configure the bindings and force the controller to pick up the new credentials:
+
+```bash
+# 1. Set environment variables
+
+export PROJECT_ID="your-project-id"
+export KCC_SA_NAME="cnrm-system" # The Google Cloud Service Account for Config Connector
+export KCC_SA_EMAIL="${KCC_SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com"
+
+# 2. Annotate the Kubernetes Service Account
+
+kubectl annotate serviceaccount \
+  --namespace cnrm-system \
+  cnrm-controller-manager \
+  iam.gke.io/gcp-service-account=${KCC_SA_EMAIL} \
+  --overwrite
+
+# 3. Grant Workload Identity Impersonation
+
+gcloud iam service-accounts add-iam-policy-binding \
+  ${KCC_SA_EMAIL} \
+  --role="roles/iam.workloadIdentityUser" \
+  --member="serviceAccount:${PROJECT_ID}.svc.id.goog[cnrm-system/cnrm-controller-manager]" \
+  --project="${PROJECT_ID}"
+
+# 4. Grant project resource management permissions
+
+gcloud projects add-iam-policy-binding ${PROJECT_ID} \
+  --member="serviceAccount:${KCC_SA_EMAIL}" \
+  --role="roles/owner"
+
+# 5. Force token refresh by restarting the controller pod
+
+kubectl delete pod cnrm-controller-manager-0 -n cnrm-system
 Create the dedicated `abfs` workload namespace, annotated with your GCP project ID:
 
 ```yaml
