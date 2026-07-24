@@ -137,7 +137,7 @@ gcloud container clusters create abfs \
   --release-channel=rapid \
   --cluster-version=1.36.0-gke.4681000 \
   --network=vpc-abfs \
-  --subnet=subnet-abfs \
+  --subnetwork=subnet-abfs \
   --enable-private-nodes \
   --enable-ip-alias \
   --master-ipv4-cidr=172.16.0.0/28 \
