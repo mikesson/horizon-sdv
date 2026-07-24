@@ -265,6 +265,9 @@ Under KCC, apply your declarative resource manifest bundle representing Spanner,
 Apply the infrastructure layer:
 ```bash
 kubectl apply -k rendered/standalone/infra/
+
+kubectl apply -f rendered/standalone/infra/setup/storageclass-hyperdisk-balanced.yaml
+
 ```
 
 Verify KCC reconciliation progress:
