@@ -183,14 +183,10 @@ gcloud iam service-accounts add-iam-policy-binding \
   --project=YOUR_PROJECT_ID
 ```
 
-Apply the core operator ConfigConnector configuration. First, replace the placeholder with your GCP Project ID in the pre-existing file:
+Apply the core operator ConfigConnector configuration (already parameterized by the bulk substitution step in Section 4):
 
 ```bash
-# Update the placeholder in the setup manifest
-sed -i 's/YOUR_PROJECT_ID/your-gcp-project-id/g' incubator/kcc-google-abfs/rendered/standalone/infra/setup/configconnector.yaml
-
-# Apply the ConfigConnector configuration
-kubectl apply -f incubator/kcc-google-abfs/rendered/standalone/infra/setup/configconnector.yaml
+kubectl apply -f rendered/standalone/infra/setup/configconnector.yaml
 ```
 ### Troubleshooting
 
@@ -232,14 +228,10 @@ gcloud projects add-iam-policy-binding ${PROJECT_ID} \
 # 5. Force token refresh by restarting the controller pod
 
 kubectl delete pod cnrm-controller-manager-0 -n cnrm-system
-Create the dedicated `abfs` workload namespace, annotated with your GCP project ID. First, replace the placeholder with your GCP Project ID in the pre-existing file:
+Create the dedicated `abfs` workload namespace, annotated with your GCP project ID (already parameterized by the bulk substitution step in Section 4):
 
 ```bash
-# Update the project-id annotation in the namespace manifest
-sed -i 's/YOUR_PROJECT_ID/your-gcp-project-id/g' incubator/kcc-google-abfs/rendered/standalone/infra/setup/namespace.yaml
-
-# Apply the namespace configuration
-kubectl apply -f incubator/kcc-google-abfs/rendered/standalone/infra/setup/namespace.yaml
+kubectl apply -f rendered/standalone/infra/setup/namespace.yaml
 ```
 
 ---
