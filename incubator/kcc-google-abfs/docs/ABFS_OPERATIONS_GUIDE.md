@@ -93,26 +93,3 @@ pusher:
 ### Step 2.2: Apply and Verify
 
 Apply using Helm as described in Section 1.2, and monitor the uploader logs to ensure the new custom manifest projects are being discovered and synced.
-
----
-
-## 3. Troubleshooting Configuration Sync Issues
-
-### 3.1. Dagsync Wait Timeout (`timeout waiting for dagsync to be idle`)
-
-During bootstrap config execution, if the previous server configuration reference is corrupted or contains empty config definitions (e.g. 0-byte `clients/configs`), the local cacheman background process will fail to decode it:
-
-```
-failed to decode *instance.ConfigRemoteOverrides config ...: EOF
-timeout waiting for dagsync to be idle
-```
-
-Because of this decode failure, the dagsync loop is never marked idle, causing `abfs cacheman wait` to block and eventually timeout.
-
-**Remediation:**
-1. Ensure the bootstrap Job initializes `clients/configs` with a valid empty JSON object `{}` instead of an empty file:
-   ```bash
-   echo "{}" > clients/configs
-   ```
-2. The bootstrap Job script is patched with `abfs cacheman wait || true` to make local waiting non-fatal. This guarantees that even if a historical broken ref causes cacheman to log a warning, the job successfully executes `put-ref` and overwrites the corrupted server ref with the new correct tree. Subsequent runs or uploader reloads will then decode successfully.
-
