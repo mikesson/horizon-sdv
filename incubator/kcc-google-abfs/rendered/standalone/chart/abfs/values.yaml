@@ -303,9 +303,9 @@ uploader:
   resources:
     requests:
       cpu: "8"
-      memory: 32Gi
+      memory: 64Gi
     limits:
-      memory: 32Gi
+      memory: 64Gi
   dataDisk:
     # -- uploader.dataDisk.size -- per-pod data PVC size (default 4096 GB).
     size: 4096Gi
@@ -428,7 +428,7 @@ vpa:
   # -- vpa.enabled -- render VerticalPodAutoscaler objects.
   enabled: true
   # -- vpa.updateMode -- Off | Initial | Auto | Recreate.
-  updateMode: "Off"
+  updateMode: "Auto"
 
 # ============================ NETWORK POLICY =================================
 networkPolicy:

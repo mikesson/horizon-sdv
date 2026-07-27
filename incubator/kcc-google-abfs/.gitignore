@@ -1,7 +1,11 @@
 # Local gitignore for ABFS sandbox to prevent checking in private credentials
 abfs-license.b64
 abfs-license.json
+license*
+
 standalone.env
 *.env
 
+values-local.yaml
 
+get_helm.sh

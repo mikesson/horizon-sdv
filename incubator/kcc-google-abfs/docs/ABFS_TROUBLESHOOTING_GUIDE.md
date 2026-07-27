@@ -10,6 +10,7 @@ This field guide documents real-world hurdles, organization policies, and infras
 4. [GKE Private Cluster DNS and Google API Isolation](#4-gke-private-cluster-dns-and-google-api-isolation)
 5. [Private Node Verification & SSH Blocker](#5-private-node-verification--ssh-blocker)
 6. [StatefulSet VolumeClaimTemplate Immutability & OOM Recovery](#6-statefulset-volumeclaimtemplate-immutability--oom-recovery)
+7. [Git-Pusher CrashLoopBackOff: Invalid Project Error](#7-git-pusher-crashloopbackoff-invalid-project-error)
 
 ---
 
@@ -59,7 +60,7 @@ In hardened enterprise GCP landing zones, several default organization policies 
     *   **Automated**: KCC's reconciliation engine automatically retries the operation. Allow 5 minutes, and KCC will self-heal and adopt the resource.
     *   **Manual Force**: Re-apply the manifest to force KCC to re-evaluate the API state immediately:
         ```bash
-        kubectl apply -k rendered/standalone/infra/
+        kubectl apply -k rendered/standalone/infra/overlays/sandbox
         ```
 
 ---
@@ -159,10 +160,26 @@ In hardened enterprise GCP landing zones, several default organization policies 
     # 1. Orphan-delete the StatefulSet controller (safely keeps pods and PVCs intact)
     kubectl delete statefulset abfs-gerrit-uploader -n abfs --cascade=orphan
 
-    # 2. Deploy your updated values-sandbox.yaml with 64Gi uploader memory limits
-    helm upgrade --install abfs ./incubator/kcc-google-abfs/rendered/standalone/chart/abfs -f ./incubator/kcc-google-abfs/values-sandbox.yaml -n abfs
+    # 2. Deploy your updated configurations
+    helm upgrade --install abfs ./rendered/standalone/chart/abfs \
+      -f values-sandbox.yaml \
+      -f values-local.yaml \
+      -n abfs
 
     # 3. Confirm all uploader shards are successfully updated and running
     kubectl get pods -n abfs -l app.kubernetes.io/name=abfs-gerrit-uploader
     ```
+
+---
+
+## 7. Git-Pusher CrashLoopBackOff: Invalid Project Error
+
+*   **Symptom**: One or all `abfs-gerrit-uploader` pods enter `CrashLoopBackOff`. Inspecting their logs (`kubectl logs -n abfs abfs-gerrit-uploader-0`) reveals a fatal configuration error:
+    ```
+    ignoring invalid *gitpusher.GitPusherPoolConfig config hash ...: invalid repo /: invalid project with no url, server or path
+    ```
+*   **Root Cause**: The generated `abfs-pusher-config` ConfigMap contains a redundant or malformed explicitly defined `- project:` block for the manifest repository. The `git-pusher` binary automatically clones the manifest and parses it; adding it again as a raw project block without strict `server` and `path` syntax crashes the Go YAML unmarshaler.
+*   **Remediation Playbook**:
+    1. Remove the redundant `- project:` definition block entirely from `rendered/standalone/chart/abfs/templates/configmap-pusher.yaml`. Rely solely on the `- manifest:` block.
+    2. Re-run your `helm upgrade` command. The `post-upgrade` bootstrap Job will automatically detect the change, generate a valid configuration, and push it to the server. The crashing uploaders will instantly pick up the new configuration hash and enter a healthy state.
 

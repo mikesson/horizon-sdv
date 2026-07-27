@@ -80,17 +80,41 @@ cd incubator/kcc-google-abfs/
 
 ---
 
-## 4. Parameterizing your GCP Project ID
+## 4. Configuration Strategy & Project Setup
 
-Before deploying, you must substitute the template placeholder `YOUR_PROJECT_ID` across all manifests and Helm configurations with your actual GCP Project ID.
+This repository uses a layered configuration approach to keep code clean while allowing flexible deployments:
+*   **`values.yaml` (Base):** The default Helm chart configuration with standard defaults.
+*   **`values-sandbox.yaml` (Environment Template):** A committed template specifically tuned to utilize the high-performance sandbox nodes. It uses `YOUR_PROJECT_ID` placeholders so it remains reusable for anyone.
+*   **`values-local.yaml` (Your Overrides):** A local file you create (ignored by Git) to inject your specific GCP Project ID. Helm safely merges this over the templates at deployment time.
 
-You can execute this instantly across all files in your workspace with this single command:
+Before deploying, you must substitute the template placeholders with your actual GCP Project ID.
+
+1. **For the Data Plane (Helm Chart)**:
+
+Create a `values-local.yaml` file (it is ignored by git) in the root of this module:
+
+```yaml
+projectId: YOUR_PROJECT_ID
+bucket: YOUR_PROJECT_ID-abfs-blobs
+```
+
+2. **For the Infrastructure (Config Connector)**:
+
+Edit the Kustomize overlay to set your project ID:
 
 ```bash
-# Replace 'my-gcp-project' with your actual GCP Project ID
-export MY_PROJECT_ID="my-gcp-project"
-find . -type f -not -path '*/.*' -exec sed -i "s/YOUR_PROJECT_ID/${MY_PROJECT_ID}/g" {} +
+# Open rendered/standalone/infra/overlays/sandbox/kustomization.yaml
+# Under configMapGenerator, change the last line PROJECT_ID=YOUR_PROJECT_ID to your actual project ID.
 ```
+
+3. Connect to your project
+
+```bash
+gcloud auth login
+gcloud config set project PROJECT_ID
+gcloud components install kubectl
+gcloud components install gke-gcloud-auth-plugin
+``` 
 
 ---
 
@@ -146,7 +170,13 @@ gcloud container clusters create abfs \
   --workload-pool=YOUR_PROJECT_ID.svc.id.goog \
   --enable-shielded-nodes \
   --shielded-secure-boot \
-  --shielded-integrity-monitoring
+  --shielded-integrity-monitoring \
+  --no-enable-master-authorized-networks
+
+# Fetch cluster credentials for kubectl
+gcloud container clusters get-credentials abfs \
+  --region=europe-west3 \
+  --project=YOUR_PROJECT_ID
 ```
 
 ---
@@ -161,77 +191,57 @@ gcloud container clusters update abfs \
   --region=europe-west3 \
   --project=YOUR_PROJECT_ID \
   --enable-vertical-pod-autoscaling
+``` 
+
 ```bash
 # 1. Enable KCC addon on the cluster
 gcloud container clusters update abfs \
   --region=europe-west3 \
   --update-addons ConfigConnector=ENABLED
 
-# 2. Create the GCP Service Account for KCC administration
-gcloud iam service-accounts create cnrm-system --project=YOUR_PROJECT_ID
-
-# 3. Grant the KCC SA Owner permissions on the project
-gcloud projects add-iam-policy-binding YOUR_PROJECT_ID \
-  --member="serviceAccount:cnrm-system@YOUR_PROJECT_ID.iam.gserviceaccount.com" \
-  --role="roles/owner"
-
-# 4. Bind the in-cluster KCC controller KSA to the GCP Service Account
-gcloud iam service-accounts add-iam-policy-binding \
-  cnrm-system@YOUR_PROJECT_ID.iam.gserviceaccount.com \
-  --member="serviceAccount:YOUR_PROJECT_ID.svc.id.goog[cnrm-system/cnrm-controller-manager-abfs]" \
-  --role="roles/iam.workloadIdentityUser" \
-  --project=YOUR_PROJECT_ID
-```
-
-Apply the core operator ConfigConnector configuration:
-
-```bash
-kubectl apply -f rendered/standalone/infra/setup/configconnector.yaml
-```
-### Troubleshooting
-
-#### Configuring Workload Identity for Config Connector (Cluster Mode)
-
-When setting up a new cluster or enabling the GKE Config Connector Add-on, you must link the Kubernetes controller to a Google Cloud Service Account and grant the appropriate IAM permissions so it can provision infrastructure.
-
-Run the following commands to configure the bindings and force the controller to pick up the new credentials:
-
-```bash
-# 1. Set environment variables
-
-export PROJECT_ID="your-project-id"
+# 2. Set environment variables
+export PROJECT_ID="YOUR_PROJECT_ID"
 export KCC_SA_NAME="cnrm-system" # The Google Cloud Service Account for Config Connector
 export KCC_SA_EMAIL="${KCC_SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com"
 
-# 2. Annotate the Kubernetes Service Account
+# 3. Create the GCP Service Account for KCC administration (if it doesn't already exist)
+gcloud iam service-accounts create ${KCC_SA_NAME} --project=${PROJECT_ID} || true
 
-kubectl annotate serviceaccount \
-  --namespace cnrm-system \
-  cnrm-controller-manager \
-  iam.gke.io/gcp-service-account=${KCC_SA_EMAIL} \
-  --overwrite
+# 4. Grant project resource management permissions (Owner) to the KCC SA
+gcloud projects add-iam-policy-binding ${PROJECT_ID} \
+  --member="serviceAccount:${KCC_SA_EMAIL}" \
+  --role="roles/owner"
 
-# 3. Grant Workload Identity Impersonation
-
+# 5. Grant Workload Identity Impersonation (Cluster Mode)
 gcloud iam service-accounts add-iam-policy-binding \
   ${KCC_SA_EMAIL} \
   --role="roles/iam.workloadIdentityUser" \
   --member="serviceAccount:${PROJECT_ID}.svc.id.goog[cnrm-system/cnrm-controller-manager]" \
   --project="${PROJECT_ID}"
 
-# 4. Grant project resource management permissions
+# 6. Annotate the Kubernetes Service Account
+# Wait for the KCC controller manager namespace to be created first
+kubectl wait --for=jsonpath='{.status.phase}'=Active namespace/cnrm-system --timeout=120s
+kubectl annotate serviceaccount \
+  --namespace cnrm-system \
+  cnrm-controller-manager \
+  iam.gke.io/gcp-service-account=${KCC_SA_EMAIL} \
+  --overwrite
 
-gcloud projects add-iam-policy-binding ${PROJECT_ID} \
-  --member="serviceAccount:${KCC_SA_EMAIL}" \
-  --role="roles/owner"
-
-# 5. Force token refresh by restarting the controller pod
-
+# 7. Force token refresh by restarting the controller pod
 kubectl delete pod cnrm-controller-manager-0 -n cnrm-system
+```
+
+Apply the core operator ConfigConnector configuration:
+
+```bash
+kubectl apply -f rendered/standalone/infra/base/setup/configconnector.yaml
+```
+
 Create the dedicated `abfs` workload namespace, annotated with your GCP project ID:
 
 ```bash
-kubectl apply -f rendered/standalone/infra/setup/namespace.yaml
+kubectl apply -f rendered/standalone/infra/base/setup/namespace.yaml
 ```
 
 ---
@@ -245,17 +255,21 @@ Under KCC, apply your declarative resource manifest bundle representing Spanner,
 
 Apply the infrastructure layer:
 ```bash
-kubectl apply -k rendered/standalone/infra/
+# Apply using Kustomize (automatically handles project ID injection)
+kubectl apply -k rendered/standalone/infra/overlays/sandbox
 
-kubectl apply -f rendered/standalone/infra/setup/storageclass-hyperdisk-balanced.yaml
-
+# Create custome storage class
+kubectl apply -f rendered/standalone/infra/base/setup/storageclass-hyperdisk-balanced.yaml
 ```
 
 Verify KCC reconciliation progress:
+
 ```bash
 kubectl get gcp -n abfs
 ```
 *Wait until all resources (Spanner Instance, Database, Bucket, SAs) show `READY: True`.*
+
+
 
 ---
 
@@ -264,21 +278,29 @@ kubectl get gcp -n abfs
 ABFS uses a strict Google-signed VM Identity token check. Follow this two-phase flow to generate the Licensed Service Account and retrieve your license.
 
 ### Phase A: Retrieve SA Unique ID
-1. Apply the Service Account KCC manifest:
-   ```bash
-   kubectl apply -f rendered/standalone/infra/10-iam-service-accounts.yaml
-   ```
+
+1. The Service Account is created when you apply the Kustomize infrastructure overlay:
+
+```bash
+kubectl apply -k rendered/standalone/infra/overlays/sandbox
+```
 2. Retrieve the Unique ID (OAuth2 Client ID) of the newly created `abfs-runtime` service account:
-   ```bash
-   gcloud iam service-accounts describe abfs-runtime@YOUR_PROJECT_ID.iam.gserviceaccount.com --project=YOUR_PROJECT_ID --format="value(uniqueId)"
-   ```
+
+```bash
+gcloud iam service-accounts describe abfs-runtime@${PROJECT_ID}.iam.gserviceaccount.com \
+  --project=${PROJECT_ID} \
+  --format="value(uniqueId)"
+```
+
 3. Submit this **SA Email** and **Unique ID**  as well as your **Project ID** and **Project Number** to the Google license team to obtain your `abfs-license.json`.
 
 ### Phase B: Pre-stage the License
+
 1. Once you receive `abfs-license.json`, Base64-encode it (without line wraps):
-   ```bash
-   base64 -w0 abfs-license.json > abfs-license.b64
-   ```
+
+```bash
+base64 -w0 abfs-license.json > abfs-license.b64
+```
 
 ---
 
@@ -291,8 +313,8 @@ gcloud container node-pools create abfs-data \
   --cluster=abfs \
   --region=europe-west3 \
   --node-locations=europe-west3-a \
-  --project=YOUR_PROJECT_ID \
-  --service-account=abfs-runtime@YOUR_PROJECT_ID.iam.gserviceaccount.com \
+  --project=${PROJECT_ID} \
+  --service-account=abfs-runtime@${PROJECT_ID}.iam.gserviceaccount.com \
   --workload-metadata=GCE_METADATA \
   --scopes=cloud-platform \
   --metadata-from-file abfs-license=./abfs-license.b64 \
@@ -314,82 +336,26 @@ gcloud container node-pools create abfs-data \
 ## 11. Deploying ABFS Workloads (Helm)
 
 Deploy the native **COS-integrated CASFS kernel module loader DaemonSet** to automatically load the pre-compiled `casfs` driver into kernel memory as nodes auto-scale:
-```yaml
-# casfs-image-loader.yaml
-apiVersion: apps/v1
-kind: DaemonSet
-metadata:
-  name: casfs-image-loader
-  namespace: abfs
-  labels:
-    app: casfs-image-loader
-spec:
-  selector:
-    matchLabels:
-      app: casfs-image-loader
-  template:
-    metadata:
-      labels:
-        app: casfs-image-loader
-    spec:
-      hostPID: true
-      tolerations:
-      - key: abfs.dev/dedicated
-        operator: Equal
-        value: "true"
-        effect: NoSchedule
-      nodeSelector:
-        cloud.google.com/gke-nodepool: abfs-data
-      initContainers:
-      - name: loader
-        image: alpine
-        securityContext:
-          privileged: true
-        command: ["sh", "-c", "nsenter -t 1 -m -u -i -n modprobe casfs"]
-      containers:
-      - name: pause
-        image: registry.k8s.io/pause:3.9
-```
 ```bash
-kubectl apply -f casfs-image-loader.yaml
+kubectl apply -f manifests/casfs-image-loader.yaml
 ```
 
-Create your high-performance `values-sandbox.yaml` file to utilize the full capacity of your dedicated physical nodes:
+The repository contains a high-performance `values-sandbox.yaml` file tuned to utilize the full capacity of your dedicated physical nodes. 
 
-```yaml
-# values-sandbox.yaml
-licensed: true
+Since you already created your `values-local.yaml` override file in **Step 4**, simply deploy the Helm chart by layering both configuration files together:
 
-spanner:
-  instance: abfs
-  database: abfs
+Deploy the Helm chart, passing both the sandbox configuration and your local overrides:
 
-bucket: YOUR_PROJECT_ID-abfs-blobs
-
-server:
-  resources:
-    requests:
-      cpu: "8"
-      memory: 32Gi
-    limits:
-      memory: 32Gi
-
-uploader:
-  count: 3
-  resources:
-    requests:
-      cpu: "8"
-      memory: 32Gi
-    limits:
-      memory: 64Gi  # Production recommendation of 64Gi limits prevents indexing OOM recycles
-  dataDisk:
-    size: 270Gi
-    storageClass: hyperdisk-balanced
-```
-
-Deploy the Helm chart:
 ```bash
-helm upgrade --install abfs ./rendered/standalone/chart/abfs -f values-sandbox.yaml -n abfs
+helm upgrade --install abfs ./rendered/standalone/chart/abfs \
+  -f values-sandbox.yaml \
+  -f values-local.yaml \
+  -n abfs
+
+# If helm is not installed, install it
+curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
+chmod 700 get_helm.sh
+./get_helm.sh
 ```
 
 ---
@@ -397,21 +363,27 @@ helm upgrade --install abfs ./rendered/standalone/chart/abfs -f values-sandbox.y
 ## 12. Live Validation & Verification
 
 1. Verify that the ABFS Server and Uploader pods schedule on the dedicated node pool and enter `Running` state:
-   ```bash
-   kubectl get pods -n abfs -o wide
-   ```
+
+```bash
+kubectl get pods -n abfs -o wide
+```
+
 2. Verify the server logs. You should see successful connection to Cloud Spanner and verification of the GCE VM licensed identity token:
-   ```bash
-   kubectl logs -l app.kubernetes.io/name=abfs-server -n abfs
-   ```
+
+```bash
+kubectl logs -l app.kubernetes.io/name=abfs-server -n abfs
+```
+
 3. Verify that the FUSE mount directory inside the container is successfully mounted and can read/write data:
-   ```bash
-   # Run a check on the uploader pod to ensure casfs is mounted
-   kubectl exec -it abfs-gerrit-uploader-0 -n abfs -- df -h | grep casfs
-   ```
+
+```bash
+# Run a check on the uploader pod to ensure casfs is mounted
+kubectl exec -it abfs-gerrit-uploader-0 -n abfs -- df -h | grep casfs
+```
+
 4. Track the seeding phase:
 
 ```bash
 # inside horizon-sdv/incubator/kcc-google-abfs
 python scripts/track-seeding.py
-
+``` 

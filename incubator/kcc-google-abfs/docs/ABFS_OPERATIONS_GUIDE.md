@@ -28,13 +28,26 @@ pusher:
       file: default.xml
 ```
 
+Example 2 for 16r4:
+
+```yaml
+pusher:
+  manifestProjectUrl: https://android.googlesource.com/platform/manifest
+  branchFiles:
+    - branch: main
+      file: default.xml
+    - branch: refs/tags/android-16.0.0_r4
+      file: default.xml
+``` 
+
 ### Step 1.2: Apply the Configuration via Helm
 
 Run a Helm upgrade to update the pusher ConfigMap and trigger the post-upgrade bootstrap Job:
 
 ```bash
-helm upgrade abfs ./incubator/kcc-google-abfs/rendered/standalone/chart/abfs \
-  -f ./incubator/kcc-google-abfs/values-sandbox.yaml \
+helm upgrade --install abfs ./rendered/standalone/chart/abfs \
+  -f values-sandbox.yaml \
+  -f values-local.yaml \
   -n abfs
 ```
 
@@ -60,6 +73,12 @@ The uploader pods (`abfs-gerrit-uploader-<idx>`) poll the central configuration 
 
 ```bash
 kubectl logs -n abfs abfs-gerrit-uploader-0 --tail=100
+```
+
+Alternatively, you can track the active seeding progress using the monitor script:
+
+```bash
+python scripts/track-seeding.py
 ```
 
 To force an immediate reload or ensure clean state, you can perform a rolling restart of the uploader StatefulSet:
