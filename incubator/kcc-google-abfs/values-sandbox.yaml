@@ -5,7 +5,7 @@
 licensed: true
 
 # GCP Project ID
-projectId: hrzn-deploy-abfs-standalone-1
+projectId: YOUR_PROJECT_ID
 
 # Spanner Instance & Database configurations (must match KCC names)
 spanner:
@@ -13,9 +13,9 @@ spanner:
   database: abfs
 
 # GCS blob storage bucket name (must match KCC name)
-bucket: hrzn-deploy-abfs-standalone-1-abfs-blobs
+bucket: YOUR_PROJECT_ID-abfs-blobs
 
-# ABFS Server Resource Scaling (Full production-grade allocation)
+# ABFS Server Resource Scaling
 server:
   resources:
     requests:
@@ -35,7 +35,6 @@ uploader:
     limits:
       memory: 64Gi  # Raised memory limit to 64Gi prevents OOM indexing recycles on AOSP
   dataDisk:
-    # 270 GiB matches sandbox quotas perfectly
     size: 270Gi
     storageClass: hyperdisk-balanced
 
@@ -45,9 +44,9 @@ pusher:
   branchFiles:
     - branch: main
       file: default.xml
-    - branch: android-14.0.0_r1
-      file: default.xml
-    - branch: android-14.0.0_r2
+    - branch: android-16.0.0_r4
       file: default.xml
 
-
+vpa:
+  enabled: true
+  updateMode: "Off"

@@ -32,7 +32,9 @@ metadata:
   name: abfs-runtime-spanner-dbuser
   namespace: abfs
 spec:
-  member: "serviceAccount:abfs-runtime@YOUR_PROJECT_ID.iam.gserviceaccount.com"
+  memberFrom:
+    serviceAccountRef:
+      name: abfs-runtime
   role: roles/spanner.databaseUser
   resourceRef:
     kind: Project
@@ -44,7 +46,9 @@ metadata:
   name: abfs-runtime-storage-objectadmin
   namespace: abfs
 spec:
-  member: "serviceAccount:abfs-runtime@YOUR_PROJECT_ID.iam.gserviceaccount.com"
+  memberFrom:
+    serviceAccountRef:
+      name: abfs-runtime
   role: roles/storage.objectAdmin
   resourceRef:
     kind: Project
@@ -56,7 +60,9 @@ metadata:
   name: abfs-runtime-monitoring-metricwriter
   namespace: abfs
 spec:
-  member: "serviceAccount:abfs-runtime@YOUR_PROJECT_ID.iam.gserviceaccount.com"
+  memberFrom:
+    serviceAccountRef:
+      name: abfs-runtime
   role: roles/monitoring.metricWriter
   resourceRef:
     kind: Project
@@ -68,7 +74,9 @@ metadata:
   name: abfs-runtime-monitoring-viewer
   namespace: abfs
 spec:
-  member: "serviceAccount:abfs-runtime@YOUR_PROJECT_ID.iam.gserviceaccount.com"
+  memberFrom:
+    serviceAccountRef:
+      name: abfs-runtime
   role: roles/monitoring.viewer
   resourceRef:
     kind: Project
@@ -80,7 +88,9 @@ metadata:
   name: abfs-runtime-stackdriver-metadatawriter
   namespace: abfs
 spec:
-  member: "serviceAccount:abfs-runtime@YOUR_PROJECT_ID.iam.gserviceaccount.com"
+  memberFrom:
+    serviceAccountRef:
+      name: abfs-runtime
   role: roles/stackdriver.resourceMetadata.writer
   resourceRef:
     kind: Project
@@ -92,7 +102,9 @@ metadata:
   name: abfs-runtime-logging-logwriter
   namespace: abfs
 spec:
-  member: "serviceAccount:abfs-runtime@YOUR_PROJECT_ID.iam.gserviceaccount.com"
+  memberFrom:
+    serviceAccountRef:
+      name: abfs-runtime
   role: roles/logging.logWriter
   resourceRef:
     kind: Project

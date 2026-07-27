@@ -1,0 +1,50 @@
+# Sandbox Environment Overlay
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../../base
+
+# In the KCC standard, the Namespace annotation 'cnrm.cloud.google.com/project-id'
+# defines the default project for all resources in that namespace. 
+# However, globally unique resources (like StorageBucket names) and external references
+# (like IAM Project roles) still require explicit project IDs.
+#
+# Kustomize dynamically searches and replaces the base 'YOUR_PROJECT_ID' placeholder
+# at runtime before the YAML hits the cluster, keeping the base files clean.
+replacements:
+  - source:
+      kind: ConfigMap
+      name: project-config
+      fieldPath: data.PROJECT_ID
+    targets:
+      # Inject Project ID into the Namespace annotation (which cascades to all KCC resources)
+      - select:
+          kind: Namespace
+          name: abfs
+        fieldPaths:
+          - metadata.annotations.[cnrm.cloud.google.com/project-id]
+      # Inject Project ID into the GCS Bucket name
+      - select:
+          kind: StorageBucket
+          name: YOUR_PROJECT_ID-abfs-blobs
+        fieldPaths:
+          - metadata.name
+        options:
+          delimiter: '-'
+          index: 0
+      # Inject Project ID into IAM Policy Project references
+      - select:
+          kind: IAMPolicyMember
+          name: ^abfs-runtime-.*
+        fieldPaths:
+          - spec.resourceRef.external
+        options:
+          delimiter: '/'
+          index: 1
+
+configMapGenerator:
+  - name: project-config
+    behavior: create
+    literals:
+      - PROJECT_ID=abfs-sandbox
