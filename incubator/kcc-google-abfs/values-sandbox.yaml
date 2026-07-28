@@ -24,7 +24,8 @@ server:
     limits:
       memory: 32Gi
 
-# ABFS Uploader Resource & Replica Scaling (Full production-grade allocation)
+# ABFS Uploader Resource & Replica Scaling
+# Note: The 32Gi memory request mathematically guarantees 1 uploader per n4-standard-16 VM (Result = 3 VMs total)
 uploader:
   # 3 concurrent uploader streams for high-speed seeding
   count: 3

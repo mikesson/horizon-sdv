@@ -4,6 +4,19 @@ This guide covers key operational tasks for managing and maintaining a standalon
 
 ---
 
+## 0. Re-authenticate with GKE (if needed)
+
+
+```bash
+export PROJECT_ID="YOUR_PROJECT_ID"
+gcloud auth login
+gcloud config set project ${PROJECT_ID}
+gcloud auth application-default login
+# Re-fetch your kubectl credentials
+gcloud container clusters get-credentials abfs --region europe-west3 --project ${PROJECT_ID}
+```
+
+
 ## 1. Reconfiguring Git-Pushers to Sync New Branches or Android Versions
 
 The git-pushers (uploaders) fetch Git metadata and repository packs based on a central configuration. This configuration is declared in the Helm values and seeded into the ABFS metadata repository (`abfs-meta`) via a post-upgrade bootstrap Job.
@@ -27,18 +40,6 @@ pusher:
     - branch: android-14.0.0_r2
       file: default.xml
 ```
-
-Example 2 for 16r4:
-
-```yaml
-pusher:
-  manifestProjectUrl: https://android.googlesource.com/platform/manifest
-  branchFiles:
-    - branch: main
-      file: default.xml
-    - branch: refs/tags/android-16.0.0_r4
-      file: default.xml
-``` 
 
 ### Step 1.2: Apply the Configuration via Helm
 
