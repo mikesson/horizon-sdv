@@ -110,8 +110,12 @@ Edit the Kustomize overlay to set your project ID:
 3. Connect to your project
 
 ```bash
+export PROJECT_ID="YOUR_PROJECT_ID"
+
 gcloud auth login
-gcloud config set project PROJECT_ID
+gcloud config set project ${PROJECT_ID}
+
+# if not installed, install kubectl and gke-gcloud-auth-plugin
 gcloud components install kubectl
 gcloud components install gke-gcloud-auth-plugin
 ``` 
@@ -167,7 +171,7 @@ gcloud container clusters create abfs \
   --master-ipv4-cidr=172.16.0.0/28 \
   --machine-type=n4-standard-16 \
   --num-nodes=1 \
-  --workload-pool=YOUR_PROJECT_ID.svc.id.goog \
+  --workload-pool=${PROJECT_ID}.svc.id.goog \
   --enable-shielded-nodes \
   --shielded-secure-boot \
   --shielded-integrity-monitoring \
@@ -176,7 +180,7 @@ gcloud container clusters create abfs \
 # Fetch cluster credentials for kubectl
 gcloud container clusters get-credentials abfs \
   --region=europe-west3 \
-  --project=YOUR_PROJECT_ID
+  --project=${PROJECT_ID}
 ```
 
 ---
@@ -189,7 +193,7 @@ Enable vertical autoscaling:
 ```bash
 gcloud container clusters update abfs \
   --region=europe-west3 \
-  --project=YOUR_PROJECT_ID \
+  --project=${PROJECT_ID} \
   --enable-vertical-pod-autoscaling
 ``` 
 
@@ -200,7 +204,6 @@ gcloud container clusters update abfs \
   --update-addons ConfigConnector=ENABLED
 
 # 2. Set environment variables
-export PROJECT_ID="YOUR_PROJECT_ID"
 export KCC_SA_NAME="cnrm-system" # The Google Cloud Service Account for Config Connector
 export KCC_SA_EMAIL="${KCC_SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com"
 
