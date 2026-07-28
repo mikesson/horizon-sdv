@@ -54,8 +54,12 @@ data:
         project-defaults:
           workers: {{ .Values.pusher.workers }}
           fetch-ref-spec:
+          {{- if .Values.pusher.fetchRefSpec }}
+          {{- toYaml .Values.pusher.fetchRefSpec | nindent 12 }}
+          {{- else }}
             - refs/*:refs/*
             - ^refs/changes/*/meta
             - ^refs/changes/*/robot-comments
             - ^refs/cache-automerge/*
+          {{- end }}
 
