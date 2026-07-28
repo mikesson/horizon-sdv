@@ -159,7 +159,8 @@ def monitor_loop():
                             ready_pods += 1
 
             # 4. Render Dashboard
-            sys.stdout.write(CLEAR_SCREEN)
+            import os
+            os.system('clear')
             print(f"{BOLD}{BLUE}======================================================================={RESET}")
             print(f"{BOLD}{CYAN}             STANDALONE ABFS SEEDING MONITOR & PROGRESS                {RESET}")
             print(f"{BOLD}{BLUE}======================================================================={RESET}")
