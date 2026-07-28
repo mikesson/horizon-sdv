@@ -118,7 +118,7 @@ spec:
               cp /etc/pusher-config/default git-pusher/default
               echo "concurrent-uploads: {{ .Values.pusher.concurrentUploads }}" > clients/defaults
               echo "concurrent-uploads: {{ .Values.pusher.concurrentUploads }}" > clients/android.googlesource.com
-              echo "{}" > clients/configs
+              echo "[]" > clients/configs
               git add git-pusher/default clients/defaults clients/android.googlesource.com clients/configs
               git config --global user.email "{{ include "abfs.runtimeServiceAccount" . | default "abfs-bootstrap@localhost" }}"
               git config --global user.name "ABFS Bootstrap Job"
