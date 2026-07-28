@@ -142,8 +142,9 @@ def monitor_loop():
                             total_queued_items += queued
                             total_running_items += running
 
-                    # Check for fatal config errors that stop it from starting
-                    if "ignoring invalid" in line or "invalid repo" in line or "FATAL" in line or "panic" in line:
+                    # Check for fatal errors that crash the uploader or indicate resource exhaustion
+                    lower_line = line.lower()
+                    if "ignoring invalid" in line or "invalid repo" in line or "FATAL" in line or "panic" in line or "no space left on device" in lower_line or "connection refused" in lower_line:
                         print(f"\n{RED}ERROR in {pod} logs:{RESET}")
                         print(f"{RED}{line}{RESET}")
                         sys.exit(1)

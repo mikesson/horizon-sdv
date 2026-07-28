@@ -322,7 +322,7 @@ gcloud container node-pools create abfs-data \
   --scopes=cloud-platform \
   --metadata-from-file abfs-license=./abfs-license.b64 \
   --metadata disable-legacy-endpoints=true \
-  --machine-type=n4-standard-16 \
+  --machine-type=n4-standard-32 \
   --disk-type=hyperdisk-balanced \
   --disk-size=100 \
   --enable-autoscaling \
