@@ -112,6 +112,11 @@ Edit the Kustomize overlay to set your project ID:
 ```bash
 export PROJECT_ID="YOUR_PROJECT_ID"
 
+# Generate the Kustomize overlay configuration file (this file is gitignored)
+echo "PROJECT_ID=${PROJECT_ID}" > rendered/standalone/infra/overlays/sandbox/setup/project.env
+echo "KCC_SERVICE_ACCOUNT=cnrm-system@${PROJECT_ID}.iam.gserviceaccount.com" >> rendered/standalone/infra/overlays/sandbox/setup/project.env
+echo "CLOUDBUILD_WI=serviceAccount:${PROJECT_ID}.svc.id.goog[abfs/abfs-cloudbuild]" >> rendered/standalone/infra/overlays/sandbox/setup/project.env
+
 gcloud auth login
 gcloud config set project ${PROJECT_ID}
 
@@ -223,8 +228,11 @@ gcloud iam service-accounts add-iam-policy-binding \
   --project="${PROJECT_ID}"
 
 # 6. Annotate the Kubernetes Service Account
-# Wait for the KCC controller manager namespace to be created first
+
+# Wait for the KCC controller manager service account to be created by the GKE Addon manager
 kubectl wait --for=jsonpath='{.status.phase}'=Active namespace/cnrm-system --timeout=120s
+
+# Only annotate after the namespace and service account are ready.
 kubectl annotate serviceaccount \
   --namespace cnrm-system \
   cnrm-controller-manager \
@@ -235,16 +243,10 @@ kubectl annotate serviceaccount \
 kubectl delete pod cnrm-controller-manager-0 -n cnrm-system
 ```
 
-Apply the core operator ConfigConnector configuration:
+Apply the core operator ConfigConnector configuration and dedicated workload namespace (patched dynamically via Kustomize):
 
 ```bash
-kubectl apply -f rendered/standalone/infra/base/setup/configconnector.yaml
-```
-
-Create the dedicated `abfs` workload namespace, annotated with your GCP project ID:
-
-```bash
-kubectl apply -f rendered/standalone/infra/base/setup/namespace.yaml
+kubectl apply -k rendered/standalone/infra/overlays/sandbox/setup
 ```
 
 ---
@@ -311,6 +313,9 @@ base64 -w0 abfs-license.json > abfs-license.b64
 
 Provision the dedicated `abfs-data` node pool. **This pool bypasses Workload Identity** (`--workload-metadata=GCE_METADATA`) to expose the GCE metadata server directly to the pods, loaded with the base64-encoded license string.
 
+> [!TIP]
+> **High Performance Seeding Option:** To use the legacy Terraform maximum throughput specs (Server: 64 Cores/512Gi, Uploader: 48 Cores/192Gi), change the `--machine-type` below to `n2-highmem-80` to ensure the pod requests fit within Kubernetes's allocatable node overhead constraints. Then uncomment the corresponding resource blocks in `values-sandbox.yaml`.
+
 ```bash
 gcloud container node-pools create abfs-data \
   --cluster=abfs \
@@ -322,7 +327,7 @@ gcloud container node-pools create abfs-data \
   --scopes=cloud-platform \
   --metadata-from-file abfs-license=./abfs-license.b64 \
   --metadata disable-legacy-endpoints=true \
-  --machine-type=n4-standard-32 \
+  --machine-type=n4-highmem-32 \
   --disk-type=hyperdisk-balanced \
   --disk-size=100 \
   --enable-autoscaling \
@@ -368,7 +373,11 @@ chmod 700 get_helm.sh
 1. Verify that the ABFS Server and Uploader pods schedule on the dedicated node pool and enter `Running` state:
 
 ```bash
+# get pod list
 kubectl get pods -n abfs -o wide
+
+# optionally get a more interactive view with k9s
+k9s -n abfs
 ```
 
 2. Verify the server logs. You should see successful connection to Cloud Spanner and verification of the GCE VM licensed identity token:

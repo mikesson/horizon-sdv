@@ -18,11 +18,17 @@ bucket: YOUR_PROJECT_ID-abfs-blobs
 # ABFS Server Resource Scaling
 server:
   resources:
+    # HIGH PERFORMANCE SEEDING OPTION (Requires n2-highmem-80 or larger nodes to fit K8s allocatable overhead):
+    # requests:
+    #   cpu: "64"
+    #   memory: 512Gi
+    # limits:
+    #   memory: 512Gi
     requests:
       cpu: "8"
-      memory: 64Gi
+      memory: 100Gi
     limits:
-      memory: 64Gi
+      memory: 100Gi
 
 # ABFS Uploader Resource & Replica Scaling (Full production-grade allocation)
 # Note: The 64Gi memory request mathematically guarantees 1 uploader per n4-standard-32 VM (Result = 3 VMs total)
@@ -30,11 +36,17 @@ uploader:
   # 3 concurrent uploader streams for high-speed seeding
   count: 3
   resources:
+    # HIGH PERFORMANCE SEEDING OPTION (Requires n2-highmem-80 or larger nodes to fit K8s allocatable overhead):
+    # requests:
+    #   cpu: "48"
+    #   memory: 192Gi
+    # limits:
+    #   memory: 192Gi
     requests:
       cpu: "16"
-      memory: 64Gi
+      memory: 192Gi
     limits:
-      memory: 100Gi  # Raised memory limit prevents OOM indexing recycles on massive AOSP repos
+      memory: 192Gi  # Guaranteed QoS: Mathematically reserves the entire node for this uploader
   dataDisk:
     size: 1500Gi
     storageClass: hyperdisk-balanced

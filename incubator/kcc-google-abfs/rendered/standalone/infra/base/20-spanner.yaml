@@ -42,7 +42,7 @@ spec:
   # e.g. regional-europe-west1
   config: regional-europe-west3
   displayName: ABFS
-  processingUnits: 100
+  processingUnits: 2000
 ---
 apiVersion: spanner.cnrm.cloud.google.com/v1beta1
 kind: SpannerDatabase
