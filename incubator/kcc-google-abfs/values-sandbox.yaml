@@ -24,11 +24,12 @@ server:
     #   memory: 512Gi
     # limits:
     #   memory: 512Gi
+    # Scaled to consume a full n4-highmem-32 node to keep up with 3 uploaders
     requests:
-      cpu: "8"
-      memory: 100Gi
+      cpu: "28"
+      memory: 192Gi
     limits:
-      memory: 100Gi
+      memory: 192Gi
 
 # ABFS Uploader Resource & Replica Scaling (Full production-grade allocation)
 # Note: The 192Gi memory request mathematically guarantees 1 uploader per n4-highmem-32 VM (Result = 3 VMs total)
