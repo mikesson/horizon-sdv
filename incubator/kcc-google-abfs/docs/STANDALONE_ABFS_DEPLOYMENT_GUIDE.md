@@ -72,7 +72,7 @@ Go to **IAM & Admin > Quotas** in the GCP Console and ensure your target region 
  
 ## 3. Workspace Navigation
 
-Before executing any commands, change your working directory to the consolidated module subdirectory. This guarantees that all relative paths for declarative YAML templates and Helm configurations (such as `rendered/` and `chart/`) resolve flawlessly:
+Before executing any commands, change your working directory to the consolidated module subdirectory. This guarantees that all relative paths for declarative YAML templates and Helm configurations (such as `rendered/`) resolve flawlessly:
 
 ```bash
 cd incubator/kcc-google-abfs/

@@ -1,5 +1,5 @@
 # High-Performance Sandbox overrides for Standalone ABFS deployment
-# Configured for upgraded n4-standard-32 (32 vCPU, 128 GiB RAM) GKE nodes with Autoscaling.
+# Configured for upgraded n4-highmem-32 GKE nodes with Autoscaling.
 
 # Gate server/uploaders/bootstrap on the licensed node pool existing
 licensed: true
@@ -31,7 +31,7 @@ server:
       memory: 100Gi
 
 # ABFS Uploader Resource & Replica Scaling (Full production-grade allocation)
-# Note: The 64Gi memory request mathematically guarantees 1 uploader per n4-standard-32 VM (Result = 3 VMs total)
+# Note: The 192Gi memory request mathematically guarantees 1 uploader per n4-highmem-32 VM (Result = 3 VMs total)
 uploader:
   # 3 concurrent uploader streams for high-speed seeding
   count: 3
