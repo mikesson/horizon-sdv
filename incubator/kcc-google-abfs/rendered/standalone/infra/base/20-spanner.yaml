@@ -42,7 +42,8 @@ spec:
   # e.g. regional-europe-west1
   config: regional-europe-west3
   displayName: ABFS
-  processingUnits: 2000
+  # Scale Spanner up to 5 Nodes (5000 PUs) to handle 3 concurrent 16-core uploaders
+  processingUnits: 5000
 ---
 apiVersion: spanner.cnrm.cloud.google.com/v1beta1
 kind: SpannerDatabase
