@@ -63,12 +63,10 @@ pusher:
   #     file: default.xml
 
   # --- FAST SANDBOX TESTING CONFIG ---
-  # Limit the sync strictly to android-16.0.0_r4 to speed up testing
+  # Limit the sync to the android16 branch to speed up testing
   branchFiles:
     - branch: android-16.0.0_r4
       file: default.xml
-  fetchRefSpec:
-    - +refs/tags/android-16.0.0_r4:refs/tags/android-16.0.0_r4
 
 vpa:
   enabled: true
