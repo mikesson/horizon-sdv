@@ -113,3 +113,54 @@ pusher:
 ### Step 2.2: Apply and Verify
 
 Apply using Helm as described in Section 1.2, and monitor the uploader logs to ensure the new custom manifest projects are being discovered and synced.
+
+---
+
+## 3. Cost Optimization: Post-Seeding Scale-Down
+
+After initial Spanner seeding of the AOSP manifest completes, the `abfs-gerrit-uploader` pods perform little work, and `abfs-server` only serves lightweight metadata queries because `abfs mount` caches file blobs locally on the client VM (`~/src` and `~/.abfs`). Cloud Spanner's processing load drops by >90%.
+
+To reduce total infrastructure costs by **>70%** without deleting any seeded data in Spanner/GCS or interrupting your running client VM, execute this three-step surgical scale-down:
+
+### Step 3.1: Apply the Post-Seeding Helm Overlay (`values-scaledown.yaml`)
+Apply `values-scaledown.yaml` alongside your base values. This scales `abfs-gerrit-uploader` to **1 minimal replica** (requests: `2 CPU / 8Gi RAM`, limits: `6 CPU / 16Gi RAM`) to continuously fetch incremental remote branch updates, disables the uploader PodDisruptionBudget (`pdb.enabled: false`) so GKE node drains are never blocked, and resizes `abfs-server` to a lightweight build profile (requests: `2 CPU / 8Gi RAM`, limits: `8 CPU / 16Gi RAM`):
+
+```bash
+helm upgrade --install abfs ./rendered/standalone/chart/abfs \
+  -f values-sandbox.yaml \
+  -f values-local.yaml \
+  -f values-scaledown.yaml \
+  -n abfs
+```
+
+### Step 3.2: Scale Down Cloud Spanner Processing Units
+Reduce Spanner Processing Units from `4000` (4 nodes) down to `200` (0.2 nodes), cutting Spanner billing by 95%:
+
+```bash
+# Via kubectl patch (if managing Spanner via KCC):
+kubectl patch spannerinstance abfs -n abfs --type='merge' -p '{"spec":{"processingUnits":200}}'
+
+# Or via gcloud CLI directly:
+gcloud spanner instances update abfs \
+  --processing-units=200 \
+  --project=YOUR_PROJECT_ID
+```
+
+### Step 3.3: Scale the GKE Data Node Pool Down to 1 Node
+Because all ABFS pods (`abfs-server-0` and `abfs-gerrit-uploader-0`) require `nodeSelector: cloud.google.com/gke-nodepool: abfs-data` and the `abfs-runtime` service account for licensing and IAM permissions, they **live on the `abfs-data` node pool**.
+
+During active seeding, `abfs-data` ran 4 nodes (1 per heavy uploader + 1 for the server). With both pods scaled to lightweight `2 CPU / 8Gi RAM` profiles, they comfortably share a **single node**. Resize `abfs-data` from 4 nodes down to 1:
+
+```bash
+gcloud container clusters resize abfs \
+  --node-pool=abfs-data \
+  --num-nodes=1 \
+  --region=europe-west3 \
+  --quiet
+```
+
+### Step 3.4: Reverting (Scaling Back Up to Seed New Branches)
+When you need to ingest or seed new Android release branches:
+1. Scale Spanner back to 4000 Processing Units (`--processing-units=4000`).
+2. Scale `abfs-data` node pool back up (`--num-nodes=4`).
+3. Re-run `helm upgrade` **without** `-f values-scaledown.yaml`.
