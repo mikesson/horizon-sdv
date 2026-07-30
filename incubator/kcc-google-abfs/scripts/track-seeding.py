@@ -132,15 +132,16 @@ def monitor_loop():
                             running = int(blobs_match.group(3))
                             queued = int(blobs_match.group(2)) - running
                             
-                            active_repos[repo_name] = {
-                                "pod": pod,
-                                "queued": queued,
-                                "running": running,
-                                "failed": 0,
-                                "blocked": 0
-                            }
-                            total_queued_items += queued
-                            total_running_items += running
+                            if queued > 0 or running > 0:
+                                active_repos[repo_name] = {
+                                    "pod": pod,
+                                    "queued": queued,
+                                    "running": running,
+                                    "failed": 0,
+                                    "blocked": 0
+                                }
+                                total_queued_items += queued
+                                total_running_items += running
 
                     # Check for fatal errors that crash the uploader or indicate resource exhaustion
                     lower_line = line.lower()
