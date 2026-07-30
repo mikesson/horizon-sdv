@@ -1,0 +1,34 @@
+# ==============================================================================
+# Post-Seeding Scale-Down Overlay (values-scaledown.yaml)
+#
+# Apply via Helm:
+#     helm upgrade --install abfs ./rendered/standalone/chart/abfs \
+#       -f values-sandbox.yaml \
+#       -f values-local.yaml \
+#       -f values-scaledown.yaml \
+#       -n abfs
+# ==============================================================================
+
+# 1. Scale Uploaders to 1 Minimal Replica
+uploader:
+  count: 1
+  pdb:
+    enabled: false
+  resources:
+    requests:
+      cpu: "2"
+      memory: 8Gi
+    limits:
+      cpu: "6"
+      memory: 16Gi
+
+# 2. Scale Server to Lightweight Build Profile
+server:
+  replicas: 1
+  resources:
+    requests:
+      cpu: "2"
+      memory: 8Gi
+    limits:
+      cpu: "8"
+      memory: 16Gi
