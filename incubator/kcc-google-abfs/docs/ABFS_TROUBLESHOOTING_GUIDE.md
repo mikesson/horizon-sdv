@@ -11,6 +11,7 @@ This field guide documents real-world hurdles, organization policies, and infras
 5. [Private Node Verification & SSH Blocker](#5-private-node-verification--ssh-blocker)
 6. [StatefulSet VolumeClaimTemplate Immutability & OOM Recovery](#6-statefulset-volumeclaimtemplate-immutability--oom-recovery)
 7. [Git-Pusher CrashLoopBackOff: Invalid Project Error](#7-git-pusher-crashloopbackoff-invalid-project-error)
+8. [Standalone GCE VM Troubleshooting & Operations Reference](#8-standalone-gce-vm-troubleshooting--operations-reference)
 
 ---
 
@@ -183,3 +184,28 @@ In hardened enterprise GCP landing zones, several default organization policies 
     1. Remove the redundant `- project:` definition block entirely from `rendered/standalone/chart/abfs/templates/configmap-pusher.yaml`. Rely solely on the `- manifest:` block.
     2. Re-run your `helm upgrade` command. The `post-upgrade` bootstrap Job will automatically detect the change, generate a valid configuration, and push it to the server. The crashing uploaders will instantly pick up the new configuration hash and enter a healthy state.
 
+---
+
+## 8. Standalone GCE VM Troubleshooting & Operations Reference
+
+When operating an ABFS client on a standalone Ubuntu VM (as documented in [ABFS_CLIENT_VM_BUILD_GUIDE.md](file:///usr/local/google/home/tkliefoth/repos/horizon-sdv/incubator/kcc-google-abfs/docs/ABFS_CLIENT_VM_BUILD_GUIDE.md)), use the following debugging and operational procedures:
+
+*   **Check CASFS Module Registration**:
+    ```bash
+    lsmod | grep casfs
+    sudo modinfo casfs
+    ```
+*   **Inspect Kernel Module Diagnostics**:
+    ```bash
+    sudo dmesg -w | grep -i casfs
+    ```
+*   **Tail Cacheman Logs**:
+    ```bash
+    abfs cacheman tail
+    # Or inspect log directory:
+    tail -f ~/.abfs/logs/*
+    ```
+*   **Run Diagnostic Health Check**:
+    ```bash
+    abfs doctor
+    ```
