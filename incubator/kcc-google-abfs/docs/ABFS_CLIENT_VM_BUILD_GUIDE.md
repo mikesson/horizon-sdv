@@ -139,6 +139,22 @@ lunch aosp_cf_x86_64_phone-trunk_staging-userdebug
 m droid
 ```
 
+> [!TIP]
+> **Running Persistent Builds (Surviving SSH Disconnection)**
+> AOSP compilation can take an hour or more. To ensure your build continues running even if your laptop sleeps or your SSH session drops:
+> * **Option A (Recommended — `tmux`)**:
+>   ```bash
+>   tmux new -s aosp               # 1. Start a named tmux session
+>   # ... run envsetup, lunch, and m droid inside tmux ...
+>   # 2. Detach anytime without killing the build: Press Ctrl+b, then d
+>   tmux attach -t aosp            # 3. Reconnect to monitor progress anytime
+>   ```
+> * **Option B (`nohup` Background Build)**:
+>   ```bash
+>   nohup m droid > ~/src/build.log 2>&1 &
+>   tail -f ~/src/build.log        # Check logs anytime
+>   ```
+
 ---
 
 ## 5. Troubleshooting & Operations Reference
