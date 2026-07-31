@@ -34,6 +34,15 @@ sudo apt-get install -y --allow-unauthenticated \
     repo \
     git \
     python3 \
+    unzip \
+    zip \
+    build-essential \
+    rsync \
+    bc \
+    libelf-dev \
+    bison \
+    flex \
+    libcap2-bin \
     ${PINNED_CASFS_PKG}
 
 echo "=== 3. Relaxing AppArmor for Unprivileged User Namespaces ==="
