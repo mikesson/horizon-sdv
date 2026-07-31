@@ -123,7 +123,7 @@ After initial Spanner seeding of the AOSP manifest completes, the `abfs-gerrit-u
 To reduce total infrastructure costs by **>70%** without deleting any seeded data in Spanner/GCS or interrupting your running client VM, execute this three-step surgical scale-down:
 
 ### Step 3.1: Apply the Post-Seeding Helm Overlay (`values-scaledown.yaml`)
-Apply `values-scaledown.yaml` alongside your base values. This scales `abfs-gerrit-uploader` to **1 minimal replica** (requests: `4 CPU / 32Gi RAM`, limits: `16 CPU / 128Gi RAM`) to continuously fetch incremental remote branch updates without OOMing, disables the uploader PodDisruptionBudget (`pdb.enabled: false`) so GKE node drains are never blocked, and resizes `abfs-server` to a lightweight build profile (requests: `2 CPU / 8Gi RAM`, limits: `8 CPU / 16Gi RAM`):
+Apply `values-scaledown.yaml` alongside your base values. This scales `abfs-gerrit-uploader` to **1 minimal replica** (requests: `4 CPU / 32Gi RAM`, limits: `16 CPU / 128Gi RAM`) to continuously fetch incremental remote branch updates without OOMing, disables the uploader PodDisruptionBudget (`pdb.enabled: false`) so GKE node drains are never blocked, and resizes `abfs-server` to a lightweight build profile (requests: `4 CPU / 16Gi RAM`, limits: `16 CPU / 64Gi RAM`):
 
 ```bash
 helm upgrade --install abfs ./rendered/standalone/chart/abfs \
