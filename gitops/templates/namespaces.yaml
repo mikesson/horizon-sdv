@@ -66,34 +66,13 @@ spec:
       port: 53
     - protocol: TCP
       port: 53
-{{- end }}
----
-# Allow Landing Page internet egress
-{{- if .Values.config.enableNetworkPolicies }}
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: allow-landingpage-egress-to-internet
-  namespace: {{ .Values.config.namespacePrefix }}horizon
-  annotations:
-    argocd.argoproj.io/sync-wave: "0"
-spec:
-  podSelector:
-    matchLabels:
-      app.kubernetes.io/name: landingpage
-  policyTypes:
-  - Egress
-  egress:
+  # GKE Workload Identity: token/metadata via 169.254.169.252:988 (GKE 1.21+)
   - to:
     - ipBlock:
-        cidr: 0.0.0.0/0
-        except:
-        - 169.254.169.254/32
+        cidr: 169.254.169.252/32
     ports:
     - protocol: TCP
-      port: 443    # HTTPS
-    - protocol: TCP
-      port: 80     # HTTP
+      port: 988
 {{- end }}
 ---
 apiVersion: v1

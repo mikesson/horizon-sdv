@@ -379,7 +379,14 @@ variable "sdv_wi_service_accounts" {
       gke_ns = string
       gke_sa = string
     }))
-    roles = set(string)
+    roles    = set(string)
+    sa_roles = optional(set(string), [])
+    conditional_roles = optional(list(object({
+      role        = string
+      title       = string
+      description = optional(string, "")
+      expression  = string
+    })), [])
   }))
 }
 

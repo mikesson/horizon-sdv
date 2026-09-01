@@ -15,6 +15,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 FROM node:20-alpine AS frontend
+ENV HUSKY=0
 WORKDIR /app
 COPY package.json package-lock.json* .npmrc* ./
 RUN npm ci

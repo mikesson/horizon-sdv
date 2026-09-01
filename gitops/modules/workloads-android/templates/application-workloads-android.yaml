@@ -99,6 +99,8 @@ spec:
           kcc:
             instanceTemplates:
               enabled: true
+              # Platform Config Connector is cluster-mode; do not sync ConfigConnectorContext.
+              createConfigConnectorContext: false
               publisherIdentity:
                 serviceAccountName: jenkins-sa
           spec:

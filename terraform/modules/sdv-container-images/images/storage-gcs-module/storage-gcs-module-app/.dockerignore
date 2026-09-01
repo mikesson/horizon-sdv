@@ -1,0 +1,3 @@
+# Local build artifacts (image builds fresh in Dockerfile)
+manager.exe
+manager

@@ -38,6 +38,19 @@ spec:
       overviewServiceNamespace: sample-soft-module-hello
       # Demo: auto-disable when no enabled module depends on sample-soft (hard or soft).
       autoDisableWhenUnused: true
+    - name: storage-gcs
+      path: gitops/modules/storage-gcs-module
+      overviewPath: portal/overview.html
+      overviewService: mod-storage-gcs-overview
+      overviewServiceNamespace: storage-gcs-overview
+    - name: sample-data
+      path: gitops/modules/sample-data-module
+      overviewPath: portal/overview.html
+      overviewService: mod-sample-data-overview
+      overviewServiceNamespace: sample-data-overview
+      hardDependencies:
+        - storage-gcs
+      # GCSBucket CR uses deletionPolicy: Delete so disable empties and deletes the GCP bucket.
     - name: sample
       path: gitops/modules/sample-module
       overviewPath: portal/overview.html
@@ -47,6 +60,8 @@ spec:
         - sample-hard
       softDependencies:
         - sample-soft
+        - sample-data
+        - storage-gcs
       softFeaturesPropagation: HelmValuesAndConfigMap
       softFeaturesConfigMapNamespaces:
         - sample-module-hello

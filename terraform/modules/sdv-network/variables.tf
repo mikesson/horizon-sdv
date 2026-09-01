@@ -32,6 +32,12 @@ variable "router_name" {
   type        = string
 }
 
+variable "create_internet_egress_route" {
+  description = "When false, no default 0.0.0.0/0 internet route is created (use if the route already exists in GCP or you manage it elsewhere)."
+  type        = bool
+  default     = true
+}
+
 variable "enable_arm64_dedicated_subnet" {
   description = "Create dedicated ARM64 subnet and NAT in arm64_region (not required when ARM64 uses primary sdv-subnet)."
   type        = bool

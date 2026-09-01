@@ -80,6 +80,10 @@ webhookWorkflowParameters:
     bodyKey: bootDiskType
   - name: maxRunDuration
     bodyKey: maxRunDuration
+  - name: packerGooglecomputeVersionMin
+    bodyKey: packerGooglecomputeVersionMin
+  - name: packerGooglecomputeVersionMax
+    bodyKey: packerGooglecomputeVersionMax
   - name: ctsAndroid16Url
     bodyKey: ctsAndroid16Url
   - name: ctsAndroid15Url
@@ -98,6 +102,10 @@ webhookWorkflowParameters:
 kcc:
   instanceTemplates:
     enabled: true
+    # Horizon platform uses cluster-mode Config Connector (gitops/templates/config-connector.yaml).
+    # Per-namespace ConfigConnectorContext is rejected in cluster mode and marks workloads-android Degraded.
+    # Set true only for namespaced-mode Config Connector installs.
+    createConfigConnectorContext: false
     # Namespaced-mode Config Connector uses a GSA from ConfigConnectorContext in the workflows namespace.
     # Default matches other charts: gke-config-connector-sa@<project>.iam.gserviceaccount.com
     configConnectorGoogleServiceAccount: ""
@@ -184,6 +192,10 @@ workflowProfiles:
       packerUseIap: true
       packerSshTimeout: "15m"
       packerIapTunnelLaunchWait: 300
+      # hashicorp/googlecompute Packer plugin version bounds (TAA-1839; PACKER_GOOGLECOMPUTE_VERSION_MIN/MAX).
+      # min>=1.2.3 for max_run_duration/instance_termination; max<1.2.5 (v1.2.5 SIGSEGVs on Argo OS Login import).
+      packerGooglecomputeVersionMin: "1.2.3"
+      packerGooglecomputeVersionMax: "1.2.5"
       # cf_create_instance_template.sh defaults for Packer npm toolchain (job.groovy NODEJS_VERSION / WAITON_VERSION / AXIOS_VERSION from pipeline globals).
       nodejsVersion: "20.9.0"
       waitonVersion: "9.0.4"
@@ -209,6 +221,9 @@ workflowProfiles:
       packerUseIap: true
       packerSshTimeout: "15m"
       packerIapTunnelLaunchWait: 300
+      # hashicorp/googlecompute Packer plugin version bounds (TAA-1839; PACKER_GOOGLECOMPUTE_VERSION_MIN/MAX).
+      packerGooglecomputeVersionMin: "1.2.3"
+      packerGooglecomputeVersionMax: "1.2.5"
       nodejsVersion: "20.9.0"
       waitonVersion: "9.0.4"
       axiosVersion: "1.15.0"

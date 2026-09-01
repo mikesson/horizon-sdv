@@ -100,10 +100,13 @@ Currently there are 5 modules available:
 
 #### Browsing
 
-There are 2 tabs available by default:
+There are 3 tabs available by default:
 
 - Welcome
+- Landing
 - Administration
+
+The Landing Page provides a simple and clear home page for the Horizon SDV project with developer (Gerrit, Jenkins, MTK Connect, MCP Gateway Registry) and admin (Keycloak, Argo CD, Headlamp, Grafana) applications as cards opening cluster paths in a new tab.
 
 In Administration tab the modules can be enabled/disabled; if the module is enabled it should be listed with the other tabs.
 

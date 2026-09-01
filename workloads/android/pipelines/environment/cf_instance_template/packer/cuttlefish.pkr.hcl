@@ -12,17 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-packer {
-  required_plugins {
-    googlecompute = {
-      source = "github.com/hashicorp/googlecompute"
-      # max_run_duration_in_seconds / instance_termination_action need a recent 1.2.x plugin.
-      # Registry releases for this source only go through v1.2.x; there is no v1.5.0 line here.
-      # Cap below v1.2.5: Argo read-only /workspace hit SIGSEGV in StepImportOSLoginSSHKey with v1.2.5.
-      version = ">= 1.2.3, < 1.2.5"
-    }
-  }
-}
+# NOTE: the packer { required_plugins { googlecompute { ... } } } block is NOT declared here.
+# It is generated at build time into plugins.pkr.hcl next to a copy of this template
+# (see generate_packer_plugins_fragment in cf_create_instance_template.sh), so the version
+# bounds are configurable via env / Helm / Jenkins params instead of hard-coded here.
+#
+# Bounds and their justification (defaults live in cf_create_instance_template.sh):
+#   >= PACKER_GOOGLECOMPUTE_VERSION_MIN (default 1.2.3)
+#       max_run_duration_in_seconds / instance_termination_action need a recent 1.2.x plugin.
+#       Registry releases for this source only go through v1.2.x; there is no v1.5.0 line here.
+#   <  PACKER_GOOGLECOMPUTE_VERSION_MAX (default 1.2.5)
+#       Argo read-only /workspace hit SIGSEGV in StepImportOSLoginSSHKey with v1.2.5; cap below it
+#       until upstream fixes it, then raise the max via param (no code change needed).
 
 variable "project_id" {
   type = string

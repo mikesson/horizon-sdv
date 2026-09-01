@@ -1,0 +1,20 @@
+# Copyright (c) 2024-2026 Accenture, All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# Owned by sample-data; reconciled by storage-gcs operator (enable storage-gcs first).
+# deletionPolicy: Delete — disabling this module empties and deletes the GCP bucket.
+apiVersion: gcsmanager.horizon.io/v1alpha1
+kind: GCSBucket
+metadata:
+  name: sample-workloads-data
+  namespace: {{ .Values.horizonNamespace }}
+  labels:
+    horizon-sdv.io/module: sample-data
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  bucketName: {{ .Values.bucketName | quote }}
+  location: {{ .Values.storageLocation | quote }}
+  uniformBucketLevelAccess: true
+  deletionPolicy: Delete

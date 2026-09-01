@@ -76,35 +76,35 @@ let agent;
  * with the registration name.
  */
 async function configureAgent() {
-  let agentResponse = await axios.get('/api/v1/agents', {params: {q: JSON.stringify({registration: registration})}})
-  if (agentResponse.status === 200 && agentResponse.data.data.length === 1) {
+  let user;
+  let group;
+  let rsp = await axios.get('/api/v1/agents', {params: {q: JSON.stringify({registration: registration})}})
+  if (rsp.status === 200 && rsp.data.data.length === 1) {
     console.log(`agent with registration ${registration} already exists`);
-    agent = agentResponse.data.data[0];
+    agent = rsp.data.data[0];
   } else {
     console.log(`creating agent using registration ${registration}`);
-    agentResponse = await axios.post('/api/v1/agents', {
+    rsp = await axios.post('/api/v1/agents', {
       name: MTK_CONNECT_TESTBENCH,
       registration: registration
     })
-    agent = agentResponse.data.data;
-    if (MTK_CONNECT_TESTBENCH_USER == 'everyone') {
-      console.log(`Using group permissions.`)
-      const data = {
-        group: {
-          name: 'everyone'
-        },
-        permission: 'book'
-      }
-      await axios.put(`/api/v1/agents/${agent.id}/permissions/group`, data)
+    agent = rsp.data.data;
+    if (MTK_CONNECT_TESTBENCH_USER === 'everyone') {
+      console.log(`Using group permissions.`);
+      rsp = await axios.get('/api/v1/groups', {params: {fields:'id,name', q: JSON.stringify({name: 'everyone'})}});
+      group = rsp.data.data[0];
+      await axios.put(`/api/v1/agents/${agent.id}/permissions/group`, {group: {id: group.id}, permission: 'book'});
     } else {
-      console.log(`Using user permissions ${MTK_CONNECT_TESTBENCH_USER}.`)
-      const data = {
-        user: {
-          name: MTK_CONNECT_TESTBENCH_USER
-        },
-        permission: 'book'
+      console.log(`Using user permissions ${MTK_CONNECT_TESTBENCH_USER}.`);
+      rsp = await axios.get('/api/v1/users', {params: {fields:'id,username', q: JSON.stringify({username: MTK_CONNECT_TESTBENCH_USER})}});
+      if (rsp.data.data.length === 0) {
+        console.log(`creating account for ${MTK_CONNECT_TESTBENCH_USER}`);
+        rsp = await axios.post('/api/v1/users', {username: MTK_CONNECT_TESTBENCH_USER, authentication: 'saml'});
+        user = rsp.data.data;
+      } else {
+        user = rsp.data.data[0];
       }
-      await axios.put(`/api/v1/agents/${agent.id}/permissions/user`, data)
+      await axios.put(`/api/v1/agents/${agent.id}/permissions/user`, {user: {id: user.id}, permission: 'book'});
     }
   }
   console.log(`Created agent using registration ${registration}`);
@@ -130,8 +130,8 @@ async function configureDevice(i) {
 
   console.log(`device ${index} ... `);
 
-  const agentResponse = await axios.get('/api/v1/devices', {params: {q: JSON.stringify(q)}})
-  if (agentResponse.status === 200 && agentResponse.data.data.length === 1) {
+  const rsp = await axios.get('/api/v1/devices', {params: {q: JSON.stringify(q)}})
+  if (rsp.status === 200 && rsp.data.data.length === 1) {
     console.log(`device ${index} already exists`);
   } else {
     console.log(`creating device ${index}`);

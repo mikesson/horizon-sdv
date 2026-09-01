@@ -123,7 +123,7 @@ spec:
         useStaticCredentials: false
 
         # Persist workflow artifacts and archived logs in GCS (Project: same as config.projectID; bucket
-        # from Terraform module.sdv_gcs_argo_workflows). If UIs show no log stream after steps finish, check
+        # from gitops/templates/argo-workflows-bucket.yaml KCC StorageBucket {project_id}-argo-workflows). If UIs show no log stream after steps finish, check
         # status.nodes[].outputs.artifacts for main-logs in the Workflow CR, GCS object presence, and that
         # gitops horizon-api gcsSigningServiceAccount matches the Workload Identity GSA for this environment.
         artifactRepository:
@@ -351,6 +351,40 @@ spec:
       port: 29418  # Gerrit SSH Git protocol
     - protocol: TCP
       port: 8080   # Gerrit HTTP API
+
+{{- end }}
+---
+# Allow workflow pods to reach storage-gcs-module REST API in horizon (8443 TLS; 8080 is probe-only).
+# Match workflows.argoproj.io/workflow (same as other workflow egress rules); podMetadata labels on
+# internal templates are still set for audit but are not required for connectivity.
+{{- if .Values.config.enableNetworkPolicies }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-workflow-pods-to-storage-gcs-module
+  namespace: {{ .Values.config.namespacePrefix }}workflows
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  podSelector:
+    matchExpressions:
+      - key: workflows.argoproj.io/workflow
+        operator: Exists
+  policyTypes:
+  - Egress
+  egress:
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: {{ .Values.config.namespacePrefix }}horizon
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: storage-gcs-module
+    ports:
+    - protocol: TCP
+      port: 8080
+    - protocol: TCP
+      port: 8443
 
 {{- end }}
 ---

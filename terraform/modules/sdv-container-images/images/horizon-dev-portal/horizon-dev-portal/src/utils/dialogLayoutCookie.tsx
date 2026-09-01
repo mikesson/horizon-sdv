@@ -14,7 +14,13 @@
 //
 import Box from '@mui/material/Box';
 import type { SxProps, Theme } from '@mui/material/styles';
-import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type PointerEvent as ReactPointerEvent,
+} from 'react';
 import { getRouterBasename } from './publicPath';
 
 const ONE_YEAR_SEC = 60 * 60 * 24 * 365;
@@ -33,7 +39,10 @@ export function readDialogLayoutCookie(name: string): { width: number; height: n
       continue;
     }
     try {
-      const j = JSON.parse(decodeURIComponent(c.slice(prefix.length))) as { width?: unknown; height?: unknown };
+      const j = JSON.parse(decodeURIComponent(c.slice(prefix.length))) as {
+        width?: unknown;
+        height?: unknown;
+      };
       if (typeof j.width === 'number' && typeof j.height === 'number') {
         return { width: j.width, height: j.height };
       }
@@ -78,7 +87,7 @@ export function useResizableDialogSize(options: {
         height: Math.min(maxH, Math.max(minHeight, h)),
       };
     },
-    [minWidth, minHeight],
+    [minWidth, minHeight]
   );
 
   const [size, setSize] = useState(() => {
@@ -109,7 +118,7 @@ export function useResizableDialogSize(options: {
         activeDrag.current = null;
       }
     },
-    [],
+    []
   );
 
   const onResizeHandleDown = useCallback(
@@ -117,7 +126,12 @@ export function useResizableDialogSize(options: {
       e.preventDefault();
       e.stopPropagation();
       (e.target as HTMLElement).setPointerCapture(e.pointerId);
-      drag.current = { sx: e.clientX, sy: e.clientY, w: sizeRef.current.width, h: sizeRef.current.height };
+      drag.current = {
+        sx: e.clientX,
+        sy: e.clientY,
+        w: sizeRef.current.width,
+        h: sizeRef.current.height,
+      };
 
       const prev = activeDrag.current;
       if (prev) {
@@ -152,7 +166,7 @@ export function useResizableDialogSize(options: {
       window.addEventListener('pointerup', up);
       window.addEventListener('pointercancel', up);
     },
-    [clamp, storageKey],
+    [clamp, storageKey]
   );
 
   const paperSx: SxProps<Theme> = {

@@ -44,6 +44,10 @@ config:
         wsImages:
           horizonCodeOSS:
             image: "horizon-sdv/cloud-ws-images/horizon-code-oss"
+          horizonPreflight:
+            image: "horizon-sdv/cloud-ws-images/horizon-preflight"
+          horizonGnome:
+            image: "horizon-sdv/cloud-ws-images/horizon-gnome"
           horizonASFP:
             image: "horizon-sdv/cloud-ws-images/horizon-asfp"
           horizonAndroidStudio:
@@ -520,6 +524,10 @@ controller:
                   value: {{ .Values.config.workloads.cloudWorkstations.clusterPresets.privateCluster }}
                 - key: "CLOUD_WS_HORIZON_CODE_OSS_IMAGE_NAME"
                   value: {{ .Values.config.workloads.cloudWorkstations.workstationPresets.wsImages.horizonCodeOSS.image }}
+                - key: "CLOUD_WS_HORIZON_PREFLIGHT_IMAGE_NAME"
+                  value: {{ .Values.config.workloads.cloudWorkstations.workstationPresets.wsImages.horizonPreflight.image }}
+                - key: "CLOUD_WS_HORIZON_GNOME_IMAGE_NAME"
+                  value: {{ .Values.config.workloads.cloudWorkstations.workstationPresets.wsImages.horizonGnome.image }}
                 - key: "CLOUD_WS_HORIZON_ASFP_IMAGE_NAME"
                   value: {{ .Values.config.workloads.cloudWorkstations.workstationPresets.wsImages.horizonASFP.image }}
                 - key: "CLOUD_WS_HORIZON_ANDROID_STUDIO_IMAGE_NAME"

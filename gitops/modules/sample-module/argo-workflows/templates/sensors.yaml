@@ -54,6 +54,11 @@ spec:
                     - name: sampleEnv
                     - name: sampleBuildId
                     - name: sampleNote
+                    - name: gcsBucket
+                    - name: largeUploadSizeMiB
+                    - name: largeUploadChunkMiB
+                    - name: largeUploadDelayCount
+                    - name: largeUploadDelaySeconds
           parameters:
             - src:
                 dependencyName: webhook-dep
@@ -79,6 +84,26 @@ spec:
                 dependencyName: webhook-dep
                 dataKey: body.sampleNote
               dest: spec.arguments.parameters.3.value
+            - src:
+                dependencyName: webhook-dep
+                dataKey: body.gcsBucket
+              dest: spec.arguments.parameters.4.value
+            - src:
+                dependencyName: webhook-dep
+                dataKey: body.largeUploadSizeMiB
+              dest: spec.arguments.parameters.5.value
+            - src:
+                dependencyName: webhook-dep
+                dataKey: body.largeUploadChunkMiB
+              dest: spec.arguments.parameters.6.value
+            - src:
+                dependencyName: webhook-dep
+                dataKey: body.largeUploadDelayCount
+              dest: spec.arguments.parameters.7.value
+            - src:
+                dependencyName: webhook-dep
+                dataKey: body.largeUploadDelaySeconds
+              dest: spec.arguments.parameters.8.value
 ---
 apiVersion: argoproj.io/v1alpha1
 kind: Sensor

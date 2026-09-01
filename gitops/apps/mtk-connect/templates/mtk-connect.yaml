@@ -38,6 +38,9 @@ data:
           "db": "mtk-connect",
           "uri": "mongodb://mtk-connect-mongodb:27017"
         },
+        "wamp": {
+          "url": "ws://127.0.0.1:8080/ws"
+        },
         "subpath": "/mtk-connect"
       },
       "router": {
@@ -97,6 +100,9 @@ data:
         "authenticator": {
           "host": "127.0.0.1",
           "port": 8082
+        },
+        "wamp": {
+          "url": "ws://127.0.0.1:8080/ws"
         },
         "player": {
           "liveDriftMax": 0.3
@@ -265,7 +271,7 @@ spec:
               name: mtk-connect-config
               subPath: config.json
         - name: installers
-          image: "{{ .Values.config.gitops.mtkconnect.installerlocation }}:{{ .Values.config.chartVersions.mtkconnect.version }}"
+          image: "{{ .Values.config.gitops.mtkconnect.installers }}"
           resources:
             requests:
               cpu: 50m
@@ -274,6 +280,9 @@ spec:
               cpu: 1
               memory: 100Mi
           volumeMounts:
+            - mountPath: /usr/src/uploads
+              name: mtk-connect-artifacts
+              subPath: data/installers
             - mountPath: /usr/src/config/config.json
               name: mtk-connect-config
               subPath: config.json

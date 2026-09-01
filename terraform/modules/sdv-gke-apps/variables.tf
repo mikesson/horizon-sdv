@@ -134,6 +134,23 @@ variable "gcp_registry_id" {
   type        = string
 }
 
+variable "gcp_storage_location" {
+  description = "GCS bucket location for GCSBucket CRs / storage chart (same as sdv_location)."
+  type        = string
+}
+
+variable "nodes_range" {
+  description = "GKE node / primary subnet CIDR (kubelet probe source). Passed to GitOps MODULE_CONFIG probeSourceCIDRs."
+  type        = string
+  default     = "10.1.0.0/24"
+}
+
+variable "arm64_nodes_range" {
+  description = "ARM64 GKE node / primary subnet CIDR. Included in probeSourceCIDRs when enable_arm64_dedicated_subnet is true."
+  type        = string
+  default     = "10.2.0.0/24"
+}
+
 variable "images" {
   description = "A map of images to deploy. The key is the image name and the value is an object containing its build directory and version."
   type = map(object({
@@ -181,4 +198,9 @@ variable "primary_subnetwork" {
   description = "Primary platform subnet name (used for ARM64 placement when enable_arm64_dedicated_subnet is false)."
   type        = string
   default     = "sdv-subnet"
+}
+
+variable "common_nginx_version" {
+  description = "nginx version to be used by horizon apps and workloads"
+  type        = string
 }

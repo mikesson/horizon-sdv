@@ -42,4 +42,5 @@ helloWorld:
 config: {}
 
 # Per soft-dependency module name -> enabled (Module Manager patches from catalog softDependencies + state).
+# Keys include sample-soft, sample-data, and storage-gcs (GCS workflow templateRef when both sample-data and storage-gcs soft deps are on).
 softFeaturesEnabled: {}

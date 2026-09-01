@@ -17,7 +17,7 @@ pipelineJob('Cloud-Workstations/Workstation-Images/Horizon Code OSS') {
     <br/><h3 style="margin-bottom: 10px;">Workstation Image Builder</h3>
     <p>This job builds the container image for the Code OSS (open-source VS Code) IDE for use in Cloud Workstations.</p>
     <h4 style="margin-bottom: 10px;">Image Configuration</h4>
-    <p>The Dockerfile specifies the base <code>code-oss</code> image and installs required packages and tools including Gemini-CLI, Gemini Code Assist in IDE, gemini-mcp-agent (MCP config helper) and all necessary system services for a complete cloud development experience.</p>
+    <p>The Dockerfile specifies the base <code>code-oss</code> image and installs required packages and tools including Gemini-CLI, Gemini Code Assist in IDE, gemini-mcp-agent (MCP config helper), Antigravity CLI and all necessary system services for a complete cloud development experience.</p>
     <h4 style="margin-bottom: 10px;">Pushing Changes to the Registry</h4>
     <p>To push changes to the registry, set the parameter <code>NO_PUSH=false</code>.</p>
     <p>The image will be pushed to <code>${CLOUD_REGION}-docker.pkg.dev/${CLOUD_PROJECT}/${CLOUD_WS_HORIZON_CODE_OSS_IMAGE_NAME}</code></p>
@@ -56,6 +56,25 @@ pipelineJob('Cloud-Workstations/Workstation-Images/Horizon Code OSS') {
       name('DOCKER_CREDENTIALS_URL')
       defaultValue("${DOCKER_CREDENTIALS_URL}")
       description('''<p>Docker credentials helper URL, e.g. <a target="_blank" href=https://cloud.google.com/artifact-registry/docs/docker/authentication#standalone-helper>credentials helper</a>.</p>''')
+      trim(true)
+    }
+    stringParam {
+      name('ANTIGRAVITY_CLI_VERSION')
+      defaultValue('1.1.0')
+      description('''<p>Pinned Antigravity CLI (agy) version. See <a href="https://github.com/google-antigravity/antigravity-cli/releases/tag/1.1.0">1.1.0</a>.</p>
+      <p>Note: along with version, correspondingly update ANTIGRAVITY_CLI_TARBALL_URL and ANTIGRAVITY_CLI_SHA256.</p>''')
+      trim(true)
+    }
+    stringParam {
+      name('ANTIGRAVITY_CLI_TARBALL_URL')
+      defaultValue('https://github.com/google-antigravity/antigravity-cli/releases/download/1.1.0/agy_cli_linux_x64.tar.gz')
+      description('<p>linux-x64 release asset URL for the pinned CLI version.</p>')
+      trim(true)
+    }
+    stringParam {
+      name('ANTIGRAVITY_CLI_SHA256')
+      defaultValue('7ee512440af5ed0c819065cd7cc14eec90699214df4be32280ac346f0100577e')
+      description('<p>SHA-256 of the CLI tarball (must match URL). Use lowercase hex.</p>')
       trim(true)
     }
   }

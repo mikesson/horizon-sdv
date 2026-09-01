@@ -142,13 +142,16 @@ func main() {
 	// runtime state. The REST API handler and ModuleCatalogReconciler build Argo
 	// Applications deterministically from catalog entries (see controller.ApplicationName).
 
-	if err := mgr.Add(&controller.ModuleConfigHelmStartupSync{
-		Client:       mgr.GetClient(),
-		APIReader:    apiReader,
-		ArgoNS:       argocdNamespace,
-		ModuleConfig: moduleConfig,
+	if err := mgr.Add(&moduleHelmStartup{
+		client:       mgr.GetClient(),
+		apiReader:    apiReader,
+		argocdNS:     argocdNamespace,
+		repoURL:      repoURL,
+		defaultRev:   targetRevision,
+		moduleConfig: moduleConfig,
+		stateStore:   stateStore,
 	}); err != nil {
-		log.Fatalf("module-config helm startup sync: %v", err)
+		log.Fatalf("module argo startup sync: %v", err)
 	}
 
 	if err := mgr.Add(&controller.TargetRevisionStartupSync{

@@ -1,0 +1,292 @@
+# Copyright (c) 2024-2026 Accenture, All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+{{- if .Values.mainEnv }}
+# Internal WorkflowTemplate — calls storage-gcs-module REST API. Not Horizon-exposed; use storage-gcs-upload instead.
+# Bucket is always a caller input; this chart does not hardcode client bucket names.
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: storage-gcs-module-internal
+  namespace: {{ .Values.workflowNamespace }}
+  labels:
+    app.kubernetes.io/name: storage-gcs-module-internal
+    horizon-sdv.io/module: storage-gcs
+    horizon-sdv.io/expose: "false"
+  annotations:
+    argocd.argoproj.io/sync-wave: "7"
+spec:
+  templates:
+    - name: push-object
+      metadata:
+        labels:
+          horizon-sdv.io/storage-gcs-api-client: "true"
+      podMetadata:
+        labels:
+          horizon-sdv.io/storage-gcs-api-client: "true"
+      inputs:
+        parameters:
+          - name: bucket
+          - name: objectPath
+        artifacts:
+          - name: file
+            path: /tmp/upload.tgz
+      container:
+        image: curlimages/curl:8.5.0
+        env:
+          - name: STORAGE_GCS_API_TOKEN
+            valueFrom:
+              secretKeyRef:
+                name: {{ .Values.apiTokenSecretName | default "storage-gcs-module-api-token" | quote }}
+                key: {{ .Values.apiTokenSecretKey | default "storage-gcs-internal" | quote }}
+          - name: CURL_CA_BUNDLE
+            value: {{ printf "%s/ca.crt" (.Values.apiTlsCAMountPath | default "/etc/storage-gcs") | quote }}
+        volumeMounts:
+          - name: storage-gcs-api-ca
+            mountPath: {{ .Values.apiTlsCAMountPath | default "/etc/storage-gcs" | quote }}
+            readOnly: true
+        command: [sh, -c]
+        args:
+          - |
+            set -euo pipefail
+            BUCKET="{{ "{{inputs.parameters.bucket}}" }}"
+            OBJECT_PATH="{{ "{{inputs.parameters.objectPath}}" }}"
+            echo "Uploading to gs://${BUCKET}/${OBJECT_PATH}"
+            curl -fS -X POST \
+              -H "Authorization: Bearer ${STORAGE_GCS_API_TOKEN}" \
+              -F "object_path=${OBJECT_PATH}" \
+              -F "file=@/tmp/upload.tgz" \
+              "{{ .Values.storageGcsModuleBaseUrl }}/api/v1/buckets/${BUCKET}/objects"
+            echo "Upload complete."
+      volumes:
+        - name: storage-gcs-api-ca
+          secret:
+            secretName: {{ .Values.apiTlsSecretName | default "storage-gcs-module-api-tls" | quote }}
+            items:
+              - key: ca.crt
+                path: ca.crt
+    - name: verify-object
+      metadata:
+        labels:
+          horizon-sdv.io/storage-gcs-api-client: "true"
+      podMetadata:
+        labels:
+          horizon-sdv.io/storage-gcs-api-client: "true"
+      inputs:
+        parameters:
+          - name: bucket
+          - name: objectPath
+      container:
+        image: curlimages/curl:8.5.0
+        env:
+          - name: STORAGE_GCS_API_TOKEN
+            valueFrom:
+              secretKeyRef:
+                name: {{ .Values.apiTokenSecretName | default "storage-gcs-module-api-token" | quote }}
+                key: {{ .Values.apiTokenSecretKey | default "storage-gcs-internal" | quote }}
+          - name: CURL_CA_BUNDLE
+            value: {{ printf "%s/ca.crt" (.Values.apiTlsCAMountPath | default "/etc/storage-gcs") | quote }}
+        volumeMounts:
+          - name: storage-gcs-api-ca
+            mountPath: {{ .Values.apiTlsCAMountPath | default "/etc/storage-gcs" | quote }}
+            readOnly: true
+        command: [sh, -c]
+        args:
+          - |
+            set -euo pipefail
+            BUCKET="{{ "{{inputs.parameters.bucket}}" }}"
+            OBJECT_PATH="{{ "{{inputs.parameters.objectPath}}" }}"
+            echo "Verifying object in gs://${BUCKET}/${OBJECT_PATH}"
+            curl -fS \
+              -H "Authorization: Bearer ${STORAGE_GCS_API_TOKEN}" \
+              "{{ .Values.storageGcsModuleBaseUrl }}/api/v1/buckets/${BUCKET}/objects-meta/${OBJECT_PATH}"
+            echo ""
+            echo "GCS upload verified."
+      volumes:
+        - name: storage-gcs-api-ca
+          secret:
+            secretName: {{ .Values.apiTlsSecretName | default "storage-gcs-module-api-tls" | quote }}
+            items:
+              - key: ca.crt
+                path: ca.crt
+    - name: resumable-upload-stream
+      metadata:
+        labels:
+          horizon-sdv.io/storage-gcs-api-client: "true"
+      podMetadata:
+        labels:
+          horizon-sdv.io/storage-gcs-api-client: "true"
+      activeDeadlineSeconds: 7200
+      inputs:
+        parameters:
+          - name: bucket
+          - name: objectPath
+          - name: totalSizeMiB
+          - name: chunkSizeMiB
+            value: "32"
+          - name: delayCount
+            value: "5"
+          - name: delaySeconds
+            value: "60"
+      container:
+        image: alpine:3.19
+        env:
+          - name: STORAGE_GCS_API_TOKEN
+            valueFrom:
+              secretKeyRef:
+                name: {{ .Values.apiTokenSecretName | default "storage-gcs-module-api-token" | quote }}
+                key: {{ .Values.apiTokenSecretKey | default "storage-gcs-internal" | quote }}
+          - name: CURL_CA_BUNDLE
+            value: {{ printf "%s/ca.crt" (.Values.apiTlsCAMountPath | default "/etc/storage-gcs") | quote }}
+        volumeMounts:
+          - name: storage-gcs-api-ca
+            mountPath: {{ .Values.apiTlsCAMountPath | default "/etc/storage-gcs" | quote }}
+            readOnly: true
+        command: [sh, -c]
+        args:
+          - |
+            set -eu
+            BUCKET="{{ "{{inputs.parameters.bucket}}" }}"
+            OBJECT_PATH="{{ "{{inputs.parameters.objectPath}}" }}"
+            SIZE_MIB="{{ "{{inputs.parameters.totalSizeMiB}}" }}"
+            CHUNK_MIB="{{ "{{inputs.parameters.chunkSizeMiB}}" }}"
+            DELAY_COUNT_RAW="{{ "{{inputs.parameters.delayCount}}" }}"
+            DELAY_SECONDS_RAW="{{ "{{inputs.parameters.delaySeconds}}" }}"
+            BASE_URL="{{ .Values.storageGcsModuleBaseUrl }}"
+            AUTH_HEADER="Authorization: Bearer ${STORAGE_GCS_API_TOKEN}"
+            MIN_CHUNK=262144
+
+            fmt_size() {
+              awk -v b="$1" 'BEGIN {
+                mib = b / 1048576
+                gb = b / 1000000000
+                printf "%.2f MiB (%d bytes, %.3f GB)", mib, b, gb
+              }'
+            }
+
+            # Optional test upload: skip (success) when size is 0, empty, negative, or non-numeric.
+            SKIP_REASON=$(awk -v m="$SIZE_MIB" 'BEGIN {
+              if (m == "") { print "empty"; exit }
+              if (m !~ /^[0-9]+([.][0-9]+)?$/) { print "invalid"; exit }
+              if (m + 0 < 0) { print "negative"; exit }
+              if (m + 0 == 0) { print "zero"; exit }
+              print "ok"
+            }')
+            if [ "$SKIP_REASON" != "ok" ]; then
+              case "$SKIP_REASON" in
+                zero)
+                  echo "Optional resumable upload skipped: totalSizeMiB is 0 (no upload)."
+                  ;;
+                empty)
+                  echo "Optional resumable upload skipped: totalSizeMiB is empty."
+                  ;;
+                negative)
+                  echo "Optional resumable upload skipped: totalSizeMiB must be positive (got: '${SIZE_MIB}')."
+                  ;;
+                invalid)
+                  echo "Optional resumable upload skipped: totalSizeMiB is not a number (got: '${SIZE_MIB}')."
+                  ;;
+              esac
+              exit 0
+            fi
+
+            if [ -z "$BUCKET" ]; then
+              echo "bucket parameter is required" >&2
+              exit 1
+            fi
+
+            apk add --no-cache curl >/dev/null
+            TOTAL_BYTES=$(awk -v m="$SIZE_MIB" 'BEGIN { printf "%.0f", m * 1048576 }')
+            CHUNK_BYTES=$(awk -v m="$CHUNK_MIB" 'BEGIN { printf "%.0f", m * 1048576 }')
+            if [ "$CHUNK_BYTES" -lt "$MIN_CHUNK" ]; then
+              echo "Chunk size $(fmt_size "$CHUNK_BYTES") below API minimum $(fmt_size "$MIN_CHUNK"); using minimum."
+              CHUNK_BYTES=$MIN_CHUNK
+            fi
+
+            echo "Resumable upload target: gs://${BUCKET}/${OBJECT_PATH}"
+            echo "Total size: $(fmt_size "$TOTAL_BYTES")"
+            echo "Chunk size: $(fmt_size "$CHUNK_BYTES")"
+            TOTAL_CHUNKS=$(( (TOTAL_BYTES + CHUNK_BYTES - 1) / CHUNK_BYTES ))
+            echo "Total chunks: ${TOTAL_CHUNKS}"
+            DELAY_COUNT=$(awk -v n="$DELAY_COUNT_RAW" 'BEGIN {
+              if (n == "" || n !~ /^[0-9]+$/) print 5
+              else print n + 0
+            }')
+            DELAY_SECONDS=$(awk -v s="$DELAY_SECONDS_RAW" 'BEGIN {
+              if (s == "" || s !~ /^[0-9]+([.][0-9]+)?$/ || s + 0 <= 0) print 60
+              else printf "%.0f", s + 0
+            }')
+            DELAY_INTERVAL=0
+            if [ "$DELAY_COUNT" -gt 0 ] && [ "$DELAY_SECONDS" -gt 0 ]; then
+              DELAY_INTERVAL=$(( TOTAL_CHUNKS / DELAY_COUNT ))
+              if [ "$DELAY_INTERVAL" -lt 1 ]; then
+                DELAY_INTERVAL=1
+              fi
+              echo "Inter-chunk delays: ${DELAY_COUNT} × ${DELAY_SECONDS}s spread across ${TOTAL_CHUNKS} chunks (every ${DELAY_INTERVAL} chunks)"
+            else
+              echo "Inter-chunk delays: disabled"
+            fi
+
+            START_JSON=$(curl -fsS -X POST "${BASE_URL}/api/v1/resumable/buckets/${BUCKET}/objects" \
+              -H "${AUTH_HEADER}" \
+              -H "Content-Type: application/json" \
+              -d "{\"objectPath\":\"${OBJECT_PATH}\",\"contentType\":\"application/octet-stream\"}")
+            UPLOAD_ID=$(echo "$START_JSON" | sed -n 's/.*"uploadId":"\([^"]*\)".*/\1/p')
+            if [ -z "$UPLOAD_ID" ]; then
+              echo "Failed to parse uploadId from: ${START_JSON}" >&2
+              exit 1
+            fi
+            echo "Started resumable session uploadId=${UPLOAD_ID}"
+
+            OFFSET=0
+            CHUNK_NUM=0
+            START_TIME=$(date +%s)
+            while [ "$OFFSET" -lt "$TOTAL_BYTES" ]; do
+              REMAIN=$((TOTAL_BYTES - OFFSET))
+              THIS_CHUNK=$CHUNK_BYTES
+              if [ "$REMAIN" -lt "$THIS_CHUNK" ]; then
+                THIS_CHUNK=$REMAIN
+              fi
+              END=$((OFFSET + THIS_CHUNK - 1))
+              CHUNK_NUM=$((CHUNK_NUM + 1))
+              echo ""
+              echo "Chunk ${CHUNK_NUM}: range bytes ${OFFSET}-${END} of $(fmt_size "$TOTAL_BYTES")"
+              head -c "$THIS_CHUNK" /dev/zero | curl -fsS -X PUT \
+                "${BASE_URL}/api/v1/resumable/uploads/${UPLOAD_ID}" \
+                -H "${AUTH_HEADER}" \
+                -H "Content-Range: bytes ${OFFSET}-${END}/${TOTAL_BYTES}" \
+                -H "Content-Type: application/octet-stream" \
+                --data-binary @-
+              OFFSET=$((OFFSET + THIS_CHUNK))
+              NOW=$(date +%s)
+              ELAPSED=$((NOW - START_TIME))
+              if [ "$ELAPSED" -gt 0 ]; then
+                RATE_MIB=$(awk -v o="$OFFSET" -v e="$ELAPSED" 'BEGIN { printf "%.2f", o / e / 1048576 }')
+                echo "Progress: $(fmt_size "$OFFSET") / $(fmt_size "$TOTAL_BYTES") — ${RATE_MIB} MiB/s, ${ELAPSED}s elapsed"
+              else
+                echo "Progress: $(fmt_size "$OFFSET") / $(fmt_size "$TOTAL_BYTES")"
+              fi
+              if [ "$DELAY_INTERVAL" -gt 0 ] && [ "$OFFSET" -lt "$TOTAL_BYTES" ] && [ $((CHUNK_NUM % DELAY_INTERVAL)) -eq 0 ]; then
+                DELAY_NUM=$((CHUNK_NUM / DELAY_INTERVAL))
+                if [ "$DELAY_NUM" -le "$DELAY_COUNT" ]; then
+                  echo ""
+                  echo "Delay ${DELAY_NUM}/${DELAY_COUNT}: waiting ${DELAY_SECONDS}s after chunk ${CHUNK_NUM}/${TOTAL_CHUNKS} ($(fmt_size "$OFFSET") uploaded)..."
+                  sleep "$DELAY_SECONDS"
+                fi
+              fi
+            done
+            echo ""
+            echo "Resumable upload complete: gs://${BUCKET}/${OBJECT_PATH}"
+            echo "Verifying object metadata..."
+            curl -fsS -H "${AUTH_HEADER}" "${BASE_URL}/api/v1/buckets/${BUCKET}/objects-meta/${OBJECT_PATH}"
+            echo ""
+            echo "GCS upload verified."
+      volumes:
+        - name: storage-gcs-api-ca
+          secret:
+            secretName: {{ .Values.apiTlsSecretName | default "storage-gcs-module-api-tls" | quote }}
+            items:
+              - key: ca.crt
+                path: ca.crt
+{{- end }}

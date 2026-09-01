@@ -18,8 +18,26 @@
 // References:
 //
 
+// Map CONTAINER_IMAGE choice (C-OSS/AS/ASfP) to the fixed Artifact Registry URI for this platform.
+def resolveContainerImageUri(choice, tag) {
+  def imageTag = tag?.trim() ? tag.trim() : 'latest'
+  def selected = choice?.trim()
+  // Check ASfP before AS so the longer token cannot be mishandled.
+  def containerImageUri
+  if (selected == 'ASfP') {
+    containerImageUri = "${CLOUD_REGION}-docker.pkg.dev/${CLOUD_PROJECT}/${CLOUD_WS_HORIZON_ASFP_IMAGE_NAME}:${imageTag}"
+  } else if (selected == 'AS') {
+    containerImageUri = "${CLOUD_REGION}-docker.pkg.dev/${CLOUD_PROJECT}/${CLOUD_WS_HORIZON_ANDROID_STUDIO_IMAGE_NAME}:${imageTag}"
+  } else {
+    containerImageUri = "${CLOUD_REGION}-docker.pkg.dev/${CLOUD_PROJECT}/${CLOUD_WS_HORIZON_CODE_OSS_IMAGE_NAME}:${imageTag}"
+  }
+  return containerImageUri
+}
+
 // Function to create a json object for the .tfvars.json file (on the fly)
 def buildTfvarsMap(params, env) {
+  def containerImageUri = resolveContainerImageUri(params.CONTAINER_IMAGE, params.CONTAINER_IMAGE_TAG)
+
   return [
     sdv_cloud_ws_project_id: "${env.CLOUD_PROJECT}",
     sdv_cloud_ws_region: "${env.CLOUD_REGION}",
@@ -55,7 +73,7 @@ def buildTfvarsMap(params, env) {
         ed_source_image: params.ED_SOURCE_IMAGE?.trim() ? params.ED_SOURCE_IMAGE.trim() : null,
         ed_read_only: params.ED_READ_ONLY?.toBoolean() ?: null,
 
-        container_image: params.CONTAINER_IMAGE?.trim() ? params.CONTAINER_IMAGE.trim() : null,
+        container_image: containerImageUri,
         container_entrypoint_commands: params.CONTAINER_ENTRYPOINT_COMMANDS?.trim() ? params.CONTAINER_ENTRYPOINT_COMMANDS.split(',').collect { it.trim() }.findAll {it} as List : [],
         container_entrypoint_args: params.CONTAINER_ENTRYPOINT_ARGS?.trim() ? params.CONTAINER_ENTRYPOINT_ARGS.split(',').collect { it.trim() }.findAll {it} as List : [],
         container_working_dir: params.CONTAINER_WORKING_DIR?.trim() ? params.CONTAINER_WORKING_DIR.trim() : null,

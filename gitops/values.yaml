@@ -15,10 +15,15 @@
 config:
   name: Horizon SDV
   enableNetworkPolicies: true
-
-  # config.containerImages: set only by the root Argo CD Application (Terraform). Do not add empty keys
-  # here — they merge over environment-specific image refs and yield invalid Deployments (empty image:).
-
+  isSubEnvironment: false
+  namespacePrefix: ""
+  projectID: ""
+  storageLocation: ""
+  # Node primary subnet CIDRs for kubelet HTTP probes (storage-gcs NetworkPolicy).
+  # Overridden by Terraform via root GitOps → MODULE_CONFIG (nodes_range / arm64_nodes_range).
+  probeSourceCIDRs:
+    - "10.1.0.0/24"
+    - "10.2.0.0/24"
   # Helm chart version pins for Argo CD Applications (upstream chart versions / revisions).
   chartVersions:
     keycloak:
@@ -30,7 +35,7 @@ config:
     kubescape_operator:
       version: "1.29.11"
     mtkconnect:
-      version: "v1.10.0"
+      version: "v1.12.1"
     argoEvents:
       version: "2.3.2"
       # NATS StatefulSet size for the default EventBus. Use 1 on small/dev clusters (3 needs quorum
@@ -56,8 +61,8 @@ config:
 
   # Config Connector configuration (templates/config-connector.yaml).
   configConnector:
-    # Namespaced Config Connector: one ConfigConnectorContext per namespace.
-    # Must include every namespace where CNRM resources are deployed (e.g. PubSubTopic in module hello-world charts).
+    # Cluster-mode KCC: no per-namespace ConfigConnectorContext (see ConfigConnector CR in config-connector.yaml).
+    # Legacy list retained for docs / future namespaced-mode only; not rendered by Helm today.
     namespaces:
       - gcp
       - sample-module-hello

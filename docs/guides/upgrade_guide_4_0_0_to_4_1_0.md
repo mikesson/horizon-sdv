@@ -301,7 +301,7 @@ After [Section #3](#section-3---run-the-deployment-script), [Section #3a](#secti
 1. Argo CD: **`horizon-sdv`** and child apps **`Synced`** / **`Healthy`**.
 2. Platform apps: **`module-manager`**, **`horizon-dev-portal`**, and **`horizon-api`** are **`Synced`** / **`Healthy`**; **`horizon-api`** pod was restarted after sync.
 3. Developer Portal: `https://<SUB_DOMAIN>.<HORIZON_DOMAIN>/developer-portal` loads; **Administration → Modules** shows each enabled module on its expected ref (**Following platform**, or **Pinned** only where intended — reset legacy 4.0.0 pins as needed, see [Section #3a](#section-3a---redeploy-platform-applications)).
-4. Horizon landing page: `https://<SUB_DOMAIN>.<HORIZON_DOMAIN>`.
+4. Horizon Developer Portal: `https://<SUB_DOMAIN>.<HORIZON_DOMAIN>/developer-portal` (site root redirects here).
 5. **GKE (if configured):** [Section #2a](#section-2a---gke-release-channel-and-maintenance) settings match tfvars; maintenance window and exclusions are as expected.
 6. **Cuttlefish GCE (if used):** [Section #2b](#section-2b---arm64-cuttlefish-placement) and [Section #3b](#section-3b---workload-upgrades-release-checklist---cicd) completed. **ARM64:** rebuild **`cf-instance-template-arm64`** when placement changed; confirm jobs run in the expected region/zone. **x86:** **`cf-instance-template`** (x86 - legacy) is unchanged by 4.1.0 alone—rebuilding x86 templates is optional for this release but recommended after any cutover so Jenkins and Argo do not use stale GCE assets.
 7. Enabled module Argo Applications match the platform Git ref (unless pinned).

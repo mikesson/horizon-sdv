@@ -44,10 +44,19 @@ spec:
           region: {{ .Values.config.region }}
           zone: {{ .Values.config.zone }}
           backendBucket: {{ .Values.config.backendBucket }}
+          storageLocation: {{ .Values.config.storageLocation }}
           namespacePrefix: {{ .Values.config.namespacePrefix | quote }}
           isSubEnvironment: {{ .Values.config.isSubEnvironment }}
           environmentName: {{ .Values.config.environmentName | quote }}
           enableNetworkPolicies: {{ .Values.config.enableNetworkPolicies }}
+          {{- with .Values.config.probeSourceCIDRs }}
+          probeSourceCIDRs:
+            {{- range . }}
+            - {{ . | quote }}
+            {{- end }}
+          {{- end }}
+          containerImages:
+            storageGcsModule: {{ .Values.config.containerImages.storageGcsModule | quote }}
           scm:
             authMethod: {{ .Values.scm.authMethod | quote }}
           workloads:
@@ -60,6 +69,9 @@ spec:
             zone: {{ .Values.config.arm64.zone | quote }}
             subnetwork: {{ .Values.config.arm64.subnetwork | quote }}
           {{- end }}
+          nginx:
+            image: {{ .Values.config.nginx.image }}
+            tag: {{ .Values.config.nginx.tag | quote }}
     path: gitops/apps/module-manager
   destination:
     server: https://kubernetes.default.svc

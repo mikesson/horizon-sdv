@@ -190,9 +190,9 @@ https://<SUB_ENV_NAME>.<SUB_DOMAIN>.<HORIZON_DOMAIN>/<app-path>
 
 For example, if `SUB_ENV_NAME=dev`, `SUB_DOMAIN=sbx`, and `HORIZON_DOMAIN=example.com`:
 
-| Application          | URL                                                              |
-|----------------------|------------------------------------------------------------------|
-| Landing Page         | `https://dev.sbx.example.com`                                    |
+| Application          | URL                                                             |
+|----------------------|-----------------------------------------------------------------|
+| Developer Portal     | `https://dev.sbx.example.com`                                   |
 | Argo CD              | `https://dev.sbx.example.com/argocd`                            |
 | Keycloak             | `https://dev.sbx.example.com/keycloak`                          |
 | Gerrit               | `https://dev.sbx.example.com/gerrit`                            |
@@ -214,7 +214,7 @@ The following applications are fully deployed and isolated per sub-environment:
 - Grafana
 - MTK Connect
 - MCP Gateway Registry
-- Landing Page
+- Developer Portal
 - PostgreSQL
 - Zookeeper
 - External DNS

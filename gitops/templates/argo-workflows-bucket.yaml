@@ -1,0 +1,32 @@
+# Copyright (c) 2024-2026 Accenture, All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+
+{{- if not (default false .Values.config.isSubEnvironment) }}
+# GCS artifact bucket for Argo Workflows (controller artifactRepository in argo-workflows.yaml).
+# Sync wave 5 — before the argo-workflows Application (wave 6).
+# Ownership moved from Terraform module.sdv_gcs_argo_workflows; abandon so CR delete does not wipe GCP data.
+apiVersion: storage.cnrm.cloud.google.com/v1beta1
+kind: StorageBucket
+metadata:
+  name: argo-workflows
+  namespace: {{ .Values.config.namespacePrefix }}horizon
+  annotations:
+    argocd.argoproj.io/sync-wave: "5"
+    cnrm.cloud.google.com/project-id: {{ .Values.config.projectID | quote }}
+    cnrm.cloud.google.com/deletion-policy: "abandon"
+  labels:
+    app.kubernetes.io/name: argo-workflows
+    app.kubernetes.io/component: argo-workflows-artifacts
+spec:
+  resourceID: {{ .Values.config.projectID }}-argo-workflows
+  location: {{ .Values.config.storageLocation | quote }}
+  uniformBucketLevelAccess: true
+  lifecycleRule:
+    - action:
+        type: Delete
+      condition:
+        age: 7
+        withState: ANY
+{{- end }}

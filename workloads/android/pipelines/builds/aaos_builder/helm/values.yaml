@@ -153,4 +153,5 @@ spec:
     kubectlVersion: "1:545.0.0-0"
     enableGeminiAiAssistant: "true"
     geminiCliVersion: "latest"
+    googleAdkVersion: "2.6.3"
     dryRun: "false"

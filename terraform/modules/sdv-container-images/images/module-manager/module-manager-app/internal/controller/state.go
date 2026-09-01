@@ -62,7 +62,11 @@ func EffectiveTargetRevision(state *State, moduleName, defaultRev string) string
 	defaultRev = strings.TrimSpace(defaultRev)
 	if state != nil && state.ModuleTargetRevisions != nil {
 		if r, ok := state.ModuleTargetRevisions[moduleName]; ok && strings.TrimSpace(r) != "" {
-			return strings.TrimSpace(r)
+			r = strings.TrimSpace(r)
+			if IsOpenAPIExamplePlaceholderRevision(r) {
+				return defaultRev
+			}
+			return r
 		}
 	}
 	return defaultRev

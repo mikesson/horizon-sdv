@@ -98,6 +98,18 @@ Here are details about the six pipelines for Config Admin Operations:
 #### `CLOUD_WS_CONFIG_NAME`
 - REQUIRED: Unique Name for the new workstation config.
 
+#### `CONTAINER_IMAGE`
+- REQUIRED: Choice of workstation container image type.
+- Options:
+  - `C-OSS (VCS)` — Horizon Code OSS / VS Code (`horizon-code-oss`). Default.
+  - `AS` — Android Studio (`horizon-android-studio`).
+  - `ASfP` — Android Studio for Platform (`horizon-asfp`).
+- Note: The full Artifact Registry URI is derived automatically from the platform registry path; do not enter a URL.
+
+#### `CONTAINER_IMAGE_TAG`
+- Optional: Tag appended to the selected container image.
+- Default: `latest`
+
 #### `WS_IDLE_TIMEOUT`
 - Optional: Idle Timeout in seconds.
 - Default: 1200 = 20 mins
@@ -122,8 +134,8 @@ Here are details about the six pipelines for Config Admin Operations:
 - Default: 0
 
 #### `HOST_BOOT_DISK_SIZE`
-- Optional: Boot disk size (GB) for host VM (min: 30GB).
-- Default: 30 (GB)
+- Optional: Boot disk size (GB) for host VM (min: 31GB).
+- Default: 40 (GB)
 
 #### `HOST_DISABLE_PUBLIC_IP_ADDRESSES`
 - Optional: If selected, your workstation will NOT have a public IP.
@@ -206,10 +218,6 @@ Here are details about the six pipelines for Config Admin Operations:
 #### `ED_READ_ONLY`
 - Optional: If selected, ephemeral disk will be mounted as read-only.
 - CANNOT be UN-selected if `ED_SOURCE_SNAPSHOT` is set
-
-#### `CONTAINER_IMAGE`
-- Optional: Container image URI.
-- Default: Full URI of the `horizon-code-oss` image.
 
 #### `CONTAINER_ENTRYPOINT_COMMANDS`
 - Optional: Comma separated list of Entrypoint commands for the container.

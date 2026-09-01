@@ -16,8 +16,8 @@
 #
 # Description:
 # Probe flagged OS packages in container images from the security-upgrade worked
-# example (14 images). Run at any time for any registry tag; save output with -o
-# and diff snapshots yourself when comparing before/after upgrades.
+# example. Run at any time for any registry tag; save output with -o and diff
+# snapshots yourself when comparing before/after upgrades.
 #
 # Companion guide: docs/guides/container_image_security_upgrade_guide.md (Section #4)
 #
@@ -37,8 +37,8 @@ set -euo pipefail
 # ---------------------------------------------------------------------------
 NS_PROBE="cve-probe"
 
-# All 14 flagged images (edit per your CVE batch — see security upgrade guide).
-ALPINE_IMAGES="landingpage-app keycloak-post keycloak-post-gerrit keycloak-post-jenkins keycloak-post-argocd keycloak-post-grafana keycloak-post-headlamp keycloak-post-mcp-gateway-registry keycloak-post-mtk-connect grafana-post"
+# Flagged images for the example CVE batch (edit per your CVE batch — see security upgrade guide).
+ALPINE_IMAGES="keycloak-post keycloak-post-gerrit keycloak-post-jenkins keycloak-post-argocd keycloak-post-grafana keycloak-post-headlamp keycloak-post-mcp-gateway-registry keycloak-post-mtk-connect grafana-post"
 DEBIAN_IMAGES="gerrit-post gerrit-mcp-server-app mtk-connect-post mtk-connect-post-key"
 
 APROBE='apk list -I 2>/dev/null | grep -Eio "^(openssl|libssl3|libcrypto3|curl|vim|openssh-client|openssh-keygen|expat|libexpat|libpng|nginx)-[^ ]*" | sort -u; echo --bin--; openssl version 2>/dev/null'
@@ -71,7 +71,7 @@ usage() {
 Usage: ${self} <command> [options]
 
 Commands:
-  probe        Probe all 14 flagged images at a tag (packages in registry image)
+  probe        Probe flagged images at a tag (packages in registry image)
   argocd       Argo CD sync/health; optional workload list for --tag
   spot-check   Live pod / CronJob checks for workloads at --tag
   cleanup      Delete the ephemeral probe namespace (${NS_PROBE})
@@ -217,7 +217,7 @@ cmd_probe() {
     print_argocd_images
   fi
 
-  echo "=== Probing 14 flagged images at TAG=${TAG} ==="
+  echo "=== Probing flagged images at TAG=${TAG} ==="
   probe_tag "$TAG" "$OUTPUT_FILE"
   if [[ -n "$OUTPUT_FILE" ]]; then
     echo
@@ -250,21 +250,8 @@ cmd_spot_check() {
   require_nonempty TAG "$TAG"
   use_kube_context
 
-  echo "=== Live Deployment: landingpage (${HORIZON_NS}) ==="
-  local pod
-  pod=$(kubectl -n "$HORIZON_NS" get pods -l app.kubernetes.io/name=landingpage \
-    -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
-  if [[ -z "$pod" ]]; then
-    echo "    (no landingpage pod in ${HORIZON_NS})"
-  else
-    kubectl -n "$HORIZON_NS" get pod "$pod" -o jsonpath='image={.spec.containers[0].image}{"\n"}'
-    kubectl -n "$HORIZON_NS" exec "$pod" -- sh -c \
-      'apk list -I 2>/dev/null | grep -Eio "^(curl|libssl3|libcrypto3|libexpat|libpng|nginx)-[^ ]*" | sort -u; echo --bin--; nginx -v 2>&1' \
-      2>&1 | sed 's/^/    /'
-  fi
-  echo
-
   echo "=== Live Deployment: gerrit-mcp-server (${GERRIT_NS}) ==="
+  local pod
   pod=$(kubectl -n "$GERRIT_NS" get pods -l app.kubernetes.io/name=gerrit-mcp-server \
     -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
   if [[ -z "$pod" ]]; then

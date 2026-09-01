@@ -329,6 +329,30 @@ the repo credentials, i.e.
           <li>Local GCS bucket download: <code>gs://${ANDROID_BUILD_BUCKET_ROOT_NAME}/Android/CTS/android-cts-14_r12-linux_x86-x86.zip</code></li></ul></p>''')
       trim(true)
     }
+
+    separator {
+      name('Packer Plugin')
+      sectionHeader('Packer googlecompute Plugin Version')
+      sectionHeaderStyle("${HEADER_STYLE}")
+      separatorStyle("${SEPARATOR_STYLE}")
+    }
+
+    stringParam {
+      name('PACKER_GOOGLECOMPUTE_VERSION_MIN')
+      defaultValue('1.2.3')
+      description('''<p>Minimum hashicorp/googlecompute Packer plugin version (inclusive).<br/>
+        Requires &ge; 1.2.3 for <code>max_run_duration_in_seconds</code> / <code>instance_termination_action</code> on the ephemeral builder VM.</p>''')
+      trim(true)
+    }
+
+    stringParam {
+      name('PACKER_GOOGLECOMPUTE_VERSION_MAX')
+      defaultValue('1.2.5')
+      description('''<p>Exclusive upper bound for the hashicorp/googlecompute Packer plugin version.<br/>
+        Capped below 1.2.5: v1.2.5 SIGSEGVs in <code>StepImportOSLoginSSHKey</code> on Argo read-only <code>/workspace</code>.
+        Raise this once upstream fixes it &mdash; no code change needed.</p>''')
+      trim(true)
+    }
   }
 
   // Block build if certain jobs are running.

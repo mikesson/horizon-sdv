@@ -69,7 +69,7 @@ Examples (submit + wait):
   %s workflow submit --module sample --template sample-smoke-test --params-json '{"sampleEnv":"jenkins"}' --output json -q
   %s workflow wait <workflowName>
 
-`, p, p, p, p, p, p, p, p, p, p, p, p, p, p, p, p, p, p, p, p, p, p, p, p, p)
+`, p, p, p, p, p, p, p, p, p, p, p, p, p, p, p, p, p, p, p, p, p, p, p, p, p, p)
 }
 
 func main() {

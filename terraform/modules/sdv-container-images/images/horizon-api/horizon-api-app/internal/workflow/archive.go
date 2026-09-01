@@ -30,6 +30,7 @@ func BuildArchivedLogLinks(u *unstructured.Unstructured, ns, defaultBucket strin
 	out := &ArchivedLogLinks{Steps: nil}
 
 	nodes, _, _ := unstructured.NestedMap(u.Object, "status", "nodes")
+	workflowAborted := shutdownAbortDetected(u)
 	for nodeID, raw := range nodes {
 		m, ok := raw.(map[string]interface{})
 		if !ok {
@@ -67,7 +68,7 @@ func BuildArchivedLogLinks(u *unstructured.Unstructured, ns, defaultBucket strin
 				NodeID:       nodeID,
 				DisplayName:  disp,
 				TemplateName: tpl,
-				Phase:        ph,
+				Phase:        DisplayPhaseForNode(ph, workflowAborted, m),
 				PodName:      pn,
 				GcsURI:       stepURI,
 				ArtifactName: stepArtName,

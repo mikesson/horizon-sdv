@@ -1,0 +1,3 @@
+#!/usr/bin/env sh
+cd terraform/modules/sdv-container-images/images/horizon-dev-portal/horizon-dev-portal || exit 1
+npx lint-staged

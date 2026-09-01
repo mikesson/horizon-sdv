@@ -1,0 +1,6 @@
+.gitignore
+**/node_modules
+**/coverage
+**/dist
+preflight-web/tests
+preflight-web/__mocks__

@@ -13,7 +13,10 @@
 // limitations under the License.
 
 // Description:
-// This pipeline builds a preset `android-studio` Docker image for use in GCP Cloud Workstations config
+// This pipeline builds the Horizon Android Studio image for GCP Cloud Workstations.
+// Thin child of horizon-gnome (BASE_IMAGE): adds Android Studio, the Android SDK/emulator,
+// and Android-specific desktop integration on top of the inherited GNOME desktop,
+// gnome-remote-desktop (RDP), Guacamole (DinD), Chrome, Gemini CLI/ADK, and gemini-mcp-agent.
 // Pipeline uses Buildkit to avoid docker in docker privilege issues.
 //
 // References:
@@ -31,8 +34,7 @@ pipeline {
     REGISTRY="${env.CLOUD_REGION}-docker.pkg.dev"
     DESTINATION="${REGISTRY}/${env.CLOUD_PROJECT}/${env.CLOUD_WS_HORIZON_ANDROID_STUDIO_IMAGE_NAME}"
     PUSH="${NO_PUSH == "true" ? "false" : "true"}"
-    HORIZON_DOMAIN="${env.HORIZON_DOMAIN}"
-    GOOGLE_CLOUD_PROJECT="${env.CLOUD_PROJECT}"
+    // BASE_IMAGE comes from job parameter (default: published horizon-gnome:latest).
 
     def kubernetesPodTemplate = """
       apiVersion: v1
@@ -66,6 +68,11 @@ pipeline {
                 - key: cloud_ws_horizon_android_studio_build_pod
                   operator: Exists
               topologyKey: kubernetes.io/hostname
+            - labelSelector:
+                matchExpressions:
+                - key: cloud_ws_horizon_gnome_build_pod
+                  operator: Exists
+              topologyKey: kubernetes.io/hostname
         hostname: jenkins-cloud-ws-image-build-pod
         serviceAccountName: ${JENKINS_SERVICE_ACCOUNT}
         containers:
@@ -93,7 +100,7 @@ pipeline {
         stage ('Docker Credentials'){
           steps {
             script {
-              currentBuild.description = "NO_PUSH=${env.NO_PUSH}" + "<br>" + "$BUILD_USER"
+              currentBuild.description = "NO_PUSH=${env.NO_PUSH}" + "<br>" + "BASE_IMAGE=${env.BASE_IMAGE}" + "<br>" + "$BUILD_USER"
             }
             container(name: 'buildkit') {
               catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
@@ -110,20 +117,18 @@ pipeline {
         }
 
         stage ('Build Docker Image'){
-          when { expression { env.IMAGE_TAG } }
+          when { expression { env.IMAGE_TAG && env.BASE_IMAGE } }
           steps {
             container(name: 'buildkit') {
               catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
                 sh '''
                   cd "${WORKSPACE}/workloads/cloud-workstations/pipelines/workstation-images/horizon-android-studio/";
-                  cp -r "${WORKSPACE}/workloads/cloud-workstations/pipelines/workstation-images/common-utils/" ./common-utils/;
                   buildctl build \
                     --frontend=dockerfile.v0 \
                     --local=dockerfile=. \
                     --local context=. \
                     --opt platform=linux/amd64 \
-                    --opt build-arg:HORIZON_DOMAIN=${HORIZON_DOMAIN} \
-                    --opt build-arg:GOOGLE_CLOUD_PROJECT=${GOOGLE_CLOUD_PROJECT} \
+                    --opt build-arg:BASE_IMAGE=${BASE_IMAGE} \
                     --registry-auth-tlscontext host=${REGISTRY},insecure=true \
                     --output=type=image,name=${DESTINATION}:${IMAGE_TAG},push=${PUSH}
                 '''

@@ -18,55 +18,55 @@ limitations under the License. -->
 Horizon SDV is designed to simplify the deployment and management of Android workloads on Google Kubernetes Engine clusters. By leveraging Infrastructure as Code (IaC) and GitOps, ensuring the cluster consistently matches the desired state, enabling scalable and efficient Android workload operations.
 
 ## Table of contents
-- [Overview](#overview)
-- [Technologies](#technologies)
-- [Project directories and files](#project-directories-and-files)
-- [Configuration Placeholders](#configuration-placeholders)
-- [Section #1 - GCP Foundation Setup](#section-1---gcp-foundation-setup)
-  - [Section #1a - GCP Prerequisites](#section-1a---gcp-prerequisites)
-  - [Section #1b - GCP Project Details](#section-1b---gcp-project-details)
-  - [Section #1c - Create a Bucket in GCP](#section-1c---create-a-bucket-in-gcp)
-  - [Section #1d - Create OAuth2 Client and Secret](#section-1d---create-oauth2-client-and-secret)
-- [Section #2 - Deployment](#section-2---deployment)
-  - [Section #2a - Prerequisites](#section-2a---prerequisites)
-  - [Section #2b - Clone the Repository](#section-2b---clone-the-repository)
-  - [Section #2c - Configure Terraform Variables](#section-2c---configure-terraform-variables)
-  - [Section #2d - Run the Deployment Script](#section-2d---run-the-deployment-script)
-- [Section #3 - Post-Deployment Setup](#section-3---post-deployment-setup)
-  - [Section #3a (Optional) - Domain Setup via GCP](#section-3a-optional---domain-setup-via-gcp)
-  - [Section #3b - Update Nameservers](#section-3b---update-nameservers)
-    - [Update Nameservers for GCP Registered Domains](#update-nameservers-for-gcp-registered-domains)
-  - [Section #3c - Connect to GKE via Connect Gateway](#section-3c---connect-to-gke-via-connect-gateway)
-  - [Section #3d - Setup Keycloak](#section-3d---setup-keycloak)
-  - [Section #3e - Jenkins Access via Keycloak Groups](#section-3e---jenkins-access-via-keycloak-groups)
-  - [Section #3f - Argo CD Access via Keycloak Groups](#section-3f---argo-cd-access-via-keycloak-groups)
-  - [Section #3g - Headlamp Access via Keycloak Groups](#section-3g---headlamp-access-via-keycloak-groups)
-  - [Section #3h - Grafana Access via Keycloak Groups](#section-3h---grafana-access-via-keycloak-groups)
-  - [Section #3i - MCP Gateway Registry Access via Keycloak Groups](#section-3i---mcp-gateway-registry-access-via-keycloak-groups)
-  - [Section #3j - Enable Workloads Modules in Developer Portal](#section-3j---enable-workloads-modules-in-developer-portal)
-- [Section #4 - Run Cluster Apps](#section-4---run-cluster-apps)
-  - [Section #4a - Horizon Landing Page](#section-4a---horizon-landing-page)
-  - [Section #4b - Argo CD](#section-4b---argo-cd)
-  - [Section #4c - Keycloak](#section-4c---keycloak)
-  - [Section #4d - Gerrit](#section-4d---gerrit)
-  - [Section #4e - Jenkins](#section-4e---jenkins)
-  - [Section #4f - MTK connect](#section-4f---mtk-connect)
-  - [Section #4g - Headlamp](#section-4g---headlamp)
-  - [Section #4h - Grafana](#section-4h---grafana)
-  - [Section #4i - MCP Gateway Registry](#section-4i---mcp-gateway-registry)
-- [Section #5 - Optional - GitHub Setup](#section-5---optional---github-setup)
-  - [Section #5a - GitHub Prerequisites](#section-5a---github-prerequisites)
-  - [Section #5b - Create GitHub Organization](#section-5b---create-github-organization)
-  - [Section #5c - Create and Install GitHub Application](#section-5c---create-and-install-github-application)
-  - [Section #5d - Fork the Repository](#section-5d---fork-the-repository)
-- [Section #6 - Troubleshooting](#section-6---troubleshooting)
-  - [Section #6a - Keycloak sign-in failure](#section-6a---keycloak-sign-in-failure)
-  - [Section #6b - Error when reading or editing Certificate](#section-6b---error-when-reading-or-editing-certificate)
-  - [Section #6c - Docker permission denied](#section-6c---docker-permission-denied)
-  - [Section #6d - Docker Container build resource issues](#section-6d---docker-container-build-resource-issues)
-  - [Section #6e - Error creating SslPolicy](#section-6e---error-creating-sslpolicy)
-  - [Section #6f - Homepage not reachable after deployment](#section-6f---homepage-not-reachable-after-deployment)
-  - [Section #6g - Jenkins cannot run pipeline as admin](#section-6g---jenkins-cannot-run-pipeline-as-admin)
+- Overview [link](#overview)
+- Technologies [link](#technologies)
+- Project directories and files [link](#project-directories-and-files)
+- Configuration Placeholders [link](#configuration-placeholders)
+- Section #1 - GCP Foundation Setup [link](#section-1---gcp-foundation-setup)
+  - Section #1a - GCP Prerequisites [link](#section-1a---gcp-prerequisites)
+  - Section #1b - GCP Project Details [link](#section-1b---gcp-project-details)
+  - Section #1c - Create a Bucket in GCP [link](#section-1c---create-a-bucket-in-gcp)
+  - Section #1d - Create OAuth2 Client and Secret [link](#section-1d---create-oauth2-client-and-secret)
+- Section #2 - Deployment [link](#section-2---deployment)
+  - Section #2a - Prerequisites [link](#section-2a---prerequisites)
+  - Section #2b - Clone the Repository [link](#section-2b---clone-the-repository)
+  - Section #2c - Configure Terraform Variables [link](#section-2c---configure-terraform-variables)
+  - Section #2d - Run the Deployment Script [link](#section-2d---run-the-deployment-script)
+- Section #3 - Post-Deployment Setup [link](#section-3---post-deployment-setup)
+  - Section #3a (Optional) - Domain Setup via GCP [link](#section-3a-optional---domain-setup-via-gcp)
+  - Section #3b - Update Nameservers [link](#section-3b---update-nameservers)
+    - Update Nameservers for GCP Registered Domains [link](#update-nameservers-for-gcp-registered-domains)
+  - Section #3c - Connect to GKE via Connect Gateway [link](#section-3c---connect-to-gke-via-connect-gateway)
+  - Section #3d - Setup Keycloak [link](#section-3d---setup-keycloak)
+  - Section #3e - Jenkins Access via Keycloak Groups [link](#section-3e---jenkins-access-via-keycloak-groups)
+  - Section #3f - Argo CD Access via Keycloak Groups [link](#section-3f---argo-cd-access-via-keycloak-groups)
+  - Section #3g - Headlamp Access via Keycloak Groups [link](#section-3g---headlamp-access-via-keycloak-groups)
+  - Section #3h - Grafana Access via Keycloak Groups [link](#section-3h---grafana-access-via-keycloak-groups)
+  - Section #3i - MCP Gateway Registry Access via Keycloak Groups [link](#section-3i---mcp-gateway-registry-access-via-keycloak-groups)
+  - Section #3j - Enable Workloads Modules in Developer Portal [link](#section-3j---enable-workloads-modules-in-developer-portal)
+- Section #4 - Run Cluster Apps [link](#section-4---run-cluster-apps)
+  - Section #4a - Horizon Landing Page [link](#section-4a---horizon-developer-portal)
+  - Section #4b - Argo CD [link](#section-4b---argo-cd)
+  - Section #4c - Keycloak [link](#section-4c---keycloak)
+  - Section #4d - Gerrit [link](#section-4d---gerrit)
+  - Section #4e - Jenkins [link](#section-4e---jenkins)
+  - Section #4f - MTK connect [link](#section-4f---mtk-connect)
+  - Section #4g - Headlamp [link](#section-4g---headlamp)
+  - Section #4h - Grafana [link](#section-4h---grafana)
+  - Section #4i - MCP Gateway Registry [link](#section-4i---mcp-gateway-registry)
+- Section #5 - Optional - GitHub Setup [link](#section-5---optional---github-setup)
+  - Section #5a - GitHub Prerequisites [link](#section-5a---github-prerequisites)
+  - Section #5b - Create GitHub Organization [link](#section-5b---create-github-organization)
+  - Section #5c - Create and Install GitHub Application [link](#section-5c---create-and-install-github-application)
+  - Section #5d - Fork the Repository [link](#section-5d---fork-the-repository)
+- Section #6 - Troubleshooting [link](#section-6---troubleshooting)
+  - Section #6a - Keycloak sign-in failure [link](#section-6a---keycloak-sign-in-failure)
+  - Section #6b - Error when reading or editing Certificate [link](#section-6b---error-when-reading-or-editing-certificate)
+  - Section #6c - Docker permission denied [link](#section-6c---docker-permission-denied)
+  - Section #6d - Docker Container build resource issues [link](#section-6d---docker-container-build-resource-issues)
+  - Section #6e - Error creating SslPolicy [link](#section-6e---error-creating-sslpolicy)
+  - Section #6f - Homepage not reachable after deployment [link](#section-6f---homepage-not-reachable-after-deployment)
+  - Section #6g - Jenkins cannot run pipeline as admin [link](#section-6g---jenkins-cannot-run-pipeline-as-admin)
 
 ## Technologies
 Technologies being used to provision the infrastructure along with the required applications for the GKE cluster.
@@ -729,17 +729,10 @@ After modules are enabled, run the Jenkins seed job and regenerate workload temp
 ---
 
 ## Section #4 - Run Cluster Apps
-This section details how to sign in to and use cluster applications, including their functionalities within the cluster environment. When using sub-environments, each sub-environment has its own landing page and application URLs at `https://<SUB_ENV_NAME>.<SUB_DOMAIN>.<HORIZON_DOMAIN>`. See the [Sub-Environment Deployment Guide – Accessing Sub-Environment Applications](guides/sub_environments/sub_environment_deployment_guide.md#accessing-sub-environment-applications) for the URL pattern and application list.
+This section details how to sign in to and use cluster applications, including their functionalities within the cluster environment. When using sub-environments, each sub-environment has its own Developer Portal and application URLs at `https://<SUB_ENV_NAME>.<SUB_DOMAIN>.<HORIZON_DOMAIN>`. See the [Sub-Environment Deployment Guide – Accessing Sub-Environment Applications](guides/sub_environments/sub_environment_deployment_guide.md#accessing-sub-environment-applications) for the URL pattern and application list.
 
-### Section #4a - Horizon Landing Page
-You can access the landing page by going to `https://<SUB_DOMAIN><HORIZON_DOMAIN>` which enables you to launch any of the applications running within the Horizon GKE Cluster.    
-
-There are two types of Apps
-- Applications - Cluster Apps non-admin users can access.
-- Admin Applications - Cluster Apps only the admin users can access and perform cluster administrative tasks.
-
-You can click on the 'Launch' button within each cluster application's card on the Horizon landing page to open the application of your choice.   
-<img src="images/horizon_landing_page.png" width="750" />
+### Section #4a - Horizon Developer Portal
+The site root (`https://<SUB_DOMAIN>.<HORIZON_DOMAIN>/`) redirects to the Horizon Developer Portal at `https://<SUB_DOMAIN>.<HORIZON_DOMAIN>/developer-portal/`. Use the Developer Portal for module administration and workflows; open other cluster apps via the direct URLs in the sections below. See also the [Developer Portal user guide](developer_portal_user_guide.md).
 
 ### Section #4b - Argo CD
 Argo CD is the GitOps tool being used with a git repository as the "source of truth" where the desired state of Kubernetes applications have been configured. 
@@ -788,7 +781,7 @@ It ensures the Kubernetes Cluster (GKE) always matches that desired state. Here,
 ### Section #4c - Keycloak
 Keycloak is the Identity and Access Management (IAM) application provides features like authentication and authorization. It centralizes user management for all applications on the cluster.   
 
-1. To Access Keycloak UI, go to the Horizon Landing page here: https://<SUB_DOMAIN>.<HORIZON_DOMAIN> and click on the Launch button within the Keycloak app card as below.   
+1. Open the Keycloak admin console at `https://<SUB_DOMAIN>.<HORIZON_DOMAIN>/auth/admin/horizon/console`.    
    <img src="images/keycloak_launch.png" width="325" />
 2. Log-in to Keycloak using the credentials configured in [Section #2c - Configure Terraform Variables](#section-2c---configure-terraform-variables).
 
@@ -799,7 +792,7 @@ Refer section [Section #3d - Setup Keycloak](#section-3d---setup-keycloak) for s
 ### Section #4d - Gerrit
 Gerrit is a web-based code review tool built on top of the git version control system.
 
-1. To Access Gerrit, go to the Horizon Landing page here: `https://<SUB_DOMAIN>.<HORIZON_DOMAIN>` and click on the Launch button within the Gerrit app card as below.   
+1. Open Gerrit at `https://<SUB_DOMAIN>.<HORIZON_DOMAIN>/gerrit`.     
    <img src="images/gerrit_launch.png" width="325" />
 2. Login using google sign-in.   
    <img src="images/horizon_login_with_google.png" width="300" />   
@@ -810,7 +803,7 @@ Below is a view of Gerrit homepage,
 ### Section #4e - Jenkins
 Jenkins is an open-source automation server. It's primary use-case is to automate tasks related to running Android workloads on the cluster. It is a core tool for Continuous Integration and Continuous Delivery pipelines.
 
-1. To Access Jenkins, go to the Horizon Landing page here: `https://<SUB_DOMAIN>.<HORIZON_DOMAIN>` and click on the Launch button within the Jenkins app card as below.   
+1. Open Jenkins at `https://<SUB_DOMAIN>.<HORIZON_DOMAIN>/jenkins`.      
    <img src="images/jenkins_launch.png" width="325" />
 2. Login using google sign-in.   
    <img src="images/horizon_login_with_google.png" width="300" />   
@@ -821,7 +814,7 @@ Below is a view of the Jenkins dashboard,
 ### Section #4f - MTK connect
 MTK Connect provides connectivity to remote devices for automated and manual testing.   
 
-1. To Access MTK Connect, go to the Horizon Landing page here: `https://<SUB_DOMAIN>.<HORIZON_DOMAIN>` and click on the Launch button within the MTK Connect app card as below.   
+1. Open MTK Connect at `https://<SUB_DOMAIN>.<HORIZON_DOMAIN>/mtk-connect`.     
    <img src="images/mtk-connect_launch.png" width="325" />
 2. Login using google sign-in.   
    <img src="images/horizon_login_with_google.png" width="300" />    
@@ -832,7 +825,7 @@ Below is a view of the MTK connect homepage,
 ### Section #4g - Headlamp
 The Headlamp application in Kubernetes provides, extensible web-based user interface (UI) designed to simplify the management and visualization of Kubernetes clusters.  
 
-1. To Access Headlamp, go to the Horizon Landing page here: `https://<SUB_DOMAIN>.<HORIZON_DOMAIN>` and click on the Launch button within the Headlamp app card as below.   
+1. Open Headlamp at `https://<SUB_DOMAIN>.<HORIZON_DOMAIN>/headlamp`.      
    <img src="images/headlamp_launch.png" width="325" />
 2. Login using google sign-in.   
    <img src="images/horizon_login_with_google.png" width="300" /> 
@@ -843,7 +836,7 @@ Below is a view of the Headlamp homepage,
 ### Section #4h - Grafana
 Grafana is an open-source platform for monitoring and observability that enables users to visualize, analyze, metrics, logs, and traces from various data sources. It is widely used to build interactive dashboards for real-time system performance tracking and troubleshooting. Used to monitoring pods and intances in horizon-sdv GCP
 
-1. To Access Grafana, go to the Horizon Landing page here: `https://<SUB_DOMAIN>.<HORIZON_DOMAIN>` and click on the Launch button within the Grafana app card as below.   
+1. Open Grafana at `https://<SUB_DOMAIN>.<HORIZON_DOMAIN>/grafana`.     
    <img src="images/grafana_launch.png" width="325" />
 2. Login using google sign-in.   
    <img src="images/horizon_login_with_google.png" width="300" /> 

@@ -245,8 +245,17 @@ def create_or_update_jenkins_secret(secret_name, namespace, username, password):
       raise e
   return result
 
+def log_step(step, message, success=None):
+  status = ""
+  if success is True:
+    status = " [OK]"
+  elif success is False:
+    status = " [FAILED]"
+  print(f"[mtk-connect-post-key] Step {step}: {message}{status}")
+
+
 if __name__ == "__main__":
-  print("Script start")
+  print("[mtk-connect-post-key] Script start")
 
   operation_result = False
 
@@ -254,36 +263,66 @@ if __name__ == "__main__":
   parser.add_argument("--api-domain", type=str, required=True, help="API domain")
   args = parser.parse_args()
   URL_DOMAIN = vars(args)["api_domain"]
+  print(f"[mtk-connect-post-key] API domain: {URL_DOMAIN}")
+  print(f"[mtk-connect-post-key] NAMESPACE_PREFIX: {NAMESPACE_PREFIX!r}")
+
+  log_step(1, "Retrieving credentials from environment")
   USERNAME = retrieve_secret_value("MTK_KEY_UPD_USERNAME")
   KEY_VAL = retrieve_secret_value("MTK_KEY_UPD_PASSWORD")
 
   if (USERNAME and KEY_VAL):
+    log_step(1, "Credentials present", success=True)
+    log_step(2, "Updating API request URLs with domain")
     operation_result = update_request_urls(upd_domain=True)
+    log_step(2, "API request URLs updated", success=operation_result)
+  else:
+    log_step(1, "Missing MTK_KEY_UPD_USERNAME or MTK_KEY_UPD_PASSWORD; aborting", success=False)
 
   if operation_result:
+    log_step(3, "GET_USER_DETAILS")
     operation_result = perform_api_request(operation="GET_USER_DETAILS")
+    log_step(3, f"GET_USER_DETAILS (user_id={USER_ID})", success=operation_result)
 
   if operation_result:
+    log_step(4, "Updating API request URLs with user id")
     operation_result = update_request_urls(upd_user_id=True)
+    log_step(4, "API request URLs updated with user id", success=operation_result)
 
   if operation_result:
+    log_step(5, "CREATE_KEY")
     operation_result = perform_api_request(operation="CREATE_KEY")
+    log_step(5, "CREATE_KEY", success=operation_result)
 
   if operation_result:
+    log_step(6, f"Updating secret {SECRET_NAME_MTK_CONNECT} in {NAMESPACE_MTK_CONNECT}")
     operation_result = update_secret_value(SECRET_NAME_MTK_CONNECT, NAMESPACE_MTK_CONNECT, KEY_VAL)
-    
+    log_step(6, "mtk-connect secret update", success=operation_result)
+
   if operation_result:
+    log_step(7, f"Creating/updating Jenkins secret {SECRET_NAME_JENKINS} in {NAMESPACE_JENKINS}")
     operation_result = create_or_update_jenkins_secret(
         SECRET_NAME_JENKINS, NAMESPACE_JENKINS, USERNAME, KEY_VAL
     )
+    log_step(7, "Jenkins secret create/update", success=operation_result)
 
   if operation_result:
+    log_step(8, "GET_CURRENT_USER (identify old keys for deletion)")
     operation_result = perform_api_request(operation="GET_CURRENT_USER", is_delete_key_id=True)
+    log_step(8, f"GET_CURRENT_USER (keys to delete: {OLD_KEY_ID_LS})", success=operation_result)
 
   if operation_result and OLD_KEY_ID_LS:
+    log_step(9, "DELETE_KEY")
     operation_result = perform_api_request(operation="DELETE_KEY")
+    log_step(9, "DELETE_KEY", success=operation_result)
+  elif operation_result:
+    log_step(9, "DELETE_KEY skipped (no old keys to delete)")
 
   if operation_result:
+    log_step(10, "GET_CURRENT_USER (final verification)")
     operation_result = perform_api_request(operation="GET_CURRENT_USER")
+    log_step(10, "GET_CURRENT_USER", success=operation_result)
 
-  print("Script end")
+  if operation_result:
+    print("[mtk-connect-post-key] Script end [SUCCESS]")
+  else:
+    print("[mtk-connect-post-key] Script end [FAILED]")

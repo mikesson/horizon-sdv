@@ -50,8 +50,7 @@ async function fetchStatus(idOrName: string): Promise<StatusResponse> {
 }
 
 type RefreshResult =
-  | { ok: true; list: ModuleResponse[]; allReady: boolean }
-  | { ok: false; allReady: boolean };
+  { ok: true; list: ModuleResponse[]; allReady: boolean } | { ok: false; allReady: boolean };
 
 export function ModulesTab() {
   const [mods, setMods] = useState<ModuleResponse[]>([]);
@@ -153,7 +152,10 @@ export function ModulesTab() {
 
   useEffect(() => {
     const onVis = () => {
-      if (document.visibilityState !== 'visible' || (busyRef.current && suppressBackgroundPollRef.current)) {
+      if (
+        document.visibilityState !== 'visible' ||
+        (busyRef.current && suppressBackgroundPollRef.current)
+      ) {
         return;
       }
       void refresh();
@@ -291,37 +293,37 @@ export function ModulesTab() {
     <Box>
       <Stack spacing={1.25} sx={{ mb: 2 }}>
         <Typography variant="body2" color="text.secondary" component="p" sx={{ m: 0 }}>
-          Enable or disable modules. Hard dependencies are enabled automatically. Enabling follows the{' '}
-          <strong>platform branch</strong> (the cluster default from Terraform) by default. Use{' '}
+          Enable or disable modules. Hard dependencies are enabled automatically. Enabling follows
+          the <strong>platform branch</strong> (the cluster default from Terraform) by default. Use{' '}
           <strong>Pin to ref</strong> on an enabled module, or{' '}
-          <strong>Pin ref before install</strong> on a disabled one, to lock it to a specific branch, tag, or
-          commit. Use <strong>Reset to platform branch</strong> on a pinned module to follow the platform again.
-          Dependent modules are listed on each card.
+          <strong>Pin ref before install</strong> on a disabled one, to lock it to a specific
+          branch, tag, or commit. Use <strong>Reset to platform branch</strong> on a pinned module
+          to follow the platform again. Dependent modules are listed on each card.
         </Typography>
         <Typography variant="body2" color="text.secondary" component="p" sx={{ m: 0 }}>
-          Status chips reflect Module Manager and Argo CD (install, update, uninstall, or ready). First-time
-          installs and uninstalls can take several minutes; disable may wait while related cloud resources finish
-          tearing down.
+          Status chips reflect Module Manager and Argo CD (install, update, uninstall, or ready).
+          First-time installs and uninstalls can take several minutes; disable may wait while
+          related cloud resources finish tearing down.
         </Typography>
         <Typography variant="body2" color="text.secondary" component="p" sx={{ m: 0 }}>
-          When no toggle or apply is running, this page refreshes status on its own every few seconds. Bringing
-          this tab back to the foreground also triggers a refresh.
+          When no toggle or apply is running, this page refreshes status on its own every few
+          seconds. Bringing this tab back to the foreground also triggers a refresh.
         </Typography>
       </Stack>
       <Alert severity="warning" sx={{ mb: 2 }}>
         <Stack spacing={1}>
           <Typography variant="body2" component="div">
-            <strong>Do not reload or close this tab</strong> while enable, disable, pin / apply ref, or
-            &quot;Reset to platform branch&quot; is running.
+            <strong>Do not reload or close this tab</strong> while enable, disable, pin / apply ref,
+            or &quot;Reset to platform branch&quot; is running.
           </Typography>
           <Typography variant="body2" component="div">
-            A full page refresh usually <strong>cancels the in-flight browser request</strong>. The server may
-            still apply or partially apply the change, so the UI can disagree with the cluster until you load
-            fresh data <em>after</em> the operation completes.
+            A full page refresh usually <strong>cancels the in-flight browser request</strong>. The
+            server may still apply or partially apply the change, so the UI can disagree with the
+            cluster until you load fresh data <em>after</em> the operation completes.
           </Typography>
           <Typography variant="body2" component="div">
-            While this page is idle, status updates every few seconds automatically. Only hard-refresh if you
-            believe the view is stale and no command is in progress.
+            While this page is idle, status updates every few seconds automatically. Only
+            hard-refresh if you believe the view is stale and no command is in progress.
           </Typography>
         </Stack>
       </Alert>
@@ -352,18 +354,33 @@ export function ModulesTab() {
               <Card variant="outlined">
                 <CardContent>
                   <Typography variant="h6">{m.name}</Typography>
-                  <Box sx={{ my: 1, display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+                  <Box
+                    sx={{ my: 1, display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}
+                  >
                     <Chip size="small" label={label} color={color} />
                   </Box>
                   {label === 'DEPLOYMENT PENDING' ? (
-                    <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 0.5 }}>
-                      Enabled in Module Manager, but no matching Argo CD Application was found (reconcile lag,
-                      manual delete, or different cluster/namespace than module-manager). Disable if this is
-                      unintended.
+                    <Typography
+                      variant="caption"
+                      color="text.secondary"
+                      display="block"
+                      sx={{ mb: 0.5 }}
+                    >
+                      Enabled in Module Manager, but no matching Argo CD Application was found
+                      (reconcile lag, manual delete, or different cluster/namespace than
+                      module-manager). Disable if this is unintended.
                     </Typography>
                   ) : null}
                   {m.enabled ? (
-                    <Box sx={{ mb: 0.5, display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+                    <Box
+                      sx={{
+                        mb: 0.5,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 1,
+                        flexWrap: 'wrap',
+                      }}
+                    >
                       <Chip
                         size="small"
                         variant="outlined"
@@ -375,7 +392,12 @@ export function ModulesTab() {
                         color="text.secondary"
                         component="span"
                         title={(m.pinned ? m.targetRevision : m.clusterTargetRevision) || ''}
-                        sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '100%' }}
+                        sx={{
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                          maxWidth: '100%',
+                        }}
                       >
                         {(m.pinned ? m.targetRevision : m.clusterTargetRevision) || '\u2014'}
                       </Typography>
@@ -470,8 +492,13 @@ export function ModulesTab() {
                     }
                     label={m.enabled ? 'Enabled' : 'Disabled'}
                   />
-                  {(m.hardDependencies?.length || m.softDependencies?.length) ? (
-                    <Typography variant="caption" display="block" color="text.secondary" sx={{ mt: 1 }}>
+                  {m.hardDependencies?.length || m.softDependencies?.length ? (
+                    <Typography
+                      variant="caption"
+                      display="block"
+                      color="text.secondary"
+                      sx={{ mt: 1 }}
+                    >
                       {m.hardDependencies?.length ? (
                         <>Hard deps: {m.hardDependencies.join(', ')}. </>
                       ) : null}

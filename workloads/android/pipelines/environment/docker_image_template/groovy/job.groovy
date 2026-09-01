@@ -118,6 +118,15 @@ pipelineJob('Android/Environment/Docker Image Template') {
         <b>Reference</b>: Run <code>npm view @google/gemini-cli versions</code> for a full list of valid versions.</p>''')
       trim(true)
     }
+
+    stringParam {
+      name('GOOGLE_ADK_VERSION')
+      defaultValue("${GOOGLE_ADK_VERSION}")
+      description('''<p>The version of google-adk to be installed.<br/>
+        <b>Default</b>: 2.6.3.<br/>
+        <b>Reference</b>: Run <code>pip index versions google-adk</code> for a full list of valid versions.</p>''')
+      trim(true)
+    }
   }
 
   // Block build if certain jobs are running.

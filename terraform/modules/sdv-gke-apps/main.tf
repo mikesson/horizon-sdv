@@ -261,6 +261,8 @@ resource "helm_release" "workflow_namespace_drain" {
   ]
 }
 
+# GCS project buckets and cluster Config Connector are GitOps-managed in gitops/modules/storage-gcs-module (KCC + GCSBucket CRs).
+
 # Create SecretStore for each environment
 resource "kubectl_manifest" "argocd_secret_store" {
   for_each = local.all_environments
@@ -457,14 +459,30 @@ resource "kubectl_manifest" "argocd_application" {
               isSubEnvironment: ${!each.value.is_main}
               environmentName: "${each.value.env_name}"
               enableNetworkPolicies: ${var.enable_network_policies}
+              storageLocation: ${var.gcp_storage_location}
+              probeSourceCIDRs:
+                - ${var.nodes_range}
+%{if var.enable_arm64_dedicated_subnet~}
+                - ${var.arm64_nodes_range}
+%{endif~}
               useStaticDnsARecords: ${var.use_static_dns_a_records}
               arm64:
                 region: ${local.arm64_placement_region}
                 zone: ${local.arm64_placement_zone}
                 subnetwork: ${local.arm64_placement_subnetwork}
+              nginx:
+                image: nginx
+                tag: "${var.common_nginx_version}"
               containerImages:
-                landingpage: ${var.gcp_cloud_region}-docker.pkg.dev/${var.gcp_project_id}/${var.gcp_registry_id}/landingpage-app:${var.images["landingpage-app"].version}
                 kccWebhookCertMonitor: ${var.gcp_cloud_region}-docker.pkg.dev/${var.gcp_project_id}/${var.gcp_registry_id}/kcc-webhook-cert-monitor:${var.images["kcc-webhook-cert-monitor"].version}
+                horizondevelopmentportal: ${var.gcp_cloud_region}-docker.pkg.dev/${var.gcp_project_id}/${var.gcp_registry_id}/horizon-dev-portal:${var.images["horizon-dev-portal"].version}
+                gerritMcpServer: ${var.gcp_cloud_region}-docker.pkg.dev/${var.gcp_project_id}/${var.gcp_registry_id}/gerrit-mcp-server-app:${var.images["gerrit-mcp-server-app"].version}
+                moduleManager: ${var.gcp_cloud_region}-docker.pkg.dev/${var.gcp_project_id}/${var.gcp_registry_id}/module-manager-app:${var.images["module-manager-app"].version}
+                storageGcsModule: ${var.gcp_cloud_region}-docker.pkg.dev/${var.gcp_project_id}/${var.gcp_registry_id}/storage-gcs-module-app:${var.images["storage-gcs-module-app"].version}
+                horizonApi: ${var.gcp_cloud_region}-docker.pkg.dev/${var.gcp_project_id}/${var.gcp_registry_id}/horizon-api-app:${var.images["horizon-api-app"].version}
+              apps:
+                kccWebhookCertMonitor: ${var.gcp_cloud_region}-docker.pkg.dev/${var.gcp_project_id}/${var.gcp_registry_id}/kcc-webhook-cert-monitor:${var.images["kcc-webhook-cert-monitor"].version}
+                horizonPortal: ${var.gcp_cloud_region}-docker.pkg.dev/${var.gcp_project_id}/${var.gcp_registry_id}/horizon-dev-portal:${var.images["horizon-dev-portal"].version}
                 horizondevelopmentportal: ${var.gcp_cloud_region}-docker.pkg.dev/${var.gcp_project_id}/${var.gcp_registry_id}/horizon-dev-portal:${var.images["horizon-dev-portal"].version}
                 gerritMcpServer: ${var.gcp_cloud_region}-docker.pkg.dev/${var.gcp_project_id}/${var.gcp_registry_id}/gerrit-mcp-server-app:${var.images["gerrit-mcp-server-app"].version}
                 moduleManager: ${var.gcp_cloud_region}-docker.pkg.dev/${var.gcp_project_id}/${var.gcp_registry_id}/module-manager-app:${var.images["module-manager-app"].version}

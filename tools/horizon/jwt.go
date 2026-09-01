@@ -26,13 +26,12 @@ func decodeJWTPayload(token string) (map[string]any, error) {
 	if len(parts) != 3 {
 		return nil, fmt.Errorf("not a JWT")
 	}
-	payload := parts[1]
-	switch len(payload) % 4 {
-	case 2:
-		payload += "=="
-	case 3:
-		payload += "="
-	}
+	// JWT segments are base64url and unpadded. RawURLEncoding decodes unpadded
+	// input directly; the previous code appended '=' padding and then used
+	// RawURLEncoding, which rejects padding and failed with "illegal base64 data
+	// at input byte N" whenever the payload length was not a multiple of 4
+	// (TAA-1799). Trim any stray padding for robustness, then decode.
+	payload := strings.TrimRight(parts[1], "=")
 	b, err := base64.RawURLEncoding.DecodeString(payload)
 	if err != nil {
 		return nil, err

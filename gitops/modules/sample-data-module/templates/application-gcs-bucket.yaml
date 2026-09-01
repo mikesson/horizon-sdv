@@ -1,0 +1,40 @@
+# Copyright (c) 2024-2026 Accenture, All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+
+{{- if not (default false .Values.config.isSubEnvironment) }}
+# Child Application: GCSBucket sample-workloads-data (reconciled by storage-gcs operator; requires mod-storage-gcs).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: mod-{{ .Values.moduleName }}-gcs-bucket
+  namespace: {{ .Values.argocd.namespace }}
+  labels:
+    app.kubernetes.io/name: {{ .Values.moduleName }}
+    horizon-sdv.io/module: {{ .Values.moduleName }}
+    horizon-sdv.io/app-role: child
+    horizon-sdv.io/module-manager-managed: "true"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: {{ .Values.argocd.project }}
+  source:
+    repoURL: {{ .Values.repo.url | quote }}
+    targetRevision: {{ .Values.repo.revision | quote }}
+    path: gitops/modules/sample-data-module/gcs-bucket
+    helm:
+      values: |
+        horizonNamespace: {{ .Values.config.namespacePrefix }}horizon
+        projectID: {{ .Values.config.projectID | quote }}
+        # Canonical bucket name owned by sample-data; clients (e.g. sample-smoke-test) pass this to storage-gcs-upload.
+        bucketName: {{ .Values.config.projectID }}-sample-workloads-data
+        storageLocation: {{ .Values.config.storageLocation | quote }}
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: {{ .Values.config.namespacePrefix }}horizon
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+    automated: {}
+{{- end }}

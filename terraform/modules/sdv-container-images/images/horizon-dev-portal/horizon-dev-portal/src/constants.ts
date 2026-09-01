@@ -13,8 +13,24 @@
 // limitations under the License.
 //
 import vehicleLogoUrl from './assets/Vehicle.svg?url';
+import accentureLogoUrl from './assets/accenture-logo.png';
+import argocdLogoUrl from './assets/argocd-logo.png';
+import gerritLogoUrl from './assets/gerrit-logo.png';
+import grafanaLogoUrl from './assets/grafana-logo.png';
+import headlampDarkLogoUrl from './assets/headlamp-icon-dark.svg?url';
+import jenkinsLogoUrl from './assets/jenkins-logo.png';
+import keycloakLogoUrl from './assets/keycloak-logo.png';
+import mcpGatewayRegistryLogoUrl from './assets/mcp-gateway-registry-logo.png';
 
 export const HORIZON_LOGO_SRC = vehicleLogoUrl;
+export const ACCENTURE_LOGO_SRC = accentureLogoUrl;
+export const ARGOCD_LOGO_SRC = argocdLogoUrl;
+export const GERRIT_LOGO_SRC = gerritLogoUrl;
+export const GRAFANA_LOGO_SRC = grafanaLogoUrl;
+export const HEADLAMP_DARK_LOGO_SRC = headlampDarkLogoUrl;
+export const JENKINS_LOGO_SRC = jenkinsLogoUrl;
+export const KEYCLOAK_LOGO_SRC = keycloakLogoUrl;
+export const MCP_GATEWAY_REGISTRY_LOGO_SRC = mcpGatewayRegistryLogoUrl;
 
 /** Fired after Administration → Modules changes module state so the shell sidebar re-fetches ready modules. */
 export const READY_MODULES_REFRESH_EVENT = 'horizon-dev-portal:refresh-ready-modules';
