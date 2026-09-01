@@ -1,0 +1,70 @@
+#!/bin/bash
+
+# Copyright 2026 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+set -euo pipefail
+
+# Monitor-aware, XWayland-safe launcher for Android Studio for Platform.
+# Invoked by asfp-canary.desktop (dock/menu and WORKSTATION_DEFAULT_APP autostart).
+# Pattern aligned with horizon-android-studio's android-studio-launcher (TAA-1952).
+
+# shellcheck source=/dev/null
+source /google/scripts/common.sh
+# shellcheck source=/dev/null
+source /google/scripts/desktop_utils.sh
+
+# The GNOME session defaults to native Wayland (GDK_BACKEND=wayland), but the
+# JetBrains platform's AWT/Swing stack is far more stable on X11/XWayland.
+# Forcing Wayland previously contributed to RDP session drops after Guacamole
+# connected ("remote desktop server has forcibly closed the connection").
+export GDK_BACKEND=x11
+export QT_QPA_PLATFORM=xcb
+# Force AWT to use XToolkit (X11) instead of auto-detecting Wayland, and pick
+# up JAVA_TOOL_OPTIONS in the Studio launcher's JVM regardless of how it
+# constructs its own vmoptions.
+export JAVA_TOOL_OPTIONS="${JAVA_TOOL_OPTIONS:-} -Dawt.toolkit.name=XToolkit"
+
+# Ensure runtime paths exist for D-Bus / monitor polling.
+export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/1000}"
+export WAYLAND_DISPLAY="${WAYLAND_DISPLAY:-wayland-0}"
+export DBUS_SESSION_BUS_ADDRESS="${DBUS_SESSION_BUS_ADDRESS:-unix:path=${XDG_RUNTIME_DIR}/bus}"
+
+# Mirror the GNOME base's software-rendering fallback when no GPU is present.
+if [[ "${WORKSTATION_GPU_ENABLED:-false}" == "false" ]]; then
+  log "No GPU detected. Forcing software rendering (LLVMpipe) for ASfP."
+  export LIBGL_ALWAYS_SOFTWARE=1
+  export GALLIUM_DRIVER=llvmpipe
+  export MESA_LOADER_DRIVER_OVERRIDE=swrast
+fi
+
+# Autostart runs when gnome-session starts, but the virtual monitor (Meta-0)
+# is only added when Guacamole/RDP connects — often minutes later. A short
+# wait_for_monitor timeout then falls through and AWT dies with:
+#   java.awt.AWTError: no screen devices
+# Block until a monitor is actually current; do not launch headless.
+log "Waiting for an active monitor before launching ASfP..."
+while true; do
+  wait_for_monitor 60
+  if gdbus call --session \
+       --dest org.gnome.Mutter.DisplayConfig \
+       --object-path /org/gnome/Mutter/DisplayConfig \
+       --method org.gnome.Mutter.DisplayConfig.GetCurrentState 2>/dev/null \
+       | grep -q "is-current"; then
+    break
+  fi
+  log "No monitor yet (open Guacamole/RDP); continuing to wait..."
+done
+
+exec /opt/android-studio-for-platform-canary/bin/studio "$@"

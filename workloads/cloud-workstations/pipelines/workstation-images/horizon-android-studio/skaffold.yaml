@@ -20,3 +20,9 @@ build:
   artifacts:
   - image: android-studio
     context: .
+    docker:
+      # Thin child of horizon-gnome: BASE_IMAGE has no default in the
+      # Dockerfile and must be supplied explicitly, e.g.:
+      #   BASE_IMAGE=<region>-docker.pkg.dev/<project>/horizon-gnome:latest skaffold build
+      buildArgs:
+        BASE_IMAGE: "{{.BASE_IMAGE}}"

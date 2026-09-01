@@ -1,0 +1,55 @@
+# Copyright (c) 2024-2026 Accenture, All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+
+# Module name (injected by Module Manager when enabling).
+moduleName: ""
+
+moduleManagerNamespace: module-manager
+
+argocd:
+  namespace: argocd
+  project: horizon-sdv
+
+repo:
+  url: ""
+  revision: HEAD
+
+# Developer Portal overview (Module Manager GET /modules/{name}/overview).
+overviewServiceName: mod-storage-gcs-overview
+overviewNamespace: storage-gcs-overview
+
+config:
+  namespacePrefix: ""
+  projectID: ""
+  enableNetworkPolicies: true
+  # Node primary subnets (kubelet probe source IPs). Pods use secondary ranges and are not covered.
+  # Prefer MODULE_CONFIG / Terraform (nodes_range, arm64_nodes_range) over these chart defaults.
+  probeSourceCIDRs:
+    - "10.1.0.0/24"
+    - "10.2.0.0/24"
+  # Static GCS buckets allowed by the REST API (in addition to GCSBucket CR spec.bucketName).
+  # Empty entries are ignored; projectID is prefixed at render time when useProjectPrefix is true.
+  allowedBuckets:
+    - aaos
+    - openbsw
+    - argo-workflows
+  allowedBucketsUseProjectPrefix: true
+  apiToken:
+    secretName: storage-gcs-module-api-token
+    # Workflows Secret key (caller storage-gcs-internal). Horizon also has tokens.json + token (default).
+    key: storage-gcs-internal
+  storage:
+    location: ""
+  # GCS V4 signed URLs (see POST /api/v1/buckets/{bucket}/signed-urls). Durations: Go format (e.g. 48h, 168h). Max 7d per GCS.
+  signedUrl:
+    defaultExpiry: "48h"
+    maxExpiry: "168h"
+    serviceAccount: ""
+  # Full image ref; Module Manager MODULE_CONFIG merges config.containerImages.storageGcsModule at enable time.
+  containerImages:
+    storageGcsModule: ""
+spec:
+  destination:
+    server: https://kubernetes.default.svc

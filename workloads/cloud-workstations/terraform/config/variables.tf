@@ -55,7 +55,7 @@ variable "sdv_cloud_ws_configs" {
 
     host_machine_type                 = optional(string, "e2-standard-4")
     host_quickstart_pool_size         = optional(number, 0)  # quickstart ws pool size, def: 0, min: 1 if quickstart enabled
-    host_boot_disk_size_gb            = optional(number, 30) # def: 50 GB, but min 30 GB
+    host_boot_disk_size_gb            = optional(number, 40) # def: 40 GB, but min 31 GB
     host_disable_public_ip_addresses  = optional(bool, true)
     host_disable_ssh                  = optional(bool, true)
     host_enable_nested_virtualization = optional(bool, false) # enable for emulators

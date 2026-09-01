@@ -97,6 +97,44 @@ func shutdownAbortDetected(u *unstructured.Unstructured) bool {
 	return false
 }
 
+// DisplayPhaseForNode returns the phase shown in Horizon JSON APIs for a workflow node.
+// When the parent workflow was aborted via spec.shutdown, Argo often marks interrupted nodes as Failed;
+// remap those to Aborted for consistency with workflow-level DisplayPhaseForAPI.
+func DisplayPhaseForNode(nodePhase string, workflowAborted bool, node map[string]interface{}) string {
+	phase := strings.TrimSpace(nodePhase)
+	if phase == "" || !workflowAborted {
+		return nodePhase
+	}
+	if strings.EqualFold(phase, "Stopped") {
+		return "Aborted"
+	}
+	if !strings.EqualFold(phase, "Failed") && !strings.EqualFold(phase, "Error") {
+		return nodePhase
+	}
+	if nodeInterruptedByShutdown(node) {
+		return "Aborted"
+	}
+	return nodePhase
+}
+
+func nodeInterruptedByShutdown(node map[string]interface{}) bool {
+	if node == nil {
+		return true
+	}
+	msg, _, _ := unstructured.NestedString(node, "message")
+	lm := strings.ToLower(strings.TrimSpace(msg))
+	if lm == "" {
+		return true
+	}
+	if strings.Contains(lm, "stopped with strategy") {
+		return true
+	}
+	if strings.Contains(lm, "workflow shutdown") {
+		return true
+	}
+	return false
+}
+
 // Summary builds a WorkflowSummary from an unstructured Workflow.
 func Summary(u *unstructured.Unstructured, ns, defaultBucket string) WorkflowSummary {
 	return summaryWithArchivePods(u, ns, defaultBucket, nil)
@@ -144,6 +182,7 @@ func Detail(u *unstructured.Unstructured, ns, defaultBucket string, k8sPodNames 
 	dependentTplSet := make(map[string]bool)
 	rootTpl := strings.TrimSpace(sum.WorkflowTemplate)
 	rootModule := strings.TrimSpace(sum.Module)
+	workflowAborted := shutdownAbortDetected(u)
 	for id, raw := range nodes {
 		m, ok := raw.(map[string]interface{})
 		if !ok {
@@ -169,7 +208,7 @@ func Detail(u *unstructured.Unstructured, ns, defaultBucket string, k8sPodNames 
 			TemplateName: tpl,
 			WorkflowTemplate: originTpl,
 			Type:         typ,
-			Phase:        ph,
+			Phase:        DisplayPhaseForNode(ph, workflowAborted, m),
 			PodName:      pod,
 			StartedAt:    nStarted,
 		})

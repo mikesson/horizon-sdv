@@ -76,5 +76,10 @@ folder('Cloud-Workstations/Environment') {
 
 folder('Cloud-Workstations/Workstation-Images') {
   displayName('Workstation Images')
-  description('<p>This folder contains a job that builds Docker image for the Code OSS (open-source VS Code) IDE for use in Cloud Workstations.</p>')
+  description('<p>This folder contains jobs that build Docker images for Cloud Workstations, including Horizon Preflight, Horizon GNOME, Code OSS, Android Studio, and Android Studio for Platform (ASfP).</p>')
+}
+
+folder('Cloud-Workstations/Workstation-Image-Chain') {
+  displayName('Workstation Image Chain')
+  description('<p>This folder contains the Horizon AOSP Build Image Chain orchestrator (optional preflight → optional gnome → optional IDE children). Kept separate from Workstation Images so leaf image <code>blockOn</code> rules do not deadlock against the parent job.</p>')
 }

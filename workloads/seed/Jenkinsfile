@@ -244,6 +244,13 @@ pipeline {
              <b>Default</b>: Latest available version.<br/>
              <b>Reference</b>: Run <code>npm view @google/gemini-cli versions</code> for a full list of valid versions.</p>''',
            trim: true)
+
+      string(name: 'GOOGLE_ADK_VERSION',
+           defaultValue: '2.6.3',
+           description: '''<p>The version of google-adk to be installed.<br/>
+             <b>Default</b>: 2.6.3.<br/>
+             <b>Reference</b>: Run <code>pip index versions google-adk</code> for a full list of valid versions.</p>''',
+           trim: true)
   }
 
   stages {
@@ -295,7 +302,8 @@ pipeline {
                   ['${GEMINI_CLI_VERSION}', "${GEMINI_CLI_VERSION}"],
                   ['${GEMINI_PREVIEW_FEATURES}', "${GEMINI_PREVIEW_FEATURES}"],
                   ['${GEMINI_LOCATION_GLOBAL}', "${GEMINI_LOCATION_GLOBAL}"],
-                  ['${GEMINI_MODEL}', "${GEMINI_MODEL}"]
+                  ['${GEMINI_MODEL}', "${GEMINI_MODEL}"],
+                  ['${GOOGLE_ADK_VERSION}', "${GOOGLE_ADK_VERSION}"]
                  ]
 
                 def files = sh(returnStdout: true, script: "find workloads/android -name '*.groovy'").trim().split('\n')
@@ -359,7 +367,8 @@ pipeline {
                   ['${GEMINI_CLI_VERSION}', "${GEMINI_CLI_VERSION}"],
                   ['${GEMINI_PREVIEW_FEATURES}', "${GEMINI_PREVIEW_FEATURES}"],
                   ['${GEMINI_LOCATION_GLOBAL}', "${GEMINI_LOCATION_GLOBAL}"],
-                  ['${GEMINI_MODEL}', "${GEMINI_MODEL}"]
+                  ['${GEMINI_MODEL}', "${GEMINI_MODEL}"],
+                  ['${GOOGLE_ADK_VERSION}', "${GOOGLE_ADK_VERSION}"]
                 ]
 
                 def files = sh(returnStdout: true, script: "find workloads/openbsw -name '*.groovy'").trim().split('\n')
@@ -479,7 +488,8 @@ pipeline {
                   ['${GEMINI_CLI_VERSION}', "${GEMINI_CLI_VERSION}"],
                   ['${GEMINI_PREVIEW_FEATURES}', "${GEMINI_PREVIEW_FEATURES}"],
                   ['${GEMINI_LOCATION_GLOBAL}', "${GEMINI_LOCATION_GLOBAL}"],
-                  ['${GEMINI_MODEL}', "${GEMINI_MODEL}"]
+                  ['${GEMINI_MODEL}', "${GEMINI_MODEL}"],
+                  ['${GOOGLE_ADK_VERSION}', "${GOOGLE_ADK_VERSION}"]
                 ]
 
                 def files = sh(returnStdout: true, script: "find workloads/utilities -name '*.groovy'").trim().split('\n')
@@ -536,6 +546,8 @@ pipeline {
                   ['${CLOUD_WS_CLUSTER_PRESET_SUBNETWORK_NAME}', "${CLOUD_WS_CLUSTER_PRESET_SUBNETWORK_NAME}"],
                   ['${CLOUD_WS_CLUSTER_PRESET_PRIVATE_CLUSTER}', "${CLOUD_WS_CLUSTER_PRESET_PRIVATE_CLUSTER}"],
                   ['${CLOUD_WS_HORIZON_CODE_OSS_IMAGE_NAME}', "${CLOUD_WS_HORIZON_CODE_OSS_IMAGE_NAME}"],
+                  ['${CLOUD_WS_HORIZON_PREFLIGHT_IMAGE_NAME}', "${CLOUD_WS_HORIZON_PREFLIGHT_IMAGE_NAME}"],
+                  ['${CLOUD_WS_HORIZON_GNOME_IMAGE_NAME}', "${CLOUD_WS_HORIZON_GNOME_IMAGE_NAME}"],
                   ['${CLOUD_WS_HORIZON_ASFP_IMAGE_NAME}', "${CLOUD_WS_HORIZON_ASFP_IMAGE_NAME}"],
                   ['${CLOUD_WS_HORIZON_ANDROID_STUDIO_IMAGE_NAME}', "${CLOUD_WS_HORIZON_ANDROID_STUDIO_IMAGE_NAME}"],
                   ['${BUILDKIT_RELEASE_TAG}', "${BUILDKIT_RELEASE_TAG}"],

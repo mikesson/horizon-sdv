@@ -113,7 +113,7 @@ env/main.tf file include all modules by its dependencies:
 4. `sdv-certificate-manager` - Define certificate manager maps and DNS authorization for specific domain.
 5. `sdv-container-images` - Build and push container images to Artifact Registry.
 6. `sdv-dns-zone` - Create and manage Cloud DNS Zone for the environment. Manages DNS records within it.
-7. `sdv-gcs` - Creates Google Cloud Storage and Storage Bucket for the project.
+7. `sdv-gcs` - Creates Google Cloud Storage buckets for the project (`{project_id}-aaos`, `{project_id}-openbsw`).
 8. `sdv-gke-apps` - Module which deployes essential apps once the Standard GKE cluster has been provisioned.
 9. `sdv-gke-cluster` - Defines Google Kubernetes Engine Cluster for project with proper configuration and properties.
 10. `sdv-iam` - Configures IAM roles for users and Service Accounts.
@@ -135,7 +135,7 @@ Implementation consist of several modules responsible for particular feature or 
 - sdv-certificate-manager
 - sdv-container-images
 - sdv-dns-zone
-- sdv-gcs 
+- sdv-gcs
 - sdv-gke-apps
 - sdv-gke-cluster
 - sdv-iam
@@ -160,7 +160,7 @@ Contains main configuration file , which contains GCP project details such as  p
 Main configuration file for the "base" module. Configure and set data to for other modules to provision various resources.
 Module `base` is responsible to set and config following parts:
 
-- Modules - The configuration uses multiple modules eg ../sdv-apis, ../sdv-secrets, ../sdv-wi, ../sdv-gcs, ../sdv-network, etc. Each module is responsible for specific tasks such as managing APIs, secrets, parameters service accounts, GCS buckets, network configurations, DNS Zone management, GKE cluster setup, artifact registry, Container images, certificate management, SSL policy, and IAM roles.
+- Modules - The configuration uses multiple modules eg ../sdv-apis, ../sdv-secrets, ../sdv-wi, ../sdv-gcs, ../sdv-network, etc. Each module is responsible for specific tasks such as managing APIs, secrets, parameters service accounts, GCS buckets (`{project_id}-aaos`, `{project_id}-openbsw`), network configurations, DNS Zone management, GKE cluster setup, artifact registry, Container images, certificate management, SSL policy, and IAM roles. Additional buckets (`{project_id}-sample-workloads-data` via `sample-data` after `storage-gcs`; `{project_id}-argo-workflows` via `gitops/templates/argo-workflows-bucket.yaml` in the root `horizon-sdv` app) are provisioned via Argo CD.
 - Service Accounts and IAM Roles - Sets up IAM roles for the service account ${var.sdv_gcp_compute_sa_email} including roles/storage.objectUser, roles/compute.instanceAdmin.v1, roles/compute.networkAdmin, roles/iap.tunnelResourceAccessor, and roles/iam.serviceAccountUser.
 - GKE Cluster Configuration - It defines a GKE cluster with a default node pool and a build node pool. The node pools sets specific configurations for machine types, node counts, and locations.
 - Secrets Management - The configuration includes a module for managing secrets with a map of secrets and their access rules for different GKE namespaces and service accounts.
@@ -186,17 +186,18 @@ Builds and pushes the required container images to Google Artifact Registry. Det
 Creates and configures Google Cloud DNS Zone. Manages DNS records within the Cloud DNS Zone. Creates Google certificate manager certificate CNAME record required for DNS Authz.
 
 ## Module - sdv-gcs
-Creates Google Cloud Storage (GCS) Bucket. Uniform bucket-level option control access to your Cloud Storage resources. When enabled, Access Control Lists (ACLs) are disabled, and only bucket-level Identity and Access Management (IAM) permissions grant access to that bucket and the objects it contains.
+Creates Google Cloud Storage (GCS) buckets. Uniform bucket-level access is enabled (ACLs disabled; bucket-level IAM only). The base module provisions `{project_id}-aaos` and `{project_id}-openbsw`. Optional lifecycle rules (for example object age-based delete) are supported via `lifecycle_delete_age_days`.
 
 ## Module - sdv-gke-apps
 Deploys and configures required Kubernetes resources post Standard GKE Cluster creation.
 - Deploy External Secrets and Argo CD via Helm.
 - Create required Service accounts, Secrets and Secret Stores.
+- Apply cluster-scoped Config Connector (`ConfigConnector` CR) via GitOps (`gitops/templates/config-connector.yaml`, root `horizon-sdv` app); Workload Identity uses `gke-config-connector-sa` (env `sa11`).
 - Create Argo CD App Project and Argo CD Application.
 
 ## Module - sdv-gke-cluster
 Creates and manages a Google Kubernetes Engine (GKE) cluster along with its node pools.
-This terraform configuration sets up a GKE cluster with specific configurations for network, security, maintenance, and add-ons, along with two node pools (main and build) with their respective configurations.
+This terraform configuration sets up a GKE cluster with specific configurations for network, security, maintenance, and add-ons (including the Config Connector add-on), along with two node pools (main and build) with their respective configurations.
 
 Resource "google_container_cluster" "sdv_cluster" defines a GKE cluster with various configurations:
 - Project and Location: Specifies the project ID, cluster name, location, network, and subnetwork.

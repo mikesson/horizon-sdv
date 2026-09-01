@@ -1,0 +1,86 @@
+# Copyright (c) 2024-2026 Accenture, All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+{{- if .Values.mainEnv }}
+# Public upload WorkflowTemplate — the only supported entry for other modules (templateRef). REST API is not called directly.
+# Callers must pass bucket (GCS bucket name) and objectPath; storage-gcs-module does not choose buckets for clients.
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: storage-gcs-upload
+  namespace: {{ .Values.workflowNamespace }}
+  labels:
+    app.kubernetes.io/name: storage-gcs-upload
+    horizon-sdv.io/module: storage-gcs
+    # Not Horizon-catalog exposed: other modules use templateRef; hide from Developer Portal submit UI.
+    horizon-sdv.io/expose: "false"
+  annotations:
+    argocd.argoproj.io/sync-wave: "7"
+spec:
+  templates:
+    - name: upload
+      inputs:
+        parameters:
+          - name: bucket
+          - name: objectPath
+        artifacts:
+          - name: file
+      dag:
+        tasks:
+          - name: push
+            templateRef:
+              name: storage-gcs-module-internal
+              template: push-object
+            arguments:
+              parameters:
+                - name: bucket
+                  value: "{{ "{{inputs.parameters.bucket}}" }}"
+                - name: objectPath
+                  value: "{{ "{{inputs.parameters.objectPath}}" }}"
+              artifacts:
+                - name: file
+                  from: "{{ "{{inputs.artifacts.file}}" }}"
+          - name: verify
+            templateRef:
+              name: storage-gcs-module-internal
+              template: verify-object
+            depends: push
+            arguments:
+              parameters:
+                - name: bucket
+                  value: "{{ "{{inputs.parameters.bucket}}" }}"
+                - name: objectPath
+                  value: "{{ "{{inputs.parameters.objectPath}}" }}"
+    - name: resumable-upload
+      inputs:
+        parameters:
+          - name: bucket
+          - name: objectPath
+          - name: totalSizeMiB
+          - name: chunkSizeMiB
+            value: "32"
+          - name: delayCount
+            value: "5"
+          - name: delaySeconds
+            value: "60"
+      steps:
+        - - name: upload
+            templateRef:
+              name: storage-gcs-module-internal
+              template: resumable-upload-stream
+            arguments:
+              parameters:
+                - name: bucket
+                  value: "{{ "{{inputs.parameters.bucket}}" }}"
+                - name: objectPath
+                  value: "{{ "{{inputs.parameters.objectPath}}" }}"
+                - name: totalSizeMiB
+                  value: "{{ "{{inputs.parameters.totalSizeMiB}}" }}"
+                - name: chunkSizeMiB
+                  value: "{{ "{{inputs.parameters.chunkSizeMiB}}" }}"
+                - name: delayCount
+                  value: "{{ "{{inputs.parameters.delayCount}}" }}"
+                - name: delaySeconds
+                  value: "{{ "{{inputs.parameters.delaySeconds}}" }}"
+{{- end }}

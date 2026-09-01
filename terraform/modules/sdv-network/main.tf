@@ -29,7 +29,7 @@ module "vpc" {
         subnet_region             = var.region
         subnet_ip                 = "10.1.0.0/24"
         enable_ula_internal_ipv6  = true
-        private_ip_google_access  = true
+        subnet_private_access     = "true"
         subnet_flow_logs          = "true"
         subnet_flow_logs_interval = "INTERVAL_5_MIN"
         subnet_flow_logs_sampling = "0.5"
@@ -43,7 +43,7 @@ module "vpc" {
         subnet_region             = var.arm64_region
         subnet_ip                 = "10.2.0.0/24"
         enable_ula_internal_ipv6  = true
-        private_ip_google_access  = true
+        subnet_private_access     = "true"
         subnet_flow_logs          = "true"
         subnet_flow_logs_interval = "INTERVAL_5_MIN"
         subnet_flow_logs_sampling = "0.5"
@@ -80,14 +80,13 @@ module "vpc" {
     } : {}
   )
 
-  routes = [
+  routes = var.create_internet_egress_route ? [
     {
       name                     = var.router_name
       description              = "route through IGW to access internet"
       destination_range        = "0.0.0.0/0"
       tags                     = "egress-inet"
       next_hop_internet        = "true"
-      private_ip_google_access = true
     }
-  ]
+  ] : []
 }

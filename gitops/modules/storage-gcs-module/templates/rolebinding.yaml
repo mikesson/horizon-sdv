@@ -1,0 +1,22 @@
+# Copyright (c) 2024-2026 Accenture, All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+
+{{- if include "storage-gcs-module.mainEnv" . | eq "true" }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: storage-gcs-module
+  namespace: {{ .Values.config.namespacePrefix }}horizon
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: storage-gcs-module
+subjects:
+  - kind: ServiceAccount
+    name: storage-gcs-module
+    namespace: {{ .Values.config.namespacePrefix }}horizon
+{{- end }}

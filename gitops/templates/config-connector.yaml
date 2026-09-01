@@ -12,11 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-# The Config Connector operator (GKE add-on) scans all namespaces that have a
-# ConfigConnectorContext to verify CNRM resource counts. It needs read access
-# to every installed CNRM API group (including edgenetwork) cluster-wide, so a
-# ClusterRole/ClusterRoleBinding is the correct scope rather than per-namespace
-# Roles. Ref: https://cloud.google.com/config-connector/docs/how-to/install-upgrade-uninstall
+# Cluster-mode Config Connector (`ConfigConnector` CR) is platform GitOps on the main environment only (below).
+# Do not create ConfigConnectorContext when mode is cluster — the operator rejects CCC as unnecessary.
+# configconnector-operator-cnrm-discovery grants the operator read access to CNRM API groups (e.g. edgenetwork).
+# Ref: https://cloud.google.com/config-connector/docs/how-to/install-upgrade-uninstall
 
 ---
 apiVersion: rbac.authorization.k8s.io/v1
@@ -55,16 +54,23 @@ subjects:
   - kind: ServiceAccount
     name: configconnector-operator
     namespace: configconnector-operator-system
+{{- if not (default false .Values.config.isSubEnvironment) }}
 ---
+# Cluster-mode Config Connector (GKE add-on). Uses gke-config-connector-sa from Terraform WI (env sa11).
 apiVersion: core.cnrm.cloud.google.com/v1beta1
-kind: ConfigConnectorContext
+kind: ConfigConnector
 metadata:
-  name: configconnectorcontext.core.cnrm.cloud.google.com
-  namespace: gcp
+  name: configconnector.core.cnrm.cloud.google.com
+  labels:
+    app.kubernetes.io/name: horizon-sdv
+    app.kubernetes.io/component: config-connector
   annotations:
-    argocd.argoproj.io/sync-wave: "1"
+    argocd.argoproj.io/sync-wave: "0"
 spec:
+  mode: cluster
   googleServiceAccount: gke-config-connector-sa@{{ .Values.config.projectID }}.iam.gserviceaccount.com
+  stateIntoSpec: Absent
+{{- end }}
 ---
 # Centralized KCC webhook TLS monitor:
 # periodically verifies that the certificate served by cnrm-validating-webhook

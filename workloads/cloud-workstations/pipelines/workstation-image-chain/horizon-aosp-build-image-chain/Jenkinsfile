@@ -1,0 +1,189 @@
+// Copyright (c) 2026 Accenture, All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//         http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// Description:
+// Orchestrates the layered Cloud Workstation image chain:
+//   optional horizon-preflight → optional horizon-gnome →
+//   optional horizon-asfp and/or horizon-android-studio (parallel)
+// Threads published BASE_IMAGE URIs between stages. Preflight/GNOME can be skipped to rebuild
+// only the selected child IDE images against already-published bases. Child builds default on;
+// uncheck either to skip that image.
+//
+// Parameters are defined in:
+//   workloads/cloud-workstations/pipelines/workstation-image-chain/horizon-aosp-build-image-chain/groovy/job.groovy
+
+pipeline {
+  // Lightweight orchestrator: only triggers downstream image jobs.
+  agent { label 'seed-node' }
+
+  stages {
+    stage('Resolve base images') {
+      steps {
+        script {
+          def buildAsfp = params.BUILD_HORIZON_ASFP
+          def buildAndroidStudio = params.BUILD_HORIZON_ANDROID_STUDIO
+          def buildAnyChild = buildAsfp || buildAndroidStudio
+
+          currentBuild.description = "IMAGE_TAG=${params.IMAGE_TAG}" +
+            "<br>BUILD_PREFLIGHT=${params.BUILD_HORIZON_PREFLIGHT}" +
+            "<br>BUILD_GNOME=${params.BUILD_HORIZON_GNOME}" +
+            "<br>BUILD_ASFP=${buildAsfp}" +
+            "<br>BUILD_ANDROID_STUDIO=${buildAndroidStudio}" +
+            "<br>NO_PUSH(children)=${params.NO_PUSH}" +
+            "<br>${env.BUILD_USER}"
+
+          if (!params.BUILD_HORIZON_PREFLIGHT && !params.BUILD_HORIZON_GNOME && !buildAnyChild) {
+            error('Select at least one image to build (Preflight, GNOME, ASfP, and/or Android Studio).')
+          }
+
+          // Start from caller-supplied published URIs; overwrite when a base is built in-chain.
+          env.RESOLVED_PREFLIGHT_IMAGE = params.PREFLIGHT_IMAGE?.trim()
+          env.RESOLVED_GNOME_IMAGE = params.GNOME_IMAGE?.trim()
+
+          if (!env.RESOLVED_PREFLIGHT_IMAGE && !params.BUILD_HORIZON_PREFLIGHT && params.BUILD_HORIZON_GNOME) {
+            error('PREFLIGHT_IMAGE must be set when BUILD_HORIZON_PREFLIGHT is false and BUILD_HORIZON_GNOME is true (or leave the job default).')
+          }
+          if (!env.RESOLVED_GNOME_IMAGE && !params.BUILD_HORIZON_GNOME && buildAnyChild) {
+            error('GNOME_IMAGE must be set when BUILD_HORIZON_GNOME is false and a child IDE image is selected (or leave the job default).')
+          }
+
+          echo "Initial PREFLIGHT_IMAGE=${env.RESOLVED_PREFLIGHT_IMAGE}"
+          echo "Initial GNOME_IMAGE=${env.RESOLVED_GNOME_IMAGE}"
+        }
+      }
+    }
+
+    stage('Build Horizon Preflight') {
+      when {
+        expression { return params.BUILD_HORIZON_PREFLIGHT }
+      }
+      steps {
+        script {
+          echo "Building horizon-preflight:${params.IMAGE_TAG} (forced push for downstream reuse)"
+          build(
+            job: 'Cloud-Workstations/Workstation-Images/Horizon Preflight',
+            wait: true,
+            propagate: true,
+            parameters: [
+              string(name: 'IMAGE_TAG', value: "${params.IMAGE_TAG}"),
+              booleanParam(name: 'NO_PUSH', value: false),
+              string(name: 'PREFLIGHT_WEB_REPO', value: "${params.PREFLIGHT_WEB_REPO ?: ''}"),
+              string(name: 'PREFLIGHT_WEB_DIR', value: "${params.PREFLIGHT_WEB_DIR ?: ''}"),
+              string(name: 'BUILDKIT_RELEASE_TAG', value: "${params.BUILDKIT_RELEASE_TAG}"),
+              string(name: 'DOCKER_CREDENTIALS_URL', value: "${params.DOCKER_CREDENTIALS_URL}"),
+            ]
+          )
+          env.RESOLVED_PREFLIGHT_IMAGE =
+            "${env.CLOUD_REGION}-docker.pkg.dev/${env.CLOUD_PROJECT}/${env.CLOUD_WS_HORIZON_PREFLIGHT_IMAGE_NAME}:${params.IMAGE_TAG}"
+          echo "Published PREFLIGHT_IMAGE=${env.RESOLVED_PREFLIGHT_IMAGE}"
+        }
+      }
+    }
+
+    stage('Build Horizon GNOME') {
+      when {
+        expression { return params.BUILD_HORIZON_GNOME }
+      }
+      steps {
+        script {
+          echo "Building horizon-gnome:${params.IMAGE_TAG} with BASE_IMAGE=${env.RESOLVED_PREFLIGHT_IMAGE} (forced push)" +
+            ", INSTALL_ANTIGRAVITY_AGENT=${params.INSTALL_ANTIGRAVITY_AGENT}"
+          build(
+            job: 'Cloud-Workstations/Workstation-Images/Horizon GNOME',
+            wait: true,
+            propagate: true,
+            parameters: [
+              string(name: 'IMAGE_TAG', value: "${params.IMAGE_TAG}"),
+              booleanParam(name: 'NO_PUSH', value: false),
+              string(name: 'BASE_IMAGE', value: "${env.RESOLVED_PREFLIGHT_IMAGE}"),
+              string(name: 'BUILDKIT_RELEASE_TAG', value: "${params.BUILDKIT_RELEASE_TAG}"),
+              string(name: 'DOCKER_CREDENTIALS_URL', value: "${params.DOCKER_CREDENTIALS_URL}"),
+              booleanParam(name: 'INSTALL_ANTIGRAVITY_AGENT', value: params.INSTALL_ANTIGRAVITY_AGENT),
+              string(name: 'ANTIGRAVITY_2_VERSION', value: "${params.ANTIGRAVITY_2_VERSION}"),
+              string(name: 'ANTIGRAVITY_2_TARBALL_URL', value: "${params.ANTIGRAVITY_2_TARBALL_URL}"),
+              string(name: 'ANTIGRAVITY_2_TARBALL_SHA256', value: "${params.ANTIGRAVITY_2_TARBALL_SHA256}"),
+            ]
+          )
+          env.RESOLVED_GNOME_IMAGE =
+            "${env.CLOUD_REGION}-docker.pkg.dev/${env.CLOUD_PROJECT}/${env.CLOUD_WS_HORIZON_GNOME_IMAGE_NAME}:${params.IMAGE_TAG}"
+          echo "Published GNOME_IMAGE=${env.RESOLVED_GNOME_IMAGE}"
+        }
+      }
+    }
+
+    stage('Validate GNOME base') {
+      when {
+        expression { return params.BUILD_HORIZON_ASFP || params.BUILD_HORIZON_ANDROID_STUDIO }
+      }
+      steps {
+        script {
+          if (!env.RESOLVED_GNOME_IMAGE?.trim()) {
+            error('RESOLVED_GNOME_IMAGE is empty; enable BUILD_HORIZON_GNOME or set GNOME_IMAGE.')
+          }
+          echo "Child BASE_IMAGE (horizon-gnome)=${env.RESOLVED_GNOME_IMAGE}"
+        }
+      }
+    }
+
+    stage('Build child IDE images') {
+      when {
+        expression { return params.BUILD_HORIZON_ASFP || params.BUILD_HORIZON_ANDROID_STUDIO }
+      }
+      parallel {
+        stage('Horizon ASfP') {
+          when {
+            expression { return params.BUILD_HORIZON_ASFP }
+          }
+          steps {
+            script {
+              build(
+                job: 'Cloud-Workstations/Workstation-Images/Horizon Android Studio for Platform (ASfP)',
+                wait: true,
+                propagate: true,
+                parameters: [
+                  string(name: 'IMAGE_TAG', value: "${params.IMAGE_TAG}"),
+                  booleanParam(name: 'NO_PUSH', value: params.NO_PUSH),
+                  string(name: 'BASE_IMAGE', value: "${env.RESOLVED_GNOME_IMAGE}"),
+                  string(name: 'BUILDKIT_RELEASE_TAG', value: "${params.BUILDKIT_RELEASE_TAG}"),
+                  string(name: 'DOCKER_CREDENTIALS_URL', value: "${params.DOCKER_CREDENTIALS_URL}"),
+                ]
+              )
+            }
+          }
+        }
+        stage('Horizon Android Studio') {
+          when {
+            expression { return params.BUILD_HORIZON_ANDROID_STUDIO }
+          }
+          steps {
+            script {
+              build(
+                job: 'Cloud-Workstations/Workstation-Images/Horizon Android Studio',
+                wait: true,
+                propagate: true,
+                parameters: [
+                  string(name: 'IMAGE_TAG', value: "${params.IMAGE_TAG}"),
+                  booleanParam(name: 'NO_PUSH', value: params.NO_PUSH),
+                  string(name: 'BASE_IMAGE', value: "${env.RESOLVED_GNOME_IMAGE}"),
+                  string(name: 'BUILDKIT_RELEASE_TAG', value: "${params.BUILDKIT_RELEASE_TAG}"),
+                  string(name: 'DOCKER_CREDENTIALS_URL', value: "${params.DOCKER_CREDENTIALS_URL}"),
+                ]
+              )
+            }
+          }
+        }
+      }
+    }
+  }
+}

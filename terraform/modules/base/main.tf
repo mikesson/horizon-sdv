@@ -50,37 +50,35 @@ module "sdv_wi" {
   wi_service_accounts = var.sdv_wi_service_accounts
   project_id          = data.google_project.project.project_id
 
-  depends_on = [ 
+  depends_on = [
     module.sdv_gke_cluster
-   ]
+  ]
 }
 
-module "sdv_gcs" {
-  source = "../sdv-gcs"
-
-  bucket_name = "${data.google_project.project.project_id}-aaos"
-  location    = var.sdv_location
+# IAM conditions cannot restrict storage.buckets.create; this is create-only (no object access).
+resource "google_project_iam_custom_role" "storage_gcs_bucket_creator" {
+  project     = data.google_project.project.project_id
+  role_id     = "horizonStorageGcsBucketCreator"
+  title       = "Horizon storage-gcs bucket creator"
+  description = "storage.buckets.create only; object/bucket admin is prefix-conditioned on gke-storage-gcs-module-sa"
+  permissions = [
+    "storage.buckets.create",
+  ]
 }
 
-module "sdv_gcs_openbsw" {
-  source = "../sdv-gcs"
+resource "google_project_iam_member" "storage_gcs_bucket_creator" {
+  project = data.google_project.project.project_id
+  role    = google_project_iam_custom_role.storage_gcs_bucket_creator.id
+  member  = "serviceAccount:gke-storage-gcs-module-sa@${data.google_project.project.project_id}.iam.gserviceaccount.com"
 
-  bucket_name = "${data.google_project.project.project_id}-openbsw"
-  location    = var.sdv_location
-}
-
-module "sdv_gcs_argo_workflows" {
-  source = "../sdv-gcs"
-
-  bucket_name               = "${data.google_project.project.project_id}-argo-workflows"
-  location                  = var.sdv_location
-  lifecycle_delete_age_days = 7
+  depends_on = [module.sdv_wi]
 }
 
 module "sdv_network" {
   source = "../sdv-network"
 
-  network              = var.sdv_network
+  network                     = var.sdv_network
+  create_internet_egress_route = true
   subnetwork           = var.sdv_subnetwork
   region               = var.sdv_region
   router_name          = var.sdv_network_egress_router_name
@@ -131,6 +129,32 @@ module "sdv_container_images" {
   }
 }
 
+module "sdv_gcs" {
+  source = "../sdv-gcs"
+
+  bucket_name = "${data.google_project.project.project_id}-aaos"
+  location    = var.sdv_location
+}
+
+module "sdv_gcs_openbsw" {
+  source = "../sdv-gcs"
+
+  bucket_name = "${data.google_project.project.project_id}-openbsw"
+  location    = var.sdv_location
+}
+
+# Former module.sdv_gcs_argo_workflows ({project}-argo-workflows) was moved to KCC
+# (gitops/templates/argo-workflows-bucket.yaml). Drop from state without destroying the bucket.
+# Equivalent CLI: terraform state rm 'module.base.module.sdv_gcs_argo_workflows.google_storage_bucket.bucket'
+# (confirm address with: terraform state list | grep argo)
+removed {
+  from = module.sdv_gcs_argo_workflows
+
+  lifecycle {
+    destroy = false
+  }
+}
+
 module "sdv_gke_cluster" {
   source = "../sdv-gke-cluster"
   depends_on = [
@@ -138,7 +162,6 @@ module "sdv_gke_cluster" {
     module.sdv_network,
     module.sdv_gcs,
     module.sdv_gcs_openbsw,
-    module.sdv_gcs_argo_workflows,
     module.sdv_container_images,
     module.sdv_certificate_manager,
     module.sdv_ssl_policy,
@@ -214,12 +237,13 @@ module "sdv_gke_apps" {
     kubectl    = kubectl
   }
 
-  gcp_project_id     = var.sdv_project
-  gcp_cloud_region   = var.sdv_region
-  sdv_cluster_name   = var.sdv_cluster_name
-  gcp_cloud_zone     = var.sdv_zone
-  gcp_backend_bucket = var.gcp_backend_bucket_name
-  gcp_registry_id    = var.sdv_artifact_registry_repository_id
+  gcp_project_id             = var.sdv_project
+  gcp_cloud_region           = var.sdv_region
+  sdv_cluster_name           = var.sdv_cluster_name
+  gcp_cloud_zone             = var.sdv_zone
+  gcp_backend_bucket         = var.gcp_backend_bucket_name
+  gcp_registry_id            = var.sdv_artifact_registry_repository_id
+  gcp_storage_location       = var.sdv_location
 
   # SCM configuration
   scm_type        = var.scm_type
@@ -247,11 +271,15 @@ module "sdv_gke_apps" {
     }
   }
 
+  common_nginx_version = local.common_nginx_version
+
   enable_arm64_dedicated_subnet       = var.enable_arm64_dedicated_subnet
   arm64_region       = var.arm64_region
   arm64_zone         = var.arm64_zone
   arm64_subnetwork   = var.arm64_subnetwork
   primary_subnetwork = var.sdv_subnetwork
+  nodes_range        = var.nodes_range
+  arm64_nodes_range  = var.arm64_nodes_range
 }
 
 module "sdv_certificate_manager" {
@@ -478,6 +506,24 @@ resource "google_compute_firewall" "deny_ssh_rdp_security_compliance" {
   ]
 }
 
+# Default deny all other ingress traffic
+resource "google_compute_firewall" "deny_all_ingress" {
+  name      = "deny-all-ingress"
+  network   = var.sdv_network
+  direction = "INGRESS"
+  priority  = 65000
+
+  deny {
+    protocol = "all"
+  }
+
+  source_ranges = ["0.0.0.0/0"]
+
+  depends_on = [
+    module.sdv_network
+  ]
+}
+
 # Allow internal VPC traffic (all protocols)
 resource "google_compute_firewall" "allow_internal_egress" {
   name      = "allow-internal-egress"
@@ -585,7 +631,7 @@ resource "google_compute_firewall" "deny_all_egress" {
   name      = "deny-all-egress"
   network   = var.sdv_network
   direction = "EGRESS"
-  priority  = 65534
+  priority  = 65000
 
   deny {
     protocol = "all"

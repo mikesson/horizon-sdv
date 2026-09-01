@@ -17,8 +17,10 @@ limitations under the License. -->
 ## Table of contents
 - [Introduction](#introduction)
 - [Packer and Startup Files](#packer-and-startup-files)
+- [Packer version pinning](#packer-version-pinning)
 - [Orphan Packer boot disks (zonal cleanup)](#orphan-packer-boot-disks-zonal-cleanup)
 - [Prerequisites](#prerequisites)
+- [Config Connector mode (`ConfigConnectorContext`)](#config-connector-mode-configconnectorcontext)
 - [Portal / Module Manager disable (`workloads-android`)](#portal--module-manager-disable-workloads-android)
 - [Module disable vs Packer disks (not removed by disable)](#module-disable-vs-packer-disks-not-removed-by-disable)
 - [KCC RBAC: Argo workflow pods vs publisherIdentity](#kcc-rbac-workflow-pods-vs-publisheridentity)
@@ -114,6 +116,31 @@ In short: **Packer files create the immutable image**, while the **startup scrip
 
 **SSH key rotation:** set `UPDATE_SSH_AUTHORIZED_KEYS=true` to republish metadata (including `jenkins-authorized-key`) **without** a Packer bake. The implementation **recreates** the instance template resource; it is not an in-place metadata patch on the GCP **application programming interface (API)** object.
 
+## Packer version pinning <a name="packer-version-pinning"></a>
+
+Two independent versions are pinned in different places. Changing one does not affect the other.
+
+| What | Pinned where | How to change | Reported in job log |
+| --- | --- | --- | --- |
+| **Packer binary** | `docker_image_template/Dockerfile`, `ARG PACKER_VERSION` (default `1.15.0`, installed from the HashiCorp **advanced package tool (APT)** repo) | Rebuild the builder image with a different `PACKER_VERSION` build arg | `PACKER_VERSION=Packer v1.15.0` |
+| **`googlecompute` plugin** | `PACKER_GOOGLECOMPUTE_VERSION_MIN` / `PACKER_GOOGLECOMPUTE_VERSION_MAX`. Script defaults in `cf_create_instance_template.sh`, Helm defaults in `helm/values.yaml` | Set it per run on either interface. **Jenkins:** job parameter. **Argo:** workflow parameter `packerGooglecomputeVersionMin` / `packerGooglecomputeVersionMax` on the submit form; `helm/values.yaml` only sets the default that form starts with | `PACKER_GOOGLECOMPUTE_VERSION_MIN=…` / `…_MAX=…` |
+
+**Defaults live in two places:** the script fallback in `cf_create_instance_template.sh` and the Argo submit-form default in `helm/values.yaml`. Keep them aligned when you change the product default; if they drift, which one applies depends on how the run was started.
+
+The plugin bounds are **not** declared in `packer/cuttlefish.pkr.hcl`. Packer resolves `required_plugins` during **`packer init`**, before variables are evaluated, so the constraint cannot be an ordinary **HashiCorp configuration language (HCL)** variable. Instead `generate_packer_plugins_fragment()` renders a `plugins.pkr.hcl` fragment into the writable work directory next to a copy of the template, and Packer runs against that directory.
+
+### Pin policy <a name="pin-policy"></a>
+
+Current constraint: **`>= 1.2.3, < 1.2.5`**.
+
+- **Lower bound `>= 1.2.3`** — required for `max_run_duration_in_seconds` and `instance_termination_action` on the ephemeral builder **virtual machine (VM)**. Do **not** lower it; without those fields a stuck build leaks a running VM.
+- **Upper bound `< 1.2.5`** — **workaround, not a preference.** On Argo (read-only `/workspace` working directory) plugin **v1.2.5** dies with **SIGSEGV** in `StepImportOSLoginSSHKey`; Packer then reports `unexpected EOF` and the workflow fails at stage 1.
+- The registry only ships a **1.2.x** line for `github.com/hashicorp/googlecompute` — there is no 1.5.x line. An earlier `>= 1.5.0` constraint failed with *no matching version*.
+
+**When to revisit:** on each new `googlecompute` release **>= 1.2.5**. Re-test by raising `PACKER_GOOGLECOMPUTE_VERSION_MAX` on a single Argo run (`cf-instance-template-x86`) and checking that stage 1 completes. It is a parameter on both interfaces, so the test run needs no merge and no redeploy. If the run fails, restore the default. Remove the cap only after a successful **Argo** run. A Jenkins-only validation is insufficient because the crash is specific to Argo's read-only working directory.
+
+**Do not** re-introduce a hard-coded `required_plugins` block in the HCL; it would silently override the parameters.
+
 ## Orphan Packer boot disks (zonal cleanup) <a name="orphan-packer-boot-disks-zonal-cleanup"></a>
 
 The Packer **googlecompute** builder typically creates a **zonal** boot disk whose name starts with **`packer-`**. The plugin normally deletes that disk after the image is created. If the build **fails**, the **client disconnects**, or the job is **interrupted**, the disk can remain **unattached** in **`ZONE`** and accrue cost.
@@ -136,11 +163,24 @@ The Packer **googlecompute** builder typically creates a **zonal** boot disk who
 - **Docker image template:** run **Android Workflows → Environment → Docker Image Template** once so the **Android Automotive OS (AAOS)** builder image this job expects exists.
 - **GCE provisioning delay:** `gitops/workloads/values-jenkins.yaml` sets **`noDelayProvisioning: false`** so Jenkins does not start many VMs at once (cost control). Expect slightly slower VM availability when agents scale up.
 
+## Config Connector mode (`ConfigConnectorContext`) <a name="config-connector-mode-configconnectorcontext"></a>
+
+Horizon platform GitOps installs Config Connector in **cluster mode** (`gitops/templates/config-connector.yaml`, `spec.mode: cluster`). In that mode the operator **rejects** per-namespace **`ConfigConnectorContext` (CCC)** (`…does not serve any purpose and should be removed`), which previously left the **`workloads-android`** Argo Application **Degraded**.
+
+The **`cf-instance-template`** chart therefore gates CCC behind Helm value **`kcc.instanceTemplates.createConfigConnectorContext`**:
+
+| Value | When to use |
+|-------|-------------|
+| **`false`** (default) | Horizon / **cluster-mode** KCC — do **not** sync CCC. `ComputeInstanceTemplate` CRs still use the cluster-wide Config Connector. |
+| **`true`** | **Namespaced-mode** Config Connector only — chart renders CCC in **`{namespacePrefix}workflows`**. |
+
+`gitops/modules/workloads-android` sets **`createConfigConnectorContext: false`** on the CF Helm source. Set **`true`** only if your cluster runs namespaced-mode KCC and you intentionally need CCC.
+
 ## Portal / Module Manager disable (`workloads-android`) <a name="portal--module-manager-disable-workloads-android"></a>
 
-**Problem:** Disabling **`workloads-android`** removes Helm objects in **`{namespacePrefix}workflows`**, including **`ConfigConnectorContext` (CCC)**. CCC cannot finish until **every** `ComputeInstanceTemplate` **custom resource (CR)** in that namespace is gone—including other CRs created by pipeline runs (x86, arm64, or custom names), not only objects defined in static YAML.
+**Problem:** Disabling **`workloads-android`** removes Helm objects in **`{namespacePrefix}workflows`**. When CCC was installed (**namespaced-mode** / `createConfigConnectorContext: true`), that includes **`ConfigConnectorContext` (CCC)**. CCC cannot finish until **every** `ComputeInstanceTemplate` **custom resource (CR)** in that namespace is gone—including other CRs created by pipeline runs (x86, arm64, or custom names), not only objects defined in static YAML. On **Horizon cluster-mode** (default), CCC is usually **absent**; PreDelete and Module Manager still clear **`ComputeInstanceTemplate`** CRs, and Module Manager’s wait for CCC absent is a no-op if none exists.
 
-**Normal disable (Argo sync + prune):** The **`cf-instance-template`** chart installs a **PreDelete** `Job` that runs **before** CCC is pruned. In order, it:
+**Normal disable (Argo sync + prune):** The **`cf-instance-template`** chart installs a **PreDelete** `Job` that runs **before** CCC is pruned (when CCC is in the release). In order, it:
 
 1. Deletes CRs labeled **`horizon-sdv.io/cuttlefish-kcc-template=true`** (the label `cf_create_instance_template.sh` sets on apply).
 2. Deletes any remaining CRs whose **`metadata.name`** starts with **`cf-it-`** (pipeline naming convention).
@@ -148,7 +188,7 @@ The Packer **googlecompute** builder typically creates a **zonal** boot disk who
 
 The hook uses a long **`argocd.argoproj.io/hook-timeout`** so slow KCC deletes are less likely to abort mid-uninstall. No manual **`kubectl`** is required when uninstall goes through this path.
 
-**Developer Portal / Module Manager:** After the child **`workloads-android`** Argo **`Application`** CR is gone, Module Manager also deletes **all** `ComputeInstanceTemplate` CRs in **`{namespacePrefix}workflows`** and waits for **`ConfigConnectorContext`** to be absent (covers stuck uninstalls and paths where PreDelete never ran). **Packer** zonal **`packer-*`** disks are **not** part of that teardown—see [Module disable vs Packer disks](#module-disable-vs-packer-disks-not-removed-by-disable). **Global disk images** in GCP are also **not** removed by disable alone; optionally run the CF pipeline **delete** path (**`DELETE=true`** / **`delete=true`**) while **`workloads-android`** is still **enabled** if you want those images removed before disable (same subsection).
+**Developer Portal / Module Manager:** After the child **`workloads-android`** Argo **`Application`** CR is gone, Module Manager also deletes **all** `ComputeInstanceTemplate` CRs in **`{namespacePrefix}workflows`** and waits for **`ConfigConnectorContext`** to be absent if one remains (covers stuck uninstalls, leftover CCC from older releases, and paths where PreDelete never ran). **Packer** zonal **`packer-*`** disks are **not** part of that teardown—see [Module disable vs Packer disks](#module-disable-vs-packer-disks-not-removed-by-disable). **Global disk images** in GCP are also **not** removed by disable alone; optionally run the CF pipeline **delete** path (**`DELETE=true`** / **`delete=true`**) while **`workloads-android`** is still **enabled** if you want those images removed before disable (same subsection).
 
 **Prefixed child Application (`{prefix}workloads-android`):** GitOps sets **`spec.syncPolicy.automated.selfHeal: false`** (with **`prune: true`**) so Argo does not start a **repair sync** while the Application is still **Deleting** under **`resources-finalizer.argocd.argoproj.io`**—a common wedge after **disable → enable → pipeline → disable** when empty **`automated: {}`** let version-dependent defaults treat drift during prune as “fix me,” surfacing as **Deleting → Sync** and stuck. Module Manager still clears **`automated`** entirely before deleting the child; parent **`mod-*`** Applications use the same explicit flags when created.
 
@@ -166,7 +206,7 @@ The hook uses a long **`argocd.argoproj.io/hook-timeout`** so slow KCC deletes a
 
 **Global disk images (Packer-published):** That teardown removes the **instance template** in GCP; it does **not** run the CF pipeline’s **stage 3** image delete. **Global machine images** the pipeline created (for example **`image-cuttlefish-vm-*`** derived from **`ANDROID_CUTTLEFISH_REVISION`**) can **remain** in **Compute Engine → Images** and continue to incur storage cost until deleted explicitly.
 
-**Optional — remove templates + global images before Portal disable:** While **`workloads-android`** is still **enabled** (so **`{namespacePrefix}workflows`**, **CCC**, and the pipeline’s **kubectl** / workload identity still work), you can run the CF instance template **delete** path for each **revision** and **architecture** you want gone. That runs **stage 3**: delete the KCC **`ComputeInstanceTemplate`** CR, then remove the **global disk image** (REST with metadata token when possible, **`gcloud compute images delete`** fallback) and related instances—see [`DELETE`](#delete) below.
+**Optional — remove templates + global images before Portal disable:** While **`workloads-android`** is still **enabled** (so **`{namespacePrefix}workflows`** and the pipeline’s **kubectl** / workload identity still work; CCC only if namespaced-mode), you can run the CF instance template **delete** path for each **revision** and **architecture** you want gone. That runs **stage 3**: delete the KCC **`ComputeInstanceTemplate`** CR, then remove the **global disk image** (REST with metadata token when possible, **`gcloud compute images delete`** fallback) and related instances—see [`DELETE`](#delete) below.
 
 | Channel | What to set | Then |
 |---------|-------------|------|
@@ -174,7 +214,7 @@ The hook uses a long **`argocd.argoproj.io/hook-timeout`** so slow KCC deletes a
 | **Argo Workflows** | Submit **`cf-instance-template-x86`** or **`cf-instance-template-arm64`** with **`delete=true`** and matching parameters | Wait for **Succeeded**. |
 | **Portal** | Submit the same CF workflow with **delete** turned **on** | Wait for completion. |
 
-Run **x86** and **arm64** (and any custom **`CUTTLEFISH_INSTANCE_NAME`**) jobs separately if you published multiple images. After these runs, **Disable workloads-android** in Portal only needs to remove chart objects and **CCC**—not leftover global images you already purged. If you **skip** this step, expect global images (and **`packer-*`** zonal disks below) to remain until cleaned by other means.
+Run **x86** and **arm64** (and any custom **`CUTTLEFISH_INSTANCE_NAME`**) jobs separately if you published multiple images. After these runs, **Disable workloads-android** in Portal only needs to remove chart objects (and **CCC** when it was installed)—not leftover global images you already purged. If you **skip** this step, expect global images (and **`packer-*`** zonal disks below) to remain until cleaned by other means.
 
 **Packer zonal boot disks (`packer-*`):** Disable and the **stage 3** delete path above do **not** guarantee removal of every **zonal** disk created by the Packer **googlecompute** builder in **`PROJECT` / `ZONE`** (see [Orphan Packer boot disks](#orphan-packer-boot-disks-zonal-cleanup)). They are **not** namespaced **`workflows`** resources. After disable (or alongside the optional delete runs) you may still need to:
 
@@ -198,7 +238,7 @@ Parameters for **Jenkins** jobs are defined in **`groovy/job.groovy`** and **`gr
 
 ### `WORKFLOWS_NAMESPACE`
 
-Kubernetes namespace where KCC **`ComputeInstanceTemplate`** objects are applied and deleted. Must match the namespace that has **`ConfigConnectorContext`**. The chart’s **`cuttlefish-kcc-publisher`** **`RoleBinding`** grants the **`publisherIdentity`** ServiceAccount **create, read, update, and delete (CRUD)** permission on those **custom resources (CRs)** in **`{namespacePrefix}workflows`** (see [KCC RBAC: Argo workflow pods vs publisherIdentity](#kcc-rbac-workflow-pods-vs-publisheridentity)); the **`NAMESPACE`** env for SSH secrets defaults to **`{namespacePrefix}jenkins`** when **`publisherIdentity.namespace`** is empty. Default **`WORKFLOWS_NAMESPACE`**: **`workflows`** (prefixed: e.g. **`sdv-workflows`**).
+Kubernetes namespace where KCC **`ComputeInstanceTemplate`** objects are applied and deleted. On **namespaced-mode** KCC this must match the namespace that has **`ConfigConnectorContext`** (when `createConfigConnectorContext: true`). On **Horizon cluster-mode** there is no per-namespace CCC; templates still live in this namespace and are reconciled by the cluster-wide Config Connector. The chart’s **`cuttlefish-kcc-publisher`** **`RoleBinding`** grants the **`publisherIdentity`** ServiceAccount **create, read, update, and delete (CRUD)** permission on those **custom resources (CRs)** in **`{namespacePrefix}workflows`** (see [KCC RBAC: Argo workflow pods vs publisherIdentity](#kcc-rbac-workflow-pods-vs-publisheridentity)); the **`NAMESPACE`** env for SSH secrets defaults to **`{namespacePrefix}jenkins`** when **`publisherIdentity.namespace`** is empty. Default **`WORKFLOWS_NAMESPACE`**: **`workflows`** (prefixed: e.g. **`sdv-workflows`**).
 
 ### `COMPUTE_IMAGE_DELETE_DEBUG`
 
@@ -355,6 +395,14 @@ When x86 used **Debian bookworm**, a typical value was **`sudo apt install -t bo
 ### `NODEJS_VERSION`
 
 **MediaTek (MTK) Connect** requires NodeJS; this option allows you to update the version to install on the instance template.
+
+### `PACKER_GOOGLECOMPUTE_VERSION_MIN` / `PACKER_GOOGLECOMPUTE_VERSION_MAX`
+
+Version bounds for the HashiCorp **`googlecompute`** Packer plugin, rendered at build time into the generated `plugins.pkr.hcl` as `version = ">= MIN, < MAX"`. `MIN` is **inclusive**, `MAX` is **exclusive**. Defaults **`1.2.3`** and **`1.2.5`**, i.e. the effective plugin line is **1.2.3 – 1.2.4**.
+
+Both accept a plain version only (`1.2.3`, `1.3`); anything else — a range, an operator, `latest` — is rejected before Packer runs. They exist so the cap can be raised once upstream fixes the crash, without editing the Packer **HashiCorp configuration language (HCL)**. Both interfaces expose them the same way: a job parameter on Jenkins, a workflow parameter on Argo (`packerGooglecomputeVersionMin` / `packerGooglecomputeVersionMax` on `cf-instance-template-x86` and `cf-instance-template-arm64`).
+
+Read [Pin policy](#pin-policy) before changing either value: the lower bound is a hard requirement and the upper bound is an Argo crash workaround, not a preference. The **Packer binary** version is a separate pin — see [Packer version pinning](#packer-version-pinning).
 
 ### `CTS_ANDROID_<14|15|16>_URL`
 

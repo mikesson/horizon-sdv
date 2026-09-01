@@ -461,6 +461,10 @@ module "base" {
           },
           {
             gke_ns = "cnrm-system"
+            gke_sa = "cnrm-controller-manager"
+          },
+          {
+            gke_ns = "cnrm-system"
             gke_sa = "cnrm-controller-manager-gcp"
           },
           # Namespaced-mode Config Connector creates one controller ServiceAccount per
@@ -509,6 +513,36 @@ module "base" {
         roles = toset([
           "roles/dns.admin"
         ])
+      }
+    },
+    {
+      sa13 = {
+        account_id   = "gke-storage-gcs-module-sa"
+        display_name = "Storage GCS Module (operator + REST API)"
+        description  = "horizon/storage-gcs-module: GCSBucket reconciliation and GCS REST API via Workload Identity"
+
+        gke_sas = [
+          {
+            gke_ns = "horizon"
+            gke_sa = "storage-gcs-module"
+          }
+        ]
+
+        roles = toset([])
+        # SignBlob for GCS V4 signed URLs — bind on this SA only (not project-wide TokenCreator).
+        sa_roles = toset([
+          "roles/iam.serviceAccountTokenCreator",
+        ])
+        # storage.admin only on buckets/objects named {project}-* (not other project buckets).
+        # storage.buckets.create is granted separately (IAM conditions do not apply to create).
+        conditional_roles = [
+          {
+            role        = "roles/storage.admin"
+            title       = "project_prefixed_gcs_buckets"
+            description = "Admin only for buckets named {project}-*"
+            expression  = "resource.name.startsWith(\"projects/_/buckets/${var.sdv_gcp_project_id}-\")"
+          }
+        ]
       }
     }
   )

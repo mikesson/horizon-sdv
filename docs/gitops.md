@@ -27,7 +27,6 @@ limitations under the License. -->
     - [Headlamp](#headlamp)
     - [Gerrit MCP Server](#gerrit-mcp-server)
     - [MCP Gateway Registry](#mcp-gateway-registry)
-    - [Landing Page](#landing-page)
 - [Dependencies](#dependencies)
     - [Dynamic PVC Provisioner and Releaser](#dynamic-pvc-provisioner-and-releaser)
     - [PostgreSQL](#postgresql)
@@ -49,7 +48,7 @@ GitOps is a deployment approach that uses git as the source of truth for infrast
 
 ## GitOps in Horizon SDV project
 
-In the Horizon SDV platform, GitOps is used to manage applications and their dependencies using ArgoCD. The platform includes applications such as Keycloak, Gerrit, Jenkins, MTK Connect, MCP Gateway Registry and LandingPage, along with dependencies like Dynamic PVC Provisioner and Releaser, PostgreSQL, Zookeeper, MongoDB, Gerrit Operator, Gerrit MCP Server, External DNS, OAuth2 Proxy, Token Injector and several custom Post Jobs. By managing these components within a GitOps workflow, the platform ensures consistent, automated, and scalable deployments.
+In the Horizon SDV platform, GitOps is used to manage applications and their dependencies using ArgoCD. The platform includes applications such as Keycloak, Gerrit, Jenkins, MTK Connect, MCP Gateway Registry and the Horizon Developer Portal, along with dependencies like Dynamic PVC Provisioner and Releaser, PostgreSQL, Zookeeper, MongoDB, Gerrit Operator, Gerrit MCP Server, External DNS, OAuth2 Proxy, Token Injector and several custom Post Jobs. By managing these components within a GitOps workflow, the platform ensures consistent, automated, and scalable deployments.
 
 
 ## GitOps deployment process
@@ -113,22 +112,6 @@ Additionally, ArgoCD utilizes sync waves, a feature that allows defining the ord
 
 
 ## Applications
-
-### Landing Page
-
-#### URL
-https://<ENV_NAME>.<HORIZON_DOMAIN>
-Ex: https://demo.horizon-sdv.com
-
-#### Purpose
-The Landing Page provides a simple and clear home page for the Horizon SDV project.
-
-#### Installation
-It is a static web application fully managed within the Horizon SDV project. The installation involves setting up the necessary Kubernetes resources, including Namespace, Deployment, and Service, to run the application.
-
-#### Configuration
-No additional configuration or integration with other applications is required.
-
 
 ### Keycloak
 

@@ -27,6 +27,17 @@ variable "wi_service_accounts" {
       gke_ns = string
       gke_sa = string
     }))
+    # Project-level IAM roles (google_project_iam_member).
     roles = set(string)
+    # Roles granted on this service account only (google_service_account_iam_member, member = self).
+    # Prefer this for roles/iam.serviceAccountTokenCreator when only self signBlob/getAccessToken is needed.
+    sa_roles = optional(set(string), [])
+    # Project IAM with a CEL condition (e.g. GCS admin limited to buckets named {project}-*).
+    conditional_roles = optional(list(object({
+      role        = string
+      title       = string
+      description = optional(string, "")
+      expression  = string
+    })), [])
   }))
 }

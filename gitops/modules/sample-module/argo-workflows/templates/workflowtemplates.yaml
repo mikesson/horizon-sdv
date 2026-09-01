@@ -36,6 +36,22 @@ spec:
         value: ""
       - name: sampleNote
         value: ""
+      # GCS bucket for smoke uploads (owned by sample-data; overridable at submit). Default from Helm.
+      - name: gcsBucket
+        value: {{ .Values.sampleWorkloadsDataBucket | default "" | quote }}
+        description: "GCS bucket for upload phase (sample-data default: {projectID}-sample-workloads-data)."
+      # Optional resumable chunked upload test (MiB). Set to "0" to skip; e.g. "5120" for 5 GiB (~5.37 GB).
+      - name: largeUploadSizeMiB
+        value: "0"
+        description: "Optional resumable upload size in MiB (0 = skip). Example 5120 ≈ 5.37 GB."
+      # Chunk size for large upload (MiB). Minimum effective chunk is 0.25 MiB (256 KiB).
+      - name: largeUploadChunkMiB
+        value: "32"
+      # Optional pauses during resumable test: delayCount delays spread evenly (totalChunks ÷ delayCount).
+      - name: largeUploadDelayCount
+        value: "5"
+      - name: largeUploadDelaySeconds
+        value: "60"
   templates:
     - name: run-smoke-test
       dag:
@@ -55,10 +71,50 @@ spec:
 {{- else }}
             depends: log-parameters
 {{- end }}
+{{- if .Values.referenceGcsEnabled }}
+          - name: push-gcs-smoke-artifact
+            templateRef:
+              name: storage-gcs-upload
+              template: upload
+            depends: echo-and-artifact
+            arguments:
+              parameters:
+                - name: bucket
+                  value: "{{ "{{workflow.parameters.gcsBucket}}" }}"
+                - name: objectPath
+                  value: "sample-smoke-test/{{ "{{workflow.name}}" }}/smoke-test.tgz"
+              artifacts:
+                - name: file
+                  from: "{{ "{{tasks.echo-and-artifact.outputs.artifacts.smoke-test}}" }}"
+            # Upload via storage-gcs-upload (REST API not called directly from this chart).
+          - name: large-file-resumable-upload
+            templateRef:
+              name: storage-gcs-upload
+              template: resumable-upload
+            depends: push-gcs-smoke-artifact
+            arguments:
+              parameters:
+                - name: bucket
+                  value: "{{ "{{workflow.parameters.gcsBucket}}" }}"
+                - name: objectPath
+                  value: "sample-smoke-test/{{ "{{workflow.name}}" }}/large-upload.bin"
+                - name: totalSizeMiB
+                  value: "{{ "{{workflow.parameters.largeUploadSizeMiB}}" }}"
+                - name: chunkSizeMiB
+                  value: "{{ "{{workflow.parameters.largeUploadChunkMiB}}" }}"
+                - name: delayCount
+                  value: "{{ "{{workflow.parameters.largeUploadDelayCount}}" }}"
+                - name: delaySeconds
+                  value: "{{ "{{workflow.parameters.largeUploadDelaySeconds}}" }}"
+{{- end }}
           - name: verify-gcs
             template: verify-gcs
             # Same DAG must use only `depends` (not `dependencies`) once any task uses `depends` (Argo validation).
+{{- if .Values.referenceGcsEnabled }}
+            depends: "push-gcs-smoke-artifact && large-file-resumable-upload.Succeeded"
+{{- else }}
             depends: echo-and-artifact
+{{- end }}
     - name: log-parameters
       container:
         image: alpine:3.19
@@ -69,6 +125,17 @@ spec:
             echo "sampleEnv={{ "{{workflow.parameters.sampleEnv}}" }}"
             echo "sampleBuildId={{ "{{workflow.parameters.sampleBuildId}}" }}"
             echo "sampleNote={{ "{{workflow.parameters.sampleNote}}" }}"
+            echo "gcsBucket={{ "{{workflow.parameters.gcsBucket}}" }} (sample-data owned bucket; overridable at submit)"
+            echo "largeUploadSizeMiB={{ "{{workflow.parameters.largeUploadSizeMiB}}" }} (optional; 0, empty, or invalid = skip resumable test)"
+            echo "largeUploadChunkMiB={{ "{{workflow.parameters.largeUploadChunkMiB}}" }}"
+            echo "largeUploadDelayCount={{ "{{workflow.parameters.largeUploadDelayCount}}" }} (delays spread evenly; 0 = none)"
+            echo "largeUploadDelaySeconds={{ "{{workflow.parameters.largeUploadDelaySeconds}}" }}"
+            awk -v m="{{ "{{workflow.parameters.largeUploadSizeMiB}}" }}" 'BEGIN {
+              if (m == "" || m !~ /^[0-9]+([.][0-9]+)?$/ || m + 0 <= 0) exit
+              bytes = m * 1048576
+              gb = bytes / 1000000000
+              printf "Large upload enabled: %.2f MiB (%d bytes, %.3f GB)\n", m + 0, bytes, gb
+            }'
             echo "at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
 {{- if .Values.referenceSampleSoftWorkflowTemplate }}
     - name: sample-soft-stage
@@ -98,10 +165,14 @@ spec:
             echo "SA: $(cat /var/run/secrets/kubernetes.io/serviceaccount/namespace)/$(cat /var/run/secrets/kubernetes.io/serviceaccount/..data/namespace 2>/dev/null || echo 'n/a')"
             echo "Smoke test passed - $(date -u +%Y-%m-%dT%H:%M:%SZ)" > /tmp/result.txt
             cat /tmp/result.txt
+            tar czf /tmp/smoke-test.tgz -C /tmp result.txt
+            ls -la /tmp/smoke-test.tgz
       outputs:
         artifacts:
           - name: smoke-result
             path: /tmp/result.txt
+          - name: smoke-test
+            path: /tmp/smoke-test.tgz
     - name: verify-gcs
       container:
         image: alpine:3.19
@@ -109,6 +180,13 @@ spec:
         args:
           - |
             echo "Artifact upload verified by reaching this step."
+{{- if .Values.referenceGcsEnabled }}
+            if awk -v m="{{ "{{workflow.parameters.largeUploadSizeMiB}}" }}" 'BEGIN {
+              exit (m == "" || m !~ /^[0-9]+([.][0-9]+)?$/ || m + 0 <= 0)
+            }'; then
+              echo "Large resumable object: sample-smoke-test/{{ "{{workflow.name}}" }}/large-upload.bin"
+            fi
+{{- end }}
             echo "All checks passed."
 ---
 apiVersion: argoproj.io/v1alpha1

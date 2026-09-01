@@ -1,0 +1,16 @@
+# Copyright (c) 2024-2026 Accenture, All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+
+moduleName: ""
+moduleManagerNamespace: module-manager
+argocd:
+  namespace: argocd
+  project: horizon-sdv
+repo:
+  url: ""
+  revision: HEAD
+overviewServiceName: mod-sample-data-overview
+overviewNamespace: sample-data-overview
+config: {}

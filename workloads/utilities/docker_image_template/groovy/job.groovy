@@ -104,6 +104,15 @@ pipelineJob('Utilities/Docker Image Template') {
     }
 
     stringParam {
+      name('GOOGLE_ADK_VERSION')
+      defaultValue("${GOOGLE_ADK_VERSION}")
+      description('''<p>The version of google-adk to be installed.<br/>
+        <b>Default</b>: 2.6.3.<br/>
+        <b>Reference</b>: Run <code>pip index versions google-adk</code> for a full list of valid versions.</p>''')
+      trim(true)
+    }
+
+    stringParam {
       name('NODEJS_VERSION')
       defaultValue("${NODEJS_VERSION}")
       description('''<p>NodeJS version.<br/>

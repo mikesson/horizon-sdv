@@ -1,0 +1,21 @@
+# Copyright (c) 2024-2026 Accenture, All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+
+# Namespace where WorkflowTemplates run (parent Application sets from config.namespacePrefix).
+workflowNamespace: workflows
+
+# In-cluster storage-gcs-module REST API base URL (parent Application sets from config).
+storageGcsModuleBaseUrl: https://storage-gcs-module.horizon.svc.cluster.local:8443
+
+# TLS CA for curl (Secret key ca.crt in workflows namespace).
+apiTlsSecretName: storage-gcs-module-api-tls
+apiTlsCAMountPath: /etc/storage-gcs
+
+# Bearer token Secret (created by parent chart in workflows namespace).
+apiTokenSecretName: storage-gcs-module-api-token
+apiTokenSecretKey: storage-gcs-internal
+
+# Main environment only — sub-environments skip WorkflowTemplates (parent Application sets from config.isSubEnvironment).
+mainEnv: true

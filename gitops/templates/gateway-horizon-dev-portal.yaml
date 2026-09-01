@@ -31,10 +31,21 @@ spec:
     - {{ .Values.config.domain }}
   rules:
     # Without a trailing slash, relative asset URLs (./assets/..., ./config.js) resolve to the site root.
-    # Redirect /developer-portal → /developer-portal/ so the browser's base URL is correct.
+    # Redirect / and /developer-portal → /developer-portal/ so the browser's base URL is correct.
     # Gateway API RequestRedirect supports only 301/302 (not 308).
 {{- $pp := .Values.config.horizonDevelopmentPortal.publicPath | trimSuffix "/" }}
 {{- if $pp }}
+    - matches:
+        - path:
+            type: Exact
+            value: /
+      filters:
+        - type: RequestRedirect
+          requestRedirect:
+            path:
+              type: ReplaceFullPath
+              replaceFullPath: {{ print $pp "/" | quote }}
+            statusCode: 301
     - matches:
         - path:
             type: Exact

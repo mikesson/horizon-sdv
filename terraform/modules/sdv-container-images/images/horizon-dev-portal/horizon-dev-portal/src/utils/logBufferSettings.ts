@@ -36,7 +36,7 @@ export function readMaxWorkflowLogLines(): number {
 export function writeMaxWorkflowLogLines(n: number): number {
   const v = Math.min(
     MAX_MAX_WORKFLOW_LOG_LINES,
-    Math.max(MIN_MAX_WORKFLOW_LOG_LINES, Math.round(n)),
+    Math.max(MIN_MAX_WORKFLOW_LOG_LINES, Math.round(n))
   );
   if (typeof window !== 'undefined') {
     localStorage.setItem(STORAGE_KEY, String(v));

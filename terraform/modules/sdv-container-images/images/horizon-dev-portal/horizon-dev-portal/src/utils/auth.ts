@@ -112,9 +112,7 @@ class AuthService {
   }
 
   private async runInit(): Promise<boolean> {
-    const hasCallback = /[?&#](code|error)=/.test(
-      window.location.search + window.location.hash
-    );
+    const hasCallback = /[?&#](code|error)=/.test(window.location.search + window.location.hash);
     const storedToken = sessionStorage.getItem(SK_TOKEN) ?? undefined;
     const storedRefresh = sessionStorage.getItem(SK_REFRESH) ?? undefined;
     const storedId = sessionStorage.getItem(SK_ID) ?? undefined;
@@ -320,9 +318,7 @@ class AuthService {
    * Used for display in the Developer Portal only (not sent to Horizon API).
    */
   getOAuthClientId(): string | null {
-    const tp = this.keycloak.tokenParsed as
-      | { azp?: string; aud?: string | string[] }
-      | undefined;
+    const tp = this.keycloak.tokenParsed as { azp?: string; aud?: string | string[] } | undefined;
     if (tp?.azp && typeof tp.azp === 'string') {
       return tp.azp;
     }
@@ -355,8 +351,7 @@ class AuthService {
     if (!resp.ok) {
       const err = await resp.json().catch(() => ({}));
       throw new Error(
-        (err as { error_description?: string }).error_description ||
-          `Login failed (${resp.status})`
+        (err as { error_description?: string }).error_description || `Login failed (${resp.status})`
       );
     }
     const data = (await resp.json()) as {

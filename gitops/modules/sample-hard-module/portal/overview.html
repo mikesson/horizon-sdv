@@ -12,112 +12,228 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License. -->
 
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>sample-hard module</title>
-  <style>
-    :root {
-      --bg: #f8f9fa;
-      --paper: #ffffff;
-      --text: #202124;
-      --muted: #5f6368;
-      --primary: #1a73e8;
-      --border: #e8eaed;
-      --hero-end: rgba(26, 115, 232, 0.08);
-      --hero-start: rgba(66, 133, 244, 0.22);
-    }
-    @media (prefers-color-scheme: dark) {
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>sample-hard</title>
+    <style>
       :root {
-        --bg: #202124;
-        --paper: #292a2d;
-        --text: #e8eaed;
-        --muted: #9aa0a6;
-        --primary: #8ab4f8;
-        --border: #3c4043;
-        --hero-end: rgba(26, 115, 232, 0.12);
-        --hero-start: rgba(66, 133, 244, 0.28);
+        --bg: #f8f9fa;
+        --paper: #ffffff;
+        --text: #202124;
+        --muted: #5f6368;
+        --primary: #1a73e8;
+        --border: #e8eaed;
+        --hero-end: rgba(26, 115, 232, 0.08);
+        --hero-start: rgba(66, 133, 244, 0.22);
+        --callout-bg: #e8f0fe;
+        --callout-border: #d2e3fc;
+        --warn-bg: #fef7e0;
+        --warn-border: #fde293;
+        --warn-text: #b06000;
+        --code-bg: #f1f3f4;
       }
-    }
-    * { box-sizing: border-box; }
-    body {
-      margin: 0;
-      font-family: "Roboto", "Helvetica Neue", Arial, sans-serif;
-      background: var(--bg);
-      color: var(--text);
-      line-height: 1.55;
-      padding: 1.25rem clamp(1rem, 3vw, 1.75rem) 2rem;
-    }
-    .wrap { max-width: 960px; margin: 0 auto; }
-    .hero {
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: clamp(1.25rem, 3vw, 2rem);
-      margin-bottom: 1.5rem;
-      background: linear-gradient(135deg, var(--hero-start) 0%, var(--hero-end) 45%, var(--paper) 100%);
-    }
-    .overline {
-      font-size: 0.7rem;
-      letter-spacing: 0.12em;
-      text-transform: uppercase;
-      color: var(--muted);
-      margin: 0 0 0.35rem;
-    }
-    h1 { font-size: clamp(1.35rem, 2.5vw, 1.6rem); font-weight: 700; margin: 0 0 0.5rem; line-height: 1.2; }
-    .lead { color: var(--muted); margin: 0; max-width: 44rem; font-size: 0.95rem; }
-    .grid {
-      display: grid;
-      gap: 1rem;
-      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-    }
-    .card {
-      background: var(--paper);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 1rem 1.1rem;
-      box-shadow: 0 1px 2px rgba(60, 64, 67, 0.12);
-    }
-    .card h2 {
-      margin: 0 0 0.45rem;
-      font-size: 1rem;
-      font-weight: 600;
-      color: var(--primary);
-    }
-    .card p { margin: 0; font-size: 0.875rem; color: var(--muted); }
-    code { font-size: 0.84em; color: var(--text); }
-  </style>
-</head>
-<body>
-  <div class="wrap">
-    <header class="hero">
-      <p class="overline">Horizon module</p>
-      <h1>sample-hard</h1>
-      <p class="lead">
-        A deliberately small module used to model <strong>hard dependencies</strong> in the catalog.
-        Other modules list <code>sample-hard</code> under <code>hardDependencies</code> so Module Manager
-        enables it first and keeps ordering predictable in demos and tests.
-      </p>
-    </header>
-    <div class="grid">
-      <article class="card">
-        <h2>Child applications</h2>
-        <p>
-          Deploys a <strong>hello-world</strong> chart (deployment, service, Pub/Sub topic, Config Connector context)
-          in <code>sample-hard-module-hello</code>, plus an <strong>argo-workflows</strong> child chart with
-          internal smoke <code>WorkflowTemplates</code> and sensors. Those workflows are <em>not</em> published
-          to the Horizon API catalog; they exist for in-cluster validation and Events wiring.
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #202124;
+          --paper: #292a2d;
+          --text: #e8eaed;
+          --muted: #9aa0a6;
+          --primary: #8ab4f8;
+          --border: #3c4043;
+          --hero-end: rgba(26, 115, 232, 0.12);
+          --hero-start: rgba(66, 133, 244, 0.28);
+          --callout-bg: rgba(26, 115, 232, 0.14);
+          --callout-border: rgba(138, 180, 248, 0.28);
+          --warn-bg: rgba(251, 188, 4, 0.12);
+          --warn-border: rgba(251, 188, 4, 0.28);
+          --warn-text: #fdd663;
+          --code-bg: #3c4043;
+        }
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        margin: 0;
+        min-height: 100%;
+      }
+      body {
+        font-family: "Roboto", "Helvetica Neue", Arial, sans-serif;
+        background: var(--bg);
+        color: var(--text);
+        line-height: 1.55;
+        padding: 1.1rem clamp(0.9rem, 2.4vw, 1.5rem) 1.4rem;
+        overflow-wrap: anywhere;
+      }
+      .wrap {
+        width: 100%;
+        margin: 0 auto;
+      }
+      .hero {
+        margin: 0 0 1.1rem;
+        padding: 1rem;
+        border-radius: 8px;
+        border-bottom: 1px solid var(--border);
+        background: linear-gradient(
+          135deg,
+          var(--hero-start) 0%,
+          var(--hero-end) 45%,
+          var(--paper) 100%
+        );
+      }
+      .overline {
+        font-size: 0.7rem;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--muted);
+        margin: 0 0 0.35rem;
+      }
+      h1 {
+        font-size: clamp(1.35rem, 2.5vw, 1.7rem);
+        font-weight: 700;
+        margin: 0 0 0.45rem;
+        line-height: 1.2;
+      }
+      .lead {
+        color: var(--muted);
+        margin: 0;
+        max-width: fit-content;
+        font-size: 0.95rem;
+      }
+      .grid {
+        display: grid;
+        gap: 0.85rem;
+        grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
+      }
+      .card {
+        background: var(--paper);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 1rem 1.1rem 1.05rem;
+        box-shadow: 0 1px 2px rgba(60, 64, 67, 0.08);
+      }
+      .card h2 {
+        margin: 0 0 0.5rem;
+        font-size: 0.95rem;
+        font-weight: 600;
+        color: var(--primary);
+      }
+      .card p {
+        margin: 0;
+        font-size: 0.875rem;
+        color: var(--muted);
+      }
+      .card p + p,
+      .card p + ul,
+      .card p + ol,
+      .card ul + p,
+      .card .callout,
+      .card .warn {
+        margin-top: 0.7rem;
+      }
+      ul,
+      ol {
+        margin: 0.35rem 0 0;
+        padding-left: 1.15rem;
+        color: var(--muted);
+        font-size: 0.875rem;
+      }
+      li {
+        margin-bottom: 0.4rem;
+      }
+      li:last-child {
+        margin-bottom: 0;
+      }
+      .callout,
+      .warn {
+        padding: 0.65rem 0.8rem;
+        border-radius: 6px;
+        font-size: 0.8125rem;
+        color: var(--text);
+      }
+      .callout {
+        background: var(--callout-bg);
+        border: 1px solid var(--callout-border);
+      }
+      .warn {
+        background: var(--warn-bg);
+        border: 1px solid var(--warn-border);
+        color: var(--warn-text);
+      }
+      .callout strong,
+      .warn strong {
+        display: block;
+        font-size: 0.68rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        margin-bottom: 0.2rem;
+      }
+      .callout strong {
+        color: var(--primary);
+      }
+      .warn strong {
+        color: var(--warn-text);
+      }
+      code {
+        font-size: 0.84em;
+        color: var(--text);
+        background: var(--code-bg);
+        padding: 0.08em 0.32em;
+        border-radius: 4px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <header class="hero">
+        <p class="overline">Horizon module</p>
+        <h1>sample-hard</h1>
+        <p class="lead">
+          A deliberately small module used to model
+          <strong>hard dependencies</strong> in the catalog. Other modules list
+          <code>sample-hard</code> under <code>hardDependencies</code> so Module
+          Manager enables it first and keeps ordering predictable in demos and
+          tests.
         </p>
-      </article>
-      <article class="card">
-        <h2>When to enable</h2>
-        <p>
-          Enable when you need the dependency graph that the <code>sample</code> module exercises, or when you
-          want a minimal footprint module that still provisions real namespaced resources alongside Argo Workflows.
-        </p>
-      </article>
+      </header>
+      <div class="grid">
+        <article class="card">
+          <h2>Child applications</h2>
+          <ul>
+            <li>
+              <strong>hello-world</strong> in
+              <code>sample-hard-module-hello</code> &mdash; deployment, service,
+              Pub/Sub topic, Config Connector context.
+            </li>
+            <li>
+              <strong>argo-workflows</strong> &mdash; internal smoke
+              <code>WorkflowTemplates</code> and sensors.
+            </li>
+          </ul>
+          <div class="callout">
+            <strong>Not in the Horizon catalog</strong>
+            Those workflows exist for in-cluster validation and Events wiring,
+            not portal submission.
+          </div>
+        </article>
+        <article class="card">
+          <h2>When to enable</h2>
+          <p>Turn this on when you need either of:</p>
+          <ul>
+            <li>
+              The dependency graph that the <code>sample</code> module exercises
+            </li>
+            <li>
+              A minimal-footprint module that still provisions real namespaced
+              resources alongside Argo Workflows
+            </li>
+          </ul>
+        </article>
+      </div>
     </div>
-  </div>
-</body>
+  </body>
 </html>

@@ -15,16 +15,16 @@
 pipelineJob('Cloud-Workstations/Workstation-Images/Horizon Android Studio') {
   description("""
     <br/><h3 style="margin-bottom: 10px;">Workstation Image Builder</h3>
-    <p>This job builds the container image for the Android Studio IDE for use in Cloud Workstations.</p>
+    <p>This job builds the Horizon Android Studio image used in Cloud Workstations. It is a thin child of the <code>horizon-gnome</code> base image.</p>
     <h4 style="margin-bottom: 10px;">Image Configuration</h4>
-    <p>The Dockerfile uses a minimal Google Cloud Workstation base image and installs essential packages and tools including Android Command Line Tools and SDKs, GNOME desktop environment (with terminal), noVNC and TigerVNC for browser-based remote desktop access, the standard Android emulator, Google Chrome browser, Gemini-CLI, Gemini Code Assist in IDE, gemini-mcp-agent (MCP config helper) and all necessary system services for a complete cloud development experience.</p>
+    <p>Adds Android Studio, the Android command-line tools/SDK/emulator, and Android-specific desktop integration on top of the inherited GNOME desktop, <code>gnome-remote-desktop</code> (internal RDP), Apache Guacamole (<code>guacd</code> + web app via in-image Docker), Google Chrome, systemd, Gemini CLI, Python ADK, and <code>gemini-mcp-agent</code> already baked into <code>horizon-gnome</code>. Consumes the published <code>horizon-gnome</code> image via the <code>BASE_IMAGE</code> parameter. The legacy noVNC/TigerVNC desktop stack has been removed; remote access is via the inherited RDP/Guacamole stack.</p>
     <h4 style="margin-bottom: 10px;">Pushing Changes to the Registry</h4>
     <p>To push changes to the registry, set the parameter <code>NO_PUSH=false</code>.</p>
     <p>The image will be pushed to <code>${CLOUD_REGION}-docker.pkg.dev/${CLOUD_PROJECT}/${CLOUD_WS_HORIZON_ANDROID_STUDIO_IMAGE_NAME}</code></p>
     <h4 style="margin-bottom: 10px;">Verifying Changes</h4>
     <p>When working with new Dockerfile updates, it's recommended to set <code>NO_PUSH=true</code> to verify the changes before pushing the image to the registry.</p>
     <h4 style="margin-bottom: 10px;">Important Notes</h4>
-    <p>This job need only be run once, or when there are updates to be applied based on Dockerfile changes.</p>
+    <p>Requires a previously built and pushed <code>horizon-gnome</code> image. Set <code>BASE_IMAGE</code> to that published tag/digest.</p>
     <br/><div style="border-top: 1px solid #ccc; width: 100%;"></div><br/>
   """)
 
@@ -39,6 +39,12 @@ pipelineJob('Cloud-Workstations/Workstation-Images/Horizon Android Studio') {
       name('NO_PUSH')
       defaultValue(true)
       description('''<p>Build only, do not push to registry.</p>''')
+    }
+    stringParam {
+      name('BASE_IMAGE')
+      defaultValue("${CLOUD_REGION}-docker.pkg.dev/${CLOUD_PROJECT}/${CLOUD_WS_HORIZON_GNOME_IMAGE_NAME}:latest")
+      description('''<p><b>Mandatory:</b> Full URI of the published <code>horizon-gnome</code> image used as <code>BASE_IMAGE</code>.</p>''')
+      trim(true)
     }
     separator {
       name('Common Parameters: Buildkit')

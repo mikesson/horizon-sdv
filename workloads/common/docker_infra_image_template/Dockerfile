@@ -31,6 +31,7 @@ ARG NODEJS_VERSION
 # Install gemini-cli if enabled.
 ARG ENABLE_GEMINI_AI_ASSISTANT="false"
 ARG GEMINI_CLI_VERSION="latest"
+ARG GOOGLE_ADK_VERSION="2.6.3"
 
 # Install common packages. python3, python3-yaml (PyYAML) for Gemini skills conversion at runtime;
 # python3-numpy for SSH IAP tunnelling. libsecret-1-0 for clients that use the Secret Service API
@@ -41,7 +42,7 @@ RUN apt-get update -y && \
     apt-get install -y --no-install-recommends \
     apt-transport-https ca-certificates \
     gnupg software-properties-common curl git sudo jq openssh-client procps libsecret-1-0 \
-    zip unzip python3 python3-yaml python3-numpy && \
+    zip unzip python3 python3-yaml python3-numpy python3-pip && \
     apt-get update -y &&  apt install -y npm && \
     rm -rf /var/lib/apt/lists/*
 
@@ -92,5 +93,8 @@ RUN if [ "$ENABLE_GEMINI_AI_ASSISTANT" = "true" ]; then \
       sudo npm install -g n && \
       sudo n "${NODEJS_VERSION}" && \
       sudo ln -sf /usr/local/bin/node /usr/local/bin/nodejs || true && \
-      sudo npm install -g @google/gemini-cli@${GEMINI_CLI_VERSION}; \
+      sudo npm install -g @google/gemini-cli@${GEMINI_CLI_VERSION} && \
+      echo "\033[1;32mInstalling google-adk@${GOOGLE_ADK_VERSION}\033[0m" && \
+      sudo rm -f /usr/lib/python3*/EXTERNALLY-MANAGED && \
+      sudo pip3 install "google-adk==${GOOGLE_ADK_VERSION}" "google-genai"; \
     fi

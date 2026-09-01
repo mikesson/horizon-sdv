@@ -574,6 +574,10 @@ func (h *Handler) putModuleTargetRevision(w http.ResponseWriter, r *http.Request
 		http.Error(w, "targetRevision must be non-empty", http.StatusBadRequest)
 		return
 	}
+	if controller.IsOpenAPIExamplePlaceholderRevision(rev) {
+		http.Error(w, `targetRevision must be a real Git ref, not the OpenAPI placeholder "string"`, http.StatusBadRequest)
+		return
+	}
 	ctx := r.Context()
 	mod, err := h.resolveModule(ctx, idOrName)
 	if err != nil || mod == nil {
@@ -729,6 +733,9 @@ func (h *Handler) enableModule(w http.ResponseWriter, r *http.Request) {
 	}
 	explicitPin := strings.TrimSpace(enableBody.TargetRevision) != ""
 	rev := strings.TrimSpace(enableBody.TargetRevision)
+	if controller.IsOpenAPIExamplePlaceholderRevision(rev) {
+		rev = ""
+	}
 	if rev == "" {
 		rev = defaultRev
 	}
@@ -758,6 +765,9 @@ func (h *Handler) enableModule(w http.ResponseWriter, r *http.Request) {
 // When pinned is false the module follows the cluster default (no moduleTargetRevisions entry).
 func (h *Handler) enableOneModule(ctx context.Context, moduleName, targetRevision string, pinned bool) error {
 	targetRevision = strings.TrimSpace(targetRevision)
+	if controller.IsOpenAPIExamplePlaceholderRevision(targetRevision) {
+		targetRevision = strings.TrimSpace(h.targetRevision)
+	}
 	if targetRevision == "" {
 		return fmt.Errorf("targetRevision cannot be empty")
 	}

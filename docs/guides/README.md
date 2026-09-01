@@ -25,6 +25,7 @@ Use these when moving between documented releases on an existing environment (no
 | 3.0.0 | 3.1.0 | [upgrade_guide_3_0_0_to_3_1_0.md](upgrade_guide_3_0_0_to_3_1_0.md) |
 | 3.1.0 | 4.0.0 | [upgrade_guide_3_1_0_to_4_0_0.md](upgrade_guide_3_1_0_to_4_0_0.md) |
 | 4.0.0 | 4.1.0 | [upgrade_guide_4_0_0_to_4_1_0.md](upgrade_guide_4_0_0_to_4_1_0.md) |
+| 4.1.0 | 4.2.0 | [upgrade_guide_4_1_0_to_4_2_0.md](upgrade_guide_4_1_0_to_4_2_0.md) |
 
 <a id="maintenance-guides"></a>
 

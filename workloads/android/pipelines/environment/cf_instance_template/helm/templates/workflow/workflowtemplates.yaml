@@ -127,6 +127,14 @@ spec:
       - name: maxRunDuration
         value: {{ $p.defaults.maxRunDuration | quote }}
         description: "Cuttlefish instance template MAX_RUN_DURATION (default 12h): max run for VMs created from the template. Not the Packer builder VM; set PACKER_BUILD_MAX_RUN_DURATION separately (default 4h in script)."
+      # Same two parameters as the Jenkins jobs, so both interfaces offer the same options.
+      # Chart values only set the defaults shown here; a run can override them.
+      - name: packerGooglecomputeVersionMin
+        value: {{ $p.defaults.packerGooglecomputeVersionMin | default "1.2.3" | quote }}
+        description: "Lowest hashicorp/googlecompute Packer plugin version, included (PACKER_GOOGLECOMPUTE_VERSION_MIN). 1.2.3 or later is needed for max_run_duration_in_seconds / instance_termination_action on the builder VM."
+      - name: packerGooglecomputeVersionMax
+        value: {{ $p.defaults.packerGooglecomputeVersionMax | default "1.2.5" | quote }}
+        description: "Highest hashicorp/googlecompute Packer plugin version, not included (PACKER_GOOGLECOMPUTE_VERSION_MAX). Capped below 1.2.5 because v1.2.5 crashes with SIGSEGV in StepImportOSLoginSSHKey on Argo; raise it once that is fixed upstream."
       - name: ctsAndroid16Url
         value: {{ $p.defaults.ctsAndroid16Url | quote }}
         description: "CTS Android 16 zip URL (CTS_ANDROID_16_URL)."
@@ -315,6 +323,10 @@ spec:
                   value: '{{ "{{" }}workflow.parameters.bootDiskType{{ "}}" }}'
                 - name: maxRunDuration
                   value: '{{ "{{" }}workflow.parameters.maxRunDuration{{ "}}" }}'
+                - name: packerGooglecomputeVersionMin
+                  value: '{{ "{{" }}workflow.parameters.packerGooglecomputeVersionMin{{ "}}" }}'
+                - name: packerGooglecomputeVersionMax
+                  value: '{{ "{{" }}workflow.parameters.packerGooglecomputeVersionMax{{ "}}" }}'
                 - name: ctsAndroid16Url
                   value: '{{ "{{" }}workflow.parameters.ctsAndroid16Url{{ "}}" }}'
                 - name: ctsAndroid15Url
@@ -368,6 +380,8 @@ spec:
           - name: bootDiskSize
           - name: bootDiskType
           - name: maxRunDuration
+          - name: packerGooglecomputeVersionMin
+          - name: packerGooglecomputeVersionMax
           - name: ctsAndroid16Url
           - name: ctsAndroid15Url
           - name: ctsAndroid14Url
@@ -455,6 +469,8 @@ spec:
             export PACKER_USE_IAP="{{ $p.defaults.packerUseIap | default true | toString | lower }}"
             export PACKER_SSH_TIMEOUT={{ $p.defaults.packerSshTimeout | default "15m" | quote }}
             export PACKER_IAP_TUNNEL_LAUNCH_WAIT="{{ $p.defaults.packerIapTunnelLaunchWait | default 300 }}"
+            export PACKER_GOOGLECOMPUTE_VERSION_MIN="{{ "{{" }}inputs.parameters.packerGooglecomputeVersionMin{{ "}}" }}"
+            export PACKER_GOOGLECOMPUTE_VERSION_MAX="{{ "{{" }}inputs.parameters.packerGooglecomputeVersionMax{{ "}}" }}"
             export CTS_ANDROID_16_URL="{{ "{{" }}inputs.parameters.ctsAndroid16Url{{ "}}" }}"
             export CTS_ANDROID_15_URL="{{ "{{" }}inputs.parameters.ctsAndroid15Url{{ "}}" }}"
             export CTS_ANDROID_14_URL="{{ "{{" }}inputs.parameters.ctsAndroid14Url{{ "}}" }}"

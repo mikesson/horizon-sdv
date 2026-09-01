@@ -126,6 +126,12 @@ resource "google_container_cluster" "sdv_cluster" {
     config_connector_config {
       enabled = true
     }
+    # GKE Standard 1.34.1-gke.3720000+ enables NodeLocal DNSCache by default.
+    # That intercepts kube-dns ClusterIP on the node, so existing NetworkPolicies
+    # that only match kube-dns Pods drop DNS, deployment does not complete successfully.
+    dns_cache_config {
+      enabled = false
+    }
   }
 
   # Enable network policy enforcement for pod-to-pod traffic restriction
@@ -169,7 +175,7 @@ resource "google_container_cluster" "sdv_cluster" {
 
 # Automatically enable flow logs on the GKE-auto-created master subnet
 # GKE creates this subnet automatically for the private cluster control plane
-# This null_resource runs after cluster creation to enable flow logs
+# This null_resource runs after cluster and node pool creation to enable flow logs
 resource "null_resource" "enable_gke_master_subnet_flow_logs" {
   # Trigger on cluster recreation
   triggers = {
@@ -177,51 +183,179 @@ resource "null_resource" "enable_gke_master_subnet_flow_logs" {
   }
 
   provisioner "local-exec" {
-    command = <<-EOT
-      set -e
-      
-      # Find the GKE master subnet
-      MASTER_SUBNET=$(gcloud compute networks subnets list \
-        --project=${var.project_id} \
-        --network=${var.network} \
-        --filter="name~'gke-${var.cluster_name}-.*-pe-subnet' AND region:${var.location}" \
-        --format="value(name)" \
-        --limit=1)
-      
-      if [ -z "$MASTER_SUBNET" ]; then
-        echo "ERROR: GKE master subnet not found. This may indicate the cluster is not a private cluster."
-        exit 1
-      fi
-      
+    interpreter = ["bash", "-c"]
+    command     = <<-EOT
+      set -euo pipefail
+
+      retry_gcloud() {
+        local description="$1"
+        shift
+        local max_attempts=5 attempt=1 delay=15
+        while true; do
+          if "$@"; then
+            echo "OK: $description"
+            return 0
+          fi
+          if [ "$attempt" -ge "$max_attempts" ]; then
+            echo "ERROR: $description failed after $max_attempts attempts"
+            return 1
+          fi
+          echo "WARN: $description failed (attempt $attempt/$max_attempts); retrying in $${delay}s..."
+          sleep "$delay"
+          attempt=$((attempt + 1))
+          delay=$((delay * 2))
+        done
+      }
+
+      discover_master_subnet() {
+        local attempt=1 max_attempts=12 delay=10 master_subnet=""
+        while [ "$attempt" -le "$max_attempts" ]; do
+          master_subnet=$(gcloud compute networks subnets list \
+            --project=${var.project_id} \
+            --network=${var.network} \
+            --filter="name~'gke-${var.cluster_name}-.*-pe-subnet' AND region:${var.location}" \
+            --format="value(name)" \
+            --limit=1)
+          if [ -n "$master_subnet" ]; then
+            echo "$master_subnet"
+            return 0
+          fi
+          if [ "$attempt" -lt "$max_attempts" ]; then
+            echo "WARN: GKE master subnet not found yet (attempt $attempt/$max_attempts); retrying in $${delay}s..." >&2
+            sleep "$delay"
+          fi
+          attempt=$((attempt + 1))
+        done
+        echo "ERROR: GKE master subnet not found after $max_attempts attempts. This may indicate the cluster is not a private cluster." >&2
+        return 1
+      }
+
+      MASTER_SUBNET=$(discover_master_subnet)
       echo "Found GKE master subnet: $MASTER_SUBNET"
-      
-      # Check if flow logs are already enabled
+
       FLOW_LOGS_ENABLED=$(gcloud compute networks subnets describe "$MASTER_SUBNET" \
         --project="${var.project_id}" \
         --region="${var.location}" \
         --format="value(enableFlowLogs)" 2>/dev/null || echo "False")
-      
+
       if [ "$FLOW_LOGS_ENABLED" = "True" ]; then
         echo "Flow logs are already enabled on $MASTER_SUBNET"
         exit 0
       fi
-      
+
       echo "Enabling flow logs on GKE master subnet: $MASTER_SUBNET"
-      
-      gcloud compute networks subnets update "$MASTER_SUBNET" \
+
+      retry_gcloud "enable flow logs on GKE master subnet" \
+        gcloud compute networks subnets update "$MASTER_SUBNET" \
         --project="${var.project_id}" \
         --region="${var.location}" \
         --enable-flow-logs \
         --logging-aggregation-interval=interval-5-min \
         --logging-flow-sampling=0.5 \
         --logging-metadata=include-all
-      
-      echo "✓ Flow logs successfully enabled on GKE master subnet"
+
+      echo "Flow logs successfully enabled on GKE master subnet"
     EOT
   }
 
   depends_on = [
-    google_container_cluster.sdv_cluster
+    google_container_cluster.sdv_cluster,
+    google_container_node_pool.sdv_main_node_pool,
+    google_container_node_pool.sdv_build_node_pool,
+    google_container_node_pool.sdv_abfs_build_node_pool,
+    google_container_node_pool.sdv_openbsw_build_node_pool,
+    google_container_node_pool.sdv_utility_node_pool,
+  ]
+}
+
+# Automatically enable Private Google Access on the GKE-auto-created master subnet
+resource "null_resource" "enable_gke_master_subnet_private_google_access" {
+  # Trigger on cluster recreation
+  triggers = {
+    cluster_id = google_container_cluster.sdv_cluster.id
+  }
+
+  provisioner "local-exec" {
+    interpreter = ["bash", "-c"]
+    command     = <<-EOT
+      set -euo pipefail
+
+      retry_gcloud() {
+        local description="$1"
+        shift
+        local max_attempts=5 attempt=1 delay=15
+        while true; do
+          if "$@"; then
+            echo "OK: $description"
+            return 0
+          fi
+          if [ "$attempt" -ge "$max_attempts" ]; then
+            echo "ERROR: $description failed after $max_attempts attempts"
+            return 1
+          fi
+          echo "WARN: $description failed (attempt $attempt/$max_attempts); retrying in $${delay}s..."
+          sleep "$delay"
+          attempt=$((attempt + 1))
+          delay=$((delay * 2))
+        done
+      }
+
+      discover_master_subnet() {
+        local attempt=1 max_attempts=12 delay=10 master_subnet=""
+        while [ "$attempt" -le "$max_attempts" ]; do
+          master_subnet=$(gcloud compute networks subnets list \
+            --project=${var.project_id} \
+            --network=${var.network} \
+            --filter="name~'gke-${var.cluster_name}-.*-pe-subnet' AND region:${var.location}" \
+            --format="value(name)" \
+            --limit=1)
+          if [ -n "$master_subnet" ]; then
+            echo "$master_subnet"
+            return 0
+          fi
+          if [ "$attempt" -lt "$max_attempts" ]; then
+            echo "WARN: GKE master subnet not found yet (attempt $attempt/$max_attempts); retrying in $${delay}s..." >&2
+            sleep "$delay"
+          fi
+          attempt=$((attempt + 1))
+        done
+        echo "ERROR: GKE master subnet not found after $max_attempts attempts. This may indicate the cluster is not a private cluster." >&2
+        return 1
+      }
+
+      MASTER_SUBNET=$(discover_master_subnet)
+      echo "Found GKE master subnet: $MASTER_SUBNET"
+
+      PGA_ENABLED=$(gcloud compute networks subnets describe "$MASTER_SUBNET" \
+        --project="${var.project_id}" \
+        --region="${var.location}" \
+        --format="value(privateIpGoogleAccess)" 2>/dev/null || echo "False")
+
+      if [ "$PGA_ENABLED" = "True" ]; then
+        echo "Private Google Access is already enabled on $MASTER_SUBNET"
+        exit 0
+      fi
+
+      echo "Enabling Private Google Access on GKE master subnet: $MASTER_SUBNET"
+
+      retry_gcloud "enable Private Google Access on GKE master subnet" \
+        gcloud compute networks subnets update "$MASTER_SUBNET" \
+        --project="${var.project_id}" \
+        --region="${var.location}" \
+        --enable-private-ip-google-access
+
+      echo "Private Google Access successfully enabled on GKE master subnet"
+    EOT
+  }
+
+  depends_on = [
+    google_container_cluster.sdv_cluster,
+    google_container_node_pool.sdv_main_node_pool,
+    google_container_node_pool.sdv_build_node_pool,
+    google_container_node_pool.sdv_abfs_build_node_pool,
+    google_container_node_pool.sdv_openbsw_build_node_pool,
+    google_container_node_pool.sdv_utility_node_pool,
+    null_resource.enable_gke_master_subnet_flow_logs,
   ]
 }
 

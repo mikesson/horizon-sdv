@@ -1,0 +1,78 @@
+# Copyright (c) 2024-2026 Accenture, All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+
+{{- if include "storage-gcs-module.mainEnv" . | eq "true" }}
+---
+# storage-gcs-module: GKE WI metadata (:988) + GCS / Google APIs (443)
+{{- if .Values.config.enableNetworkPolicies }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-storage-gcs-module-egress
+  namespace: {{ .Values.config.namespacePrefix }}horizon
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: storage-gcs-module
+  policyTypes:
+  - Egress
+  egress:
+  # GKE Workload Identity: metadata server on 169.254.169.252:988 (not 169.254.169.254:80)
+  - to:
+    - ipBlock:
+        cidr: 169.254.169.252/32
+    ports:
+    - protocol: TCP
+      port: 988
+  - to:
+    - ipBlock:
+        cidr: 0.0.0.0/0
+        except:
+        - 169.254.169.254/32
+    ports:
+    - protocol: TCP
+      port: 443
+{{- end }}
+---
+# Kubelet probes (node subnet) + labeled workflow clients to REST API.
+# Do not use a ports-only ingress rule: under default-deny it would allow every pod.
+{{- if .Values.config.enableNetworkPolicies }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-storage-gcs-module-ingress
+  namespace: {{ .Values.config.namespacePrefix }}horizon
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: storage-gcs-module
+  policyTypes:
+  - Ingress
+  ingress:
+  # Kubelet HTTP probes originate from the node IP (primary subnet), not the pods CIDR.
+  {{- range (.Values.config.probeSourceCIDRs | default (list "10.1.0.0/24" "10.2.0.0/24")) }}
+  - from:
+    - ipBlock:
+        cidr: {{ . | quote }}
+    ports:
+    - protocol: TCP
+      port: 8080
+  {{- end }}
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: {{ .Values.config.namespacePrefix }}workflows
+      podSelector:
+        matchLabels:
+          horizon-sdv.io/storage-gcs-api-client: "true"
+    ports:
+    - protocol: TCP
+      port: 8443
+{{- end }}
+{{- end }}

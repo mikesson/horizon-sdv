@@ -1,0 +1,27 @@
+# Copyright (c) 2024-2026 Accenture, All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+
+{{- if include "storage-gcs-module.mainEnv" . | eq "true" }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: storage-gcs-module
+  namespace: {{ .Values.config.namespacePrefix }}horizon
+  labels:
+    app.kubernetes.io/name: storage-gcs-module
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: storage-gcs-module
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+    - name: https
+      port: 8443
+      targetPort: https
+{{- end }}

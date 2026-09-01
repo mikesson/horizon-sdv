@@ -1,0 +1,103 @@
+// Copyright (c) 2026 Accenture, All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//         http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// Description:
+// This pipeline builds the Horizon Preflight provider image for GCP Cloud Workstations.
+// The image is an Alpine asset-export layer (contents under /export/) consumed by
+// horizon-gnome as BASE_IMAGE. Pipeline uses BuildKit to avoid docker-in-docker issues.
+//
+// References:
+//   * https://github.com/moby/buildkit
+//   * Image: https://hub.docker.com/r/moby/buildkit
+//   * Upstream: https://github.com/sce-taid/cloud-workstations-custom-image-examples/tree/main/examples/preflight
+
+pipeline {
+  // Parameters defined in workloads/cloud-workstations/pipelines/workstation-images/horizon-preflight/groovy/job.groovy
+
+  agent none
+
+  environment {
+    REGISTRY="${env.CLOUD_REGION}-docker.pkg.dev"
+    DESTINATION="${REGISTRY}/${env.CLOUD_PROJECT}/${env.CLOUD_WS_HORIZON_PREFLIGHT_IMAGE_NAME}"
+    PUSH="${NO_PUSH == "true" ? "false" : "true"}"
+    // PREFLIGHT_WEB_REPO / PREFLIGHT_WEB_DIR come from job parameters (default empty = vendored SPA).
+
+    def kubernetesPodTemplate = """
+      apiVersion: v1
+      kind: Pod
+      spec:
+        hostname: jenkins-cloud-ws-image-build-pod
+        serviceAccountName: ${JENKINS_SERVICE_ACCOUNT}
+        containers:
+        - name: buildkit
+          image: moby/buildkit:${BUILDKIT_RELEASE_TAG}
+          imagePullPolicy: Always
+          securityContext:
+            privileged: true
+          resources:
+            limits:
+              memory: 4Gi
+            requests:
+              memory: 4Gi
+      """.stripIndent()
+  }
+
+  stages {
+    stage ('Start instance'){
+      agent { kubernetes { yaml kubernetesPodTemplate } }
+      stages {
+        stage ('Docker Credentials'){
+          steps {
+            script {
+              currentBuild.description = "NO_PUSH=${env.NO_PUSH}" + "<br>" + "$BUILD_USER"
+            }
+            container(name: 'buildkit') {
+              catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
+                sh '''
+                  wget -nv -O docker-credential-gcr.tgz ${DOCKER_CREDENTIALS_URL}
+                  tar -zxf docker-credential-gcr.tgz
+                  chmod +x docker-credential-gcr && mv docker-credential-gcr /usr/bin/
+                  rm -f docker-credential-gcr*.tar.gz
+                  docker-credential-gcr configure-docker --registries=${REGISTRY}
+                '''
+              }
+            }
+          }
+        }
+
+        stage ('Build Docker Image'){
+          when { expression { env.IMAGE_TAG } }
+          steps {
+            container(name: 'buildkit') {
+              catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
+                sh '''
+                  cd "${WORKSPACE}/workloads/cloud-workstations/pipelines/workstation-images/horizon-preflight/";
+                  buildctl build \
+                   --frontend=dockerfile.v0 \
+                   --local=dockerfile=. \
+                   --local context=. \
+                   --opt platform=linux/amd64 \
+                   --opt build-arg:PREFLIGHT_WEB_REPO=${PREFLIGHT_WEB_REPO} \
+                   --opt build-arg:PREFLIGHT_WEB_DIR=${PREFLIGHT_WEB_DIR} \
+                   --registry-auth-tlscontext host=${REGISTRY},insecure=true \
+                   --output=type=image,name=${DESTINATION}:${IMAGE_TAG},push=${PUSH}
+                '''
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

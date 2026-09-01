@@ -15,6 +15,12 @@
 # limitations under the License.
 set -e
 
+log() {
+  echo "$(date -u +'%Y-%m-%dT%H:%M:%SZ') [mtk-connect-post] $*"
+}
+
+log "Script start"
+
 APISERVER=https://kubernetes.default.svc
 SERVICEACCOUNT=/var/run/secrets/kubernetes.io/serviceaccount
 NAMESPACE=$(cat ${SERVICEACCOUNT}/namespace)
@@ -22,8 +28,16 @@ TOKEN=$(cat ${SERVICEACCOUNT}/token)
 CACERT=${SERVICEACCOUNT}/ca.crt
 
 cd /root
-MTKC_APIKEY=$(kubectl exec "$(kubectl get pod -l app.kubernetes.io/name=mtk-connect -n "${NAMESPACE}" -o name | sed 's@^pod/@@')" -n "${NAMESPACE}" -c authenticator -- node createServiceAccount.js mtk-connect-admin)
+log "Running in namespace=${NAMESPACE}, NAMESPACE_PREFIX=${NAMESPACE_PREFIX}"
 
+MTK_CONNECT_POD=$(kubectl get pod -l app.kubernetes.io/name=mtk-connect -n "${NAMESPACE}" -o name | sed 's@^pod/@@')
+log "Found mtk-connect pod: ${MTK_CONNECT_POD}"
+
+log "Creating service account API key for mtk-connect-admin"
+MTKC_APIKEY=$(kubectl exec "${MTK_CONNECT_POD}" -n "${NAMESPACE}" -c authenticator -- node createServiceAccount.js mtk-connect-admin)
+log "Service account API key created (length=${#MTKC_APIKEY})"
+
+log "Preparing secret manifests"
 sed -i "s/##MTKC_APIKEY##/${MTKC_APIKEY}/g" ./secret-jenkins.json
 sed -i "s/##NAMESPACE##/${NAMESPACE_PREFIX}jenkins/g" ./secret-jenkins.json
 sed -i "s/##MTKC_APIKEY##/${MTKC_APIKEY}/g" ./secret-mtk-connect.json
@@ -32,11 +46,19 @@ sed -i "s/##MTKC_APIKEY##/${MTKC_APIKEY}/g" ./secret-workflows.json
 sed -i "s/##NAMESPACE##/${NAMESPACE_PREFIX}workflows/g" ./secret-workflows.json
 
 # DELETE may 404 on first run when secrets do not exist yet
+log "Creating jenkins secret in namespace=${NAMESPACE_PREFIX}jenkins"
 curl -sf --cacert ${CACERT} --header "Authorization: Bearer ${TOKEN}" -X DELETE ${APISERVER}/api/v1/namespaces/${NAMESPACE_PREFIX}jenkins/secrets/jenkins-mtk-connect-apikey || true
 curl --cacert ${CACERT} --header "Authorization: Bearer ${TOKEN}" -H 'Accept: application/json' -H 'Content-Type: application/json' -X POST ${APISERVER}/api/v1/namespaces/${NAMESPACE_PREFIX}jenkins/secrets -d @secret-jenkins.json
+log "Jenkins secret created"
 
+log "Creating mtk-connect secret in namespace=${NAMESPACE_PREFIX}mtk-connect"
 curl -sf --cacert ${CACERT} --header "Authorization: Bearer ${TOKEN}" -X DELETE ${APISERVER}/api/v1/namespaces/${NAMESPACE_PREFIX}mtk-connect/secrets/mtk-connect-apikey || true
 curl --cacert ${CACERT} --header "Authorization: Bearer ${TOKEN}" -H 'Accept: application/json' -H 'Content-Type: application/json' -X POST ${APISERVER}/api/v1/namespaces/${NAMESPACE_PREFIX}mtk-connect/secrets -d @secret-mtk-connect.json
+log "mtk-connect secret created"
 
+log "Creating workflows secret in namespace=${NAMESPACE_PREFIX}workflows"
 curl -sf --cacert ${CACERT} --header "Authorization: Bearer ${TOKEN}" -X DELETE ${APISERVER}/api/v1/namespaces/${NAMESPACE_PREFIX}workflows/secrets/workflow-mtk-connect-apikey || true
 curl --cacert ${CACERT} --header "Authorization: Bearer ${TOKEN}" -H 'Accept: application/json' -H 'Content-Type: application/json' -X POST ${APISERVER}/api/v1/namespaces/${NAMESPACE_PREFIX}workflows/secrets -d @secret-workflows.json
+log "Workflows secret created"
+
+log "Script end"

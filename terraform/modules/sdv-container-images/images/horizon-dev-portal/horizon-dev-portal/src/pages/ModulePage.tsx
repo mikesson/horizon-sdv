@@ -54,6 +54,7 @@ import { useParams, useSearchParams } from 'react-router-dom';
 import { apiHorizon, apiMm } from '../utils/api';
 import { authService } from '../utils/auth';
 import { config } from '../utils/config';
+import { formatMiBToDecimalGBAdornment } from '../utils/formatMiBSize';
 import {
   DIALOG_LAYOUT_COOKIE_WORKFLOW_DETAIL,
   DIALOG_LAYOUT_COOKIE_WORKFLOW_LOGS,
@@ -421,20 +422,30 @@ export function ModulePage() {
       )}
 
       {activeTab === 'overview' && (
-        <Card variant="outlined" sx={{ display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+        <Card
+          variant="outlined"
+          sx={{
+            display: 'flex',
+            flexDirection: 'column',
+            minHeight: 'calc(100vh - 235px)',
+            overflow: 'hidden',
+          }}
+        >
           <CardContent
             sx={{
               flex: 1,
               display: 'flex',
               flexDirection: 'column',
-              minHeight: 0,
-              pt: 2,
-              '&:last-child': { pb: 2 },
+              minHeight: 'calc(100vh - 235px)',
+              p: overviewSrcDoc ? 0 : 2,
+              '&:last-child': { pb: overviewSrcDoc ? 0 : 2 },
             }}
           >
-            <Typography variant="subtitle1" gutterBottom>
-              About this module
-            </Typography>
+            {!overviewSrcDoc && (
+              <Typography variant="subtitle1" gutterBottom>
+                About this module
+              </Typography>
+            )}
             {!moduleMetaLoaded && moduleName ? (
               <Box display="flex" justifyContent="center" py={4}>
                 <CircularProgress size={32} />
@@ -442,8 +453,9 @@ export function ModulePage() {
             ) : !overviewInCluster ? (
               <Typography color="text.secondary">
                 No overview is configured: add <code>overviewService</code> and{' '}
-                <code>overviewServiceNamespace</code> for this module in the ModuleCatalog so Module Manager can fetch
-                HTML from the in-cluster overview workload (see module Helm chart <code>portal/overview.html</code>).
+                <code>overviewServiceNamespace</code> for this module in the ModuleCatalog so Module
+                Manager can fetch HTML from the in-cluster overview workload (see module Helm chart{' '}
+                <code>portal/overview.html</code>).
               </Typography>
             ) : overviewLoading ? (
               <Box display="flex" justifyContent="center" py={4}>
@@ -459,12 +471,9 @@ export function ModulePage() {
                 sandbox="allow-scripts"
                 sx={{
                   width: '100%',
+                  height: '100%',
                   flex: 1,
-                  minHeight: { xs: 440, sm: 520 },
-                  height: { xs: '56vh', sm: '64vh' },
-                  maxHeight: { xs: 720, sm: 960 },
                   border: 0,
-                  borderRadius: 1,
                   bgcolor: 'background.default',
                   alignSelf: 'stretch',
                 }}
@@ -581,6 +590,8 @@ function TemplatesTab({
       </Typography>
     );
   }
+  const sortedEntries = [...entries].sort((a, b) => a.templateName.localeCompare(b.templateName));
+
   return (
     <Box
       sx={{
@@ -589,7 +600,7 @@ function TemplatesTab({
         gap: 2,
       }}
     >
-      {entries.map((e) => (
+      {sortedEntries.map((e) => (
         <Card key={`${e.module}/${e.templateName}`} variant="outlined">
           <CardContent>
             <Typography variant="h6">{e.templateName}</Typography>
@@ -699,7 +710,9 @@ function sortWorkflowsForRunning(items: WorkflowSummary[]): WorkflowSummary[] {
   });
 }
 
-function runningPhaseChipColor(phase: string | undefined): 'default' | 'primary' | 'secondary' | 'error' | 'warning' | 'info' | 'success' {
+function runningPhaseChipColor(
+  phase: string | undefined
+): 'default' | 'primary' | 'secondary' | 'error' | 'warning' | 'info' | 'success' {
   const p = (phase ?? '').trim().toLowerCase();
   if (p === 'running') {
     return 'info';
@@ -851,7 +864,13 @@ function HistoryTab({
               </TableCell>
               <TableCell>
                 {deletingNames?.[w.name] ? (
-                  <Chip size="small" label="Deletion in progress" color="default" variant="outlined" disabled />
+                  <Chip
+                    size="small"
+                    label="Deletion in progress"
+                    color="default"
+                    variant="outlined"
+                    disabled
+                  />
                 ) : (
                   <Chip
                     size="small"
@@ -867,6 +886,57 @@ function HistoryTab({
       </Table>
     </TableContainer>
   );
+}
+
+function workflowParamInputProps(
+  p: { name: string; description?: string },
+  value: string,
+  templateName: string
+): { endAdornment?: React.ReactNode } | undefined {
+  const adornments: React.ReactNode[] = [];
+  if (p.name === 'largeUploadSizeMiB' && templateName === 'sample-smoke-test') {
+    const gbLabel = formatMiBToDecimalGBAdornment(value);
+    if (gbLabel) {
+      adornments.push(
+        <Typography
+          key="gb"
+          component="span"
+          variant="body2"
+          color="text.secondary"
+          sx={{ whiteSpace: 'nowrap', mr: 0.5 }}
+        >
+          {gbLabel}
+        </Typography>
+      );
+    }
+  }
+  if (p.description && p.description.length > 72) {
+    adornments.push(
+      <Tooltip
+        key="help"
+        title={p.description}
+        placement="left"
+        slotProps={{
+          tooltip: { sx: { maxWidth: 320, whiteSpace: 'normal' } },
+        }}
+      >
+        <IconButton size="small" edge="end" aria-label={`Help for ${p.name}`} tabIndex={-1}>
+          <HelpOutlineIcon fontSize="small" />
+        </IconButton>
+      </Tooltip>
+    );
+  }
+  if (adornments.length === 0) {
+    return undefined;
+  }
+  return {
+    endAdornment: <InputAdornment position="end">{adornments}</InputAdornment>,
+  };
+}
+
+function workflowParamHelperText(p: { description?: string }): string | undefined {
+  const desc = p.description?.trim();
+  return desc && desc.length <= 72 ? desc : undefined;
 }
 
 function SubmitDialog({
@@ -923,7 +993,9 @@ function SubmitDialog({
       onSubmitted();
     } catch (e: unknown) {
       if (e instanceof DOMException && e.name === 'AbortError') {
-        setErr('Submit timed out waiting for Horizon API (check Argo Events webhook and cluster connectivity).');
+        setErr(
+          'Submit timed out waiting for Horizon API (check Argo Events webhook and cluster connectivity).'
+        );
       } else {
         setErr(e instanceof Error ? e.message : 'submit failed');
       }
@@ -940,47 +1012,18 @@ function SubmitDialog({
         {entry.parameters
           .filter((p) => p.name !== 'submittedBy')
           .map((p) => (
-          <TextField
-            key={p.name}
-            margin="dense"
-            label={p.name}
-            helperText={
-              p.description && p.description.length <= 72 ? p.description : undefined
-            }
-            fullWidth
-            required={!p.default}
-            value={params[p.name] ?? ''}
-            onChange={(e) =>
-              setParams((prev) => ({ ...prev, [p.name]: e.target.value }))
-            }
-            InputProps={
-              p.description && p.description.length > 72
-                ? {
-                    endAdornment: (
-                      <InputAdornment position="end">
-                        <Tooltip
-                          title={p.description}
-                          placement="left"
-                          slotProps={{
-                            tooltip: { sx: { maxWidth: 320, whiteSpace: 'normal' } },
-                          }}
-                        >
-                          <IconButton
-                            size="small"
-                            edge="end"
-                            aria-label={`Help for ${p.name}`}
-                            tabIndex={-1}
-                          >
-                            <HelpOutlineIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                      </InputAdornment>
-                    ),
-                  }
-                : undefined
-            }
-          />
-        ))}
+            <TextField
+              key={p.name}
+              margin="dense"
+              label={p.name}
+              helperText={workflowParamHelperText(p)}
+              fullWidth
+              required={!p.default}
+              value={params[p.name] ?? ''}
+              onChange={(e) => setParams((prev) => ({ ...prev, [p.name]: e.target.value }))}
+              InputProps={workflowParamInputProps(p, params[p.name] ?? '', entry.templateName)}
+            />
+          ))}
         {err && (
           <Alert severity="error" sx={{ mt: 1 }}>
             {err}
@@ -1013,7 +1056,7 @@ function isLogArtifactName(name: string): boolean {
  */
 function pickLogArtifactForNode(
   logOutputs: OutputArtifact[],
-  n: { id: string; displayName?: string; templateName?: string },
+  n: { id: string; displayName?: string; templateName?: string }
 ): OutputArtifact | undefined {
   const sameNode = logOutputs.filter((a) => a.nodeId === n.id);
   if (sameNode.length === 1) {
@@ -1050,7 +1093,7 @@ function pickLogArtifactForNode(
 function nodeArchivedLogLinks(
   n: { id: string; displayName?: string; templateName?: string },
   archived: WorkflowSummary['archivedLogs'] | undefined,
-  logOutputs: OutputArtifact[],
+  logOutputs: OutputArtifact[]
 ): { gcsUri?: string; download?: OutputArtifact; artifactName?: string } {
   let gcsUri: string | undefined;
   let artifactName: string | undefined;
@@ -1103,10 +1146,13 @@ function argoBrowserBaseUrl(): string {
   return base;
 }
 
-/** Public Argo Workflows UI path (gateway serves UI under /workflows on the cluster domain). */
+/**
+ * Public Argo Workflows UI path (gateway serves UI under /workflows on the cluster domain).
+ * -> Second /workflows => Required for Argo's internal router
+ * */
 function argoWorkflowUiUrl(workflowName: string, namespace: string): string {
   const base = argoBrowserBaseUrl();
-  return `${base}/workflows/${encodeURIComponent(namespace)}/${encodeURIComponent(workflowName)}`;
+  return `${base}/workflows/workflows/${encodeURIComponent(namespace)}/${encodeURIComponent(workflowName)}`;
 }
 
 /** Poll workflow GET so phase, DAG nodes, and archived log links stay current; slower interval when terminal (TTL detection). */
@@ -1143,14 +1189,12 @@ function WorkflowDetailDialog({
   /** null = unknown; true = Workflow CR still in cluster; false = deleted/TTL (Argo UI has nothing to open). */
   const [argoReachable, setArgoReachable] = useState<boolean | null>(null);
   /** `null` = closed; `{}` = whole workflow; otherwise pod logs or archived step log fetch. */
-  const [logDialog, setLogDialog] = useState<
-    null | {
-      podName?: string;
-      stageLabel?: string;
-      /** When pods are gone (e.g. podGC), load main archived log via signed GCS URL. */
-      archivedArtifact?: { artifactName: string; nodeId: string; templateName?: string };
-    }
-  >(null);
+  const [logDialog, setLogDialog] = useState<null | {
+    podName?: string;
+    stageLabel?: string;
+    /** When pods are gone (e.g. podGC), load main archived log via signed GCS URL. */
+    archivedArtifact?: { artifactName: string; nodeId: string; templateName?: string };
+  }>(null);
 
   const dlgLayout = useResizableDialogSize({
     storageKey: DIALOG_LAYOUT_COOKIE_WORKFLOW_DETAIL,
@@ -1252,7 +1296,7 @@ function WorkflowDetailDialog({
   const doAbort = async () => {
     if (
       !window.confirm(
-        `Abort workflow "${workflowName}"? The run will stop gracefully (shutdown Stop) and may show as Aborted when finished.`,
+        `Abort workflow "${workflowName}"? The run will stop gracefully (shutdown Stop) and may show as Aborted when finished.`
       )
     ) {
       return;
@@ -1284,7 +1328,7 @@ function WorkflowDetailDialog({
   const doDelete = async () => {
     if (
       !window.confirm(
-        `Permanently delete workflow "${workflowName}" from the cluster? This cannot be undone.`,
+        `Permanently delete workflow "${workflowName}" from the cluster? This cannot be undone.`
       )
     ) {
       return;
@@ -1293,7 +1337,9 @@ function WorkflowDetailDialog({
     setDeleteBusy(true);
     setErr(null);
     try {
-      const r = await apiHorizon(`/v1/workflows/${encodeURIComponent(workflowName)}`, { method: 'DELETE' });
+      const r = await apiHorizon(`/v1/workflows/${encodeURIComponent(workflowName)}`, {
+        method: 'DELETE',
+      });
       if (!r.ok) {
         const t = await r.text();
         throw new Error(t || `delete ${r.status}`);
@@ -1347,7 +1393,10 @@ function WorkflowDetailDialog({
                       target={argoReachable === false ? undefined : '_blank'}
                       rel={argoReachable === false ? undefined : 'noopener noreferrer'}
                       disabled={argoReachable === false}
-                      sx={{ textTransform: 'none', color: argoReachable === false ? 'text.disabled' : undefined }}
+                      sx={{
+                        textTransform: 'none',
+                        color: argoReachable === false ? 'text.disabled' : undefined,
+                      }}
                     >
                       Open in Argo Workflows
                     </Button>
@@ -1360,20 +1409,45 @@ function WorkflowDetailDialog({
               {detail ? (
                 <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
                   {detail.module ? (
-                    <Chip size="small" variant="outlined" color="primary" label={`MOD: ${detail.module}`} />
+                    <Chip
+                      size="small"
+                      variant="outlined"
+                      color="primary"
+                      label={`MOD: ${detail.module}`}
+                    />
                   ) : null}
                   {detail.workflowTemplate ? (
-                    <Chip size="small" variant="outlined" label={`WT: ${detail.workflowTemplate}`} />
+                    <Chip
+                      size="small"
+                      variant="outlined"
+                      label={`WT: ${detail.workflowTemplate}`}
+                    />
                   ) : null}
                   {(detail.dependentWorkflowTemplates || []).map((dep) => (
-                    <Stack key={`${dep.module || 'unknown'}:${dep.template}`} direction="row" spacing={0.5} useFlexGap>
-                      {dep.module ? <Chip size="small" variant="outlined" color="primary" label={`MOD: ${dep.module}`} /> : null}
+                    <Stack
+                      key={`${dep.module || 'unknown'}:${dep.template}`}
+                      direction="row"
+                      spacing={0.5}
+                      useFlexGap
+                    >
+                      {dep.module ? (
+                        <Chip
+                          size="small"
+                          variant="outlined"
+                          color="primary"
+                          label={`MOD: ${dep.module}`}
+                        />
+                      ) : null}
                       <Chip size="small" variant="outlined" label={`WT: ${dep.template}`} />
                     </Stack>
                   ))}
                 </Stack>
               ) : null}
-              <Typography variant="caption" color="text.secondary" sx={{ fontFamily: 'monospace', wordBreak: 'break-all' }}>
+              <Typography
+                variant="caption"
+                color="text.secondary"
+                sx={{ fontFamily: 'monospace', wordBreak: 'break-all' }}
+              >
                 {workflowName}
               </Typography>
               {deletionPendingUi ? (
@@ -1415,7 +1489,11 @@ function WorkflowDetailDialog({
                           )
                         }
                         disabled={abortBusy || deleteBusy || listDeletionPending}
-                        sx={deletionPendingUi ? { color: 'text.disabled', borderColor: 'action.disabled' } : undefined}
+                        sx={
+                          deletionPendingUi
+                            ? { color: 'text.disabled', borderColor: 'action.disabled' }
+                            : undefined
+                        }
                         onClick={() => void doDelete()}
                       >
                         Delete
@@ -1622,10 +1700,15 @@ function WorkflowDetailSections({
             <Typography variant="subtitle1">Cluster log stream</Typography>
           </Stack>
           <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 1 }}>
-            Live NDJSON from Horizon (all stages; tagged lines). Distinct from GCS log archives in the DAG nodes table.
+            Live NDJSON from Horizon (all stages; tagged lines). Distinct from GCS log archives in
+            the DAG nodes table.
           </Typography>
           <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
-            <Button variant="contained" startIcon={<TerminalOutlinedIcon />} onClick={onOpenClusterLogs}>
+            <Button
+              variant="contained"
+              startIcon={<TerminalOutlinedIcon />}
+              onClick={onOpenClusterLogs}
+            >
               {terminal ? 'Open stream' : 'Open live stream'}
             </Button>
             {terminal && <Chip size="small" label="Workflow finished" />}
@@ -1638,10 +1721,11 @@ function WorkflowDetailSections({
           DAG nodes
         </Typography>
         <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 1 }}>
-          Show uses the live cluster log stream while the workflow is running. For finished workflows, Show loads
-          archived main logs from GCS in the same dialog when available. GCS / Download are the same archive objects
-          (not file/build artifacts). Module and Template list per-node fields from the API only — no workflow-level
-          fallback — so blanks mean the backend did not set them for that row.
+          Show uses the live cluster log stream while the workflow is running. For finished
+          workflows, Show loads archived main logs from GCS in the same dialog when available. GCS /
+          Download are the same archive objects (not file/build artifacts). Module and Template list
+          per-node fields from the API only — no workflow-level fallback — so blanks mean the
+          backend did not set them for that row.
         </Typography>
         <TableContainer component={Paper} variant="outlined">
           <Table size="small">
@@ -1659,7 +1743,11 @@ function WorkflowDetailSections({
             </TableHead>
             <TableBody>
               {dagNodesForLogs.map((n) => {
-                const { gcsUri, download, artifactName } = nodeArchivedLogLinks(n, archived, logOutputArtifacts);
+                const { gcsUri, download, artifactName } = nodeArchivedLogLinks(
+                  n,
+                  archived,
+                  logOutputArtifacts
+                );
                 const stageLabel = n.displayName || n.id;
                 const archivedArtifactResolved = download
                   ? {
@@ -1685,11 +1773,11 @@ function WorkflowDetailSections({
                   <TableRow key={n.id}>
                     <TableCell>{n.module?.trim() || '—'}</TableCell>
                     <TableCell>{n.workflowTemplate?.trim() || '—'}</TableCell>
-                    <TableCell>
-                      {stageLabel}
-                    </TableCell>
+                    <TableCell>{stageLabel}</TableCell>
                     <TableCell>{n.phase ?? '—'}</TableCell>
-                    <TableCell sx={{ fontFamily: 'monospace', fontSize: 12 }}>{n.podName ?? '—'}</TableCell>
+                    <TableCell sx={{ fontFamily: 'monospace', fontSize: 12 }}>
+                      {n.podName ?? '—'}
+                    </TableCell>
                     <TableCell align="center">
                       {canShow ? (
                         <Tooltip title={showTitle}>
@@ -1698,7 +1786,10 @@ function WorkflowDetailSections({
                             variant="outlined"
                             onClick={() =>
                               terminal && archivedArtifactResolved
-                                ? onShowNodeLogs({ stageLabel, archivedArtifact: archivedArtifactResolved })
+                                ? onShowNodeLogs({
+                                    stageLabel,
+                                    archivedArtifact: archivedArtifactResolved,
+                                  })
                                 : onShowNodeLogs({
                                     podName: n.podName || undefined,
                                     stageLabel,
@@ -1722,7 +1813,13 @@ function WorkflowDetailSections({
                     <TableCell align="center">
                       {gcsUri ? (
                         <Tooltip title="Open in GCS">
-                          <Button size="small" startIcon={<CloudOutlinedIcon />} href={gcsUri} target="_blank" rel="noreferrer">
+                          <Button
+                            size="small"
+                            startIcon={<CloudOutlinedIcon />}
+                            href={gcsUri}
+                            target="_blank"
+                            rel="noreferrer"
+                          >
                             GCS
                           </Button>
                         </Tooltip>
@@ -1871,7 +1968,7 @@ function buildWorkflowLogUrl(workflowName: string, follow: boolean, podName?: st
 async function horizonArtifactInlineText(
   wf: string,
   sel: { artifactName: string; nodeId: string; templateName?: string },
-  signal?: AbortSignal,
+  signal?: AbortSignal
 ): Promise<string> {
   const q = new URLSearchParams();
   q.set('inline', '1');
@@ -2050,36 +2147,63 @@ function LogStreamDialog({
       cancelled = true;
       ac.abort();
     };
-  }, [workflowName, phase, podName, archivedArtifact?.artifactName, archivedArtifact?.nodeId, archivedArtifact?.templateName]);
+  }, [
+    workflowName,
+    phase,
+    podName,
+    archivedArtifact?.artifactName,
+    archivedArtifact?.nodeId,
+    archivedArtifact?.templateName,
+  ]);
 
   return (
-    <Dialog open onClose={onClose} maxWidth={false} fullWidth={false} PaperProps={{ sx: logDlgLayout.paperSx }}>
+    <Dialog
+      open
+      onClose={onClose}
+      maxWidth={false}
+      fullWidth={false}
+      PaperProps={{ sx: logDlgLayout.paperSx }}
+    >
       <DialogTitle>
         Logs — {workflowName}
         {podName ? (
-          <Typography component="div" variant="body2" color="text.secondary" sx={{ mt: 0.5, fontWeight: 400 }}>
+          <Typography
+            component="div"
+            variant="body2"
+            color="text.secondary"
+            sx={{ mt: 0.5, fontWeight: 400 }}
+          >
             {stageLabel ? `${stageLabel} · ` : ''}
             <Box component="span" sx={{ fontFamily: 'monospace', fontSize: 13 }}>
               {podName}
             </Box>
           </Typography>
         ) : archivedArtifact ? (
-          <Typography component="div" variant="body2" color="text.secondary" sx={{ mt: 0.5, fontWeight: 400 }}>
+          <Typography
+            component="div"
+            variant="body2"
+            color="text.secondary"
+            sx={{ mt: 0.5, fontWeight: 400 }}
+          >
             {stageLabel ? `${stageLabel} · ` : ''}
             archived ({archivedArtifact.artifactName})
           </Typography>
         ) : null}
       </DialogTitle>
-      <DialogContent sx={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
+      <DialogContent
+        sx={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}
+      >
         {terminal && !fromArchive && (
           <Alert severity="info" sx={{ mb: 1 }}>
             Finished workflows often have no live cluster logs (pods removed). Prefer{' '}
-            <strong>Archived log links</strong> (GCS / Download in the DAG nodes table) on the workflow details panel when available.
+            <strong>Archived log links</strong> (GCS / Download in the DAG nodes table) on the
+            workflow details panel when available.
           </Alert>
         )}
         {fromArchive && (
           <Alert severity="info" sx={{ mb: 1 }}>
-            Loaded from Argo archived main container log in GCS (step pod may have been removed after the step finished).
+            Loaded from Argo archived main container log in GCS (step pod may have been removed
+            after the step finished).
           </Alert>
         )}
         {err && <Alert severity="error">{err}</Alert>}
@@ -2092,8 +2216,9 @@ function LogStreamDialog({
           </Alert>
         )}
         <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 0.5 }}>
-          Buffer up to {maxLines.toLocaleString()} lines (configure under Administration → Settings). When full, lines
-          drop from the busiest step first so short stages (e.g. checks) are kept longer than a very chatty build.
+          Buffer up to {maxLines.toLocaleString()} lines (configure under Administration →
+          Settings). When full, lines drop from the busiest step first so short stages (e.g. checks)
+          are kept longer than a very chatty build.
         </Typography>
         <Paper
           variant="outlined"

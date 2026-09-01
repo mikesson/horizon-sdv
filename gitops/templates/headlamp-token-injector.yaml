@@ -31,10 +31,9 @@ spec:
       values: |
         config:
           namespacePrefix: {{ .Values.config.namespacePrefix }}
-        image:
-          repository: nginx
-          tag: "1.23"
-          pullPolicy: IfNotPresent
+          nginx:
+            image: {{ .Values.config.nginx.image }}
+            tag: {{ .Values.config.nginx.tag | quote }}
         serviceAccount:
           create: false
           name: headlamp-admin

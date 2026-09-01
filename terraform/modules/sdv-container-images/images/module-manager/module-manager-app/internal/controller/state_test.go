@@ -33,6 +33,12 @@ func TestEffectiveTargetRevision(t *testing.T) {
 	if got := EffectiveTargetRevision(nil, "x", "  develop  "); got != "develop" {
 		t.Fatalf("nil state: got %q", got)
 	}
+	stBad := &State{
+		ModuleTargetRevisions: map[string]string{"bad": "string"},
+	}
+	if got := EffectiveTargetRevision(stBad, "bad", def); got != "HEAD" {
+		t.Fatalf("openapi placeholder: got %q want HEAD", got)
+	}
 }
 
 func TestIsModulePinned(t *testing.T) {

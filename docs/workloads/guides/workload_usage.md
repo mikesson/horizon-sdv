@@ -348,7 +348,7 @@ Helper jobs are provided in the _Android_ and _OpenBSW_ Workload areas (`Environ
 **_Prerequisites:_**
 - MTK Connect Testbench set up with connection(s) to device(s) 
   - e.g. Test pipeline job currently running and in the `Keep Devices Alive` stage.
-- Open MTK Connect application (https://example.horizon-sdv.com/mtk-connect) application from landing page  
+- Open MTK Connect application at (https://example.horizon-sdv.com/mtk-connect)  
 - Select `TESTBENCHES` tab within the application:
 - Find the relevant testbench 
     - Testbench created by test jobs are identifiable from the test job name and number (e.g. `Android/Tests/CVD_Launcher-8`). The full link to the testbench is also reported within the console log for these jobs.

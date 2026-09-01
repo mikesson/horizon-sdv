@@ -1,0 +1,11 @@
+# Copyright (c) 2024-2026 Accenture, All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+
+apiVersion: v2
+name: storage-gcs-module
+description: GCS buckets (GCSBucket CRD) + in-cluster REST API (storage-gcs-module operator)
+version: 1.0.0
+type: application
+appVersion: "1.0.0"

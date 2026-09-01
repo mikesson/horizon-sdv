@@ -12,14 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 //
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useState,
-} from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { CssBaseline, ThemeProvider } from '@mui/material';
 import { getTheme } from './theme';
 
@@ -71,10 +64,7 @@ export function ThemeModeProvider({ children }: { children: React.ReactNode }) {
 
   const theme = useMemo(() => getTheme(darkMode ? 'dark' : 'light'), [darkMode]);
 
-  const value = useMemo(
-    () => ({ darkMode, toggleTheme }),
-    [darkMode, toggleTheme]
-  );
+  const value = useMemo(() => ({ darkMode, toggleTheme }), [darkMode, toggleTheme]);
 
   return (
     <ThemeModeContext.Provider value={value}>

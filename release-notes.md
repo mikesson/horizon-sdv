@@ -1,9 +1,1025 @@
+<!-- Copyright (c) 2026 Accenture, All Rights Reserved.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+        http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License. -->
+
 # Horizon SDV Release Notes
 
 <p>Release Notes document is the public document which provides a brief information for the new features, improvements and bug fixes included in a Horizon SDV delivery.</p>
 <p>The file ‘release-notes.md’ is stored in <a href="https://github.com/GoogleCloudPlatform/horizon-sdv/blob/main/release-notes.md">https://github.com/GoogleCloudPlatform/horizon-sdv/blob/main/release-notes.md</a>  directory.</p>
 <p>Additional extended release notes for a particular release can be stored in /doc/extended-release-notes/ folder.</p>
 <p><a href="https://github.com/GoogleCloudPlatform/horizon-sdv/blob/main/docs/extended-release-notes/release-notes-2-0-0.md">https://github.com/GoogleCloudPlatform/horizon-sdv/blob/main/docs/extended-release-notes/release-notes-2-0-0.md</a></p>
+<hr>
+<table width="100%">
+<tbody>
+<tr>
+<td valign="top" width="14%"><p><strong>Platform</strong></p>
+</td>
+
+<td valign="top" width="86%"><p><strong>Horizon SDV</strong></p>
+</td>
+</tr>
+
+<tr>
+<td valign="top" width="14%"><p><strong>Version</strong></p>
+</td>
+
+<td valign="top" width="86%"><p><strong>Release 4.2.0</strong></p>
+</td>
+</tr>
+
+<tr>
+<td valign="top" width="14%"><p><strong>Date</strong></p>
+</td>
+
+<td valign="top" width="86%"><p><strong>01.09.2026</strong></p>
+</td>
+</tr>
+</tbody>
+</table>
+
+<h2>Summary</h2>
+<p><strong>Horizon SDV 4.2.0</strong> is the minor release which includes important updates and extensions for Cloud Workstation deployment in Horizon including architecture shift to Guacamole/GNOME support and Antigravity Agent/CLI integration in new additional CW workloads with AS/ASfP/COS IDEs.</p>
+
+<p>Horizon 4.2.0 also delivers several several feature improvements and important bug fixes including security fixes.</p>
+
+<p>Horizon SDV 4.1.0 package offers fully verified and documented upgrade patch (from Rel.4.1.0 to Rel.4.2.0). (see details in /docs/guides/upgrade_guide_4_1_0_to_4_2_0.md)</p>
+
+<h2>New Features</h2>
+
+<table width="100%">
+<tbody>
+<tr>
+<th valign="top" width="12%"><p><strong>ID</strong></p>
+</th>
+
+<th valign="top" width="24%"><p><strong>Feature</strong></p>
+</th>
+
+<th valign="top" width="64%"><p><strong>Description</strong></p>
+</th>
+</tr>
+
+<tr>
+<td valign="top" width="12%"><p>TAA-1859</p>
+</td>
+
+<td valign="top" width="24%"><p><strong>Cloud Workstation Image upgrade</strong></p>
+</td>
+
+<td valign="top" width="64%"><p><strong>Changes</strong></p>
+<p>Android Studio and Android Studio for Platform (ASfP) Cloud Workstation images now use a layered Preflight → GNOME → child model instead of a self-contained noVNC / TigerVNC image.</p>
+<ul>
+<li>
+<p>Browser access is Guacamole over RDP (<code>gnome-remote-desktop</code>). Dynamic resize and bidirectional clipboard are supported. Internal RDP/<code>guacd</code> stay inside the workstation; only port 80 is used through the Cloud Workstations gateway.</p>
+</li>
+
+<li>
+<p>New images: <code>horizon-preflight</code> (loader / systemd / credential rendering) and <code>horizon-gnome</code> (shared desktop, Chrome, Gemini CLI, <code>gemini-mcp-agent</code>). ASfP and Android Studio are thin children of GNOME and no longer reinstall the desktop stack.</p>
+</li>
+
+<li>
+<p>Legacy noVNC, websockify, and TigerVNC are removed from GNOME-based images.</p>
+</li>
+
+<li>
+<p>Jenkins: leaf jobs remain under Workstation Images. A new Horizon AOSP Build Image Chain job (Workstation Image Chain folder) can build Preflight and/or GNOME, then ASfP and/or Android Studio, threading <code>BASE_IMAGE</code>. Each leaf job can still be run alone against a published GNOME tag.</p>
+</li>
+
+<li>
+<p>Provisioning Terraform is unchanged. Select the new image with the existing <code>CONTAINER_IMAGE</code> parameter on Create/Update Configuration.</p>
+</li>
+
+<li>
+<p><code>horizon-code-oss</code> is unchanged and stays on the legacy stack.</p>
+</li>
+
+<li>
+<p>Follow-up on the GNOME base (TAA-2017): Chrome launcher restored after <code>dpkg-divert</code>, GNOME keyring unlocked for Secret Service, <code>antigravity://</code> handler registered, Guacamole RDP <code>resize-method=display-update</code>.</p>
+</li>
+</ul>
+<p>Documentation: <code>docs/workloads/cloud-workstations/workstation_images.md</code>.</p>
+<p><strong>Actions</strong></p>
+<ol start="1">
+<li>
+<p>Seed Cloud Workstations so the Preflight, GNOME, ASfP, Android Studio, and Image Chain jobs exist.</p>
+</li>
+
+<li>
+<p>Build and push images in order (Preflight → GNOME → children), or run Horizon AOSP Build Image Chain. Enabled base stages always push; child <code>NO_PUSH</code> still applies to IDE images.</p>
+</li>
+
+<li>
+<p>On Create/Update Configuration, set <code>CONTAINER_IMAGE</code> to the new <code>horizon-android-studio</code> or <code>horizon-asfp</code> image. Use an N1 or N2 machine type with nested virtualization enabled (not <code>e2-standard-4</code> with nested virtualization off) with at least 60 GB of storage space.</p>
+</li>
+
+<li>
+<p>Restart existing workstations after the config change so they pick up the new image.</p>
+</li>
+
+<li>
+<p>Leave Code OSS configs on the existing Code OSS image.</p>
+</li>
+</ol>
+</td>
+</tr>
+
+<tr>
+<td valign="top" width="12%"><p>TAA-1929</p>
+</td>
+
+<td valign="top" width="24%"><p><strong>Antigravity integration into CW pipelines</strong></p>
+</td>
+
+<td valign="top" width="64%"><p>Horizon Cloud Workstation images now include Google Antigravity alongside existing Gemini support.</p>
+<ul>
+<li>
+<p>The Horizon Android Studio and Android Studio for Platform images ship the Antigravity 2.0 Agent (desktop), launchable from the GNOME app menu without autostart, so Android Studio and ASfP remain the primary IDE experience. These images also include the Antigravity CLI (<code>agy</code>).</p>
+</li>
+
+<li>
+<p>The Horizon Code OSS image includes <code>agy</code> for terminal-based agent workflows.</p>
+</li>
+</ul>
+<p>Antigravity IDE is not installed. Gemini CLI and Gemini Code Assist remain unchanged. The Agent is implemented for both remote-desktop architectures: legacy TigerVNC/X11 and for Guacamole/RDP on the GNOME-based stack.</p>
+<p>A new <code>antigravity-mcp-agent</code> is included on these images to configure Horizon MCP Gateway Registry servers for Antigravity Agent and CLI (default config at <code>~/.gemini/config/mcp_config.json</code>). It shares Keycloak authentication with <code>gemini-mcp-agent</code> but writes a separate Antigravity MCP configuration. Install matrix, version pinning, and MCP setup are detailed in <code>docs/workloads/common/agentic-ai/antigravity.md</code> and <code>docs/guides/mcp_setup.md</code>.</p>
+</td>
+</tr>
+
+<tr>
+<td valign="top" width="12%"><p>TAA-1976</p>
+</td>
+
+<td valign="top" width="24%"><p><strong>GCS Storage module for Horizon</strong></p>
+</td>
+
+<td valign="top" width="64%"><ul>
+<li>
+<p>Added <code>storage-gcs-manager</code> module providing:</p>
+
+<ul>
+<li>
+<p>CRDs: <code>GCSBucket</code>, <code>GCSArtifact</code></p>
+</li>
+
+<li>
+<p>Operator reconciliation for GCS bucket lifecycle and artifact readiness</p>
+</li>
+
+<li>
+<p>In-cluster HTTP API for GCS object operations, metadata/batch tools, signed URLs, and resumable uploads</p>
+</li>
+</ul>
+</li>
+
+<li>
+<p>GitOps improvements for reliability:</p>
+
+<ul>
+<li>
+<p>Correct Argo CD <strong>destination namespace</strong> to <code>horizon</code> for <code>mod-storage-gcs-manager</code></p>
+</li>
+
+<li>
+<p>Correct <strong>sync wave ordering</strong> so CRs apply after the operator runs</p>
+</li>
+
+<li>
+<p>Fixed RBAC to allow <code>*/status</code> updates</p>
+</li>
+
+<li>
+<p>Fixed Helm rendering issue that caused Argo ComparisonError (<code>groupVersion shouldn&#39;t be empty</code>)</p>
+</li>
+</ul>
+</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+
+<h2>Improved Features</h2>
+
+<table width="100%">
+<tbody>
+<tr>
+<th valign="top" width="12%"><p><strong>ID</strong></p>
+</th>
+
+<th valign="top" width="24%"><p><strong>Feature</strong></p>
+</th>
+
+<th valign="top" width="64%"><p><strong>Description</strong></p>
+</th>
+</tr>
+
+<tr>
+<td valign="top" width="12%"><p>TAA-1900</p>
+</td>
+
+<td valign="top" width="24%"><p><strong>Developer Portal update with Landing Page</strong></p>
+</td>
+
+<td valign="top" width="64%"><p><strong>Summary</strong></p>
+<ul>
+<li>
+<p>Move the cluster app launcher into the Horizon Developer Portal as a new Landing page (/), and relocate the previous portal home to /welcome.</p>
+</li>
+
+<li>
+<p>Redirect the site root (/) to /developer-portal/ via the Gateway HTTPRoute so the Developer Portal is the single platform entry point.</p>
+</li>
+
+<li>
+<p>Improve module Overview layout (viewport-height iframe) and restyle module portal/overview.html content for better fit in the portal shell.</p>
+</li>
+
+<li>
+<p>Fully decommission the standalone landingpage app (container image, GitOps chart/gateway/namespace, Terraform image wiring) and update docs to match.</p>
+</li>
+</ul>
+<p><strong>Context</strong></p>
+<p>Horizon previously exposed a separate static Landing Page at the domain root and the Developer Portal under /developer-portal/. This duplicated UX and operational surface area. This change consolidates entry and app discovery in the Developer Portal and removes the old landingpage stack.</p>
+<p><strong>Changes</strong></p>
+<p><strong>Developer Portal (TAA-1986 / TAA-1998)</strong></p>
+<ul>
+<li>
+<p>Add LandingPage.tsx with Developer and Admin application cards (Gerrit, Jenkins, MTK Connect, MCP Gateway Registry, Keycloak, Argo CD, Headlamp, Grafana).</p>
+</li>
+
+<li>
+<p>Update routing/nav: / → Landing page, /welcome → Welcome.</p>
+</li>
+
+<li>
+<p>Overview tab uses viewport-based height; module overview HTML updated (notably sample-data and storage-gcs).</p>
+</li>
+
+<li>
+<p>Add Prettier/Husky/lint-staged tooling for the portal package.</p>
+</li>
+</ul>
+<p><strong>Gateway (TAA-1999)</strong></p>
+<ul>
+<li>
+<p>Exact / → 301 → /developer-portal/ on the horizon-dev-portal HTTPRoute.</p>
+</li>
+</ul>
+<p><strong>Decommission &amp; docs (TAA-2000)</strong></p>
+<ul>
+<li>
+<p>Remove landingpage image, GitOps resources, Terraform landingpage-app registration, and Argo image wiring.</p>
+</li>
+
+<li>
+<p>Update deployment/gitops/upgrade/sub-env/workload docs to use Developer Portal + direct app URLs.</p>
+</li>
+</ul>
+</td>
+</tr>
+
+<tr>
+<td valign="top" width="12%"><p>TAA-1885</p>
+</td>
+
+<td valign="top" width="24%"><p><strong>MTK Connect upgrade to V1.12</strong></p>
+</td>
+
+<td valign="top" width="64%"><p>Summary</p>
+<p>This PR upgrades <strong>MTK Connect</strong> to <strong>V1.12.1</strong> to leverage the latest features, improvements, and bug fixes while maintaining compatibility with the Horizon SDV deployment workflow.</p>
+<p><strong>Details</strong></p>
+<ul>
+<li>
+<p>Upgraded <strong>MTK Connect</strong> to <strong>V1.12</strong> as part of the Horizon SDV deployment process.</p>
+</li>
+
+<li>
+<p>Verified that the existing deployment workflow completes successfully with the upgraded version.</p>
+</li>
+
+<li>
+<p>Validated the automatic creation of <strong>MTK Connect test benches</strong> after the upgrade.</p>
+</li>
+
+<li>
+<p>Verified the automatic creation of <strong>CVD execution test benches</strong> to ensure existing functionality remains intact.</p>
+</li>
+
+<li>
+<p>Performed deployment validation to confirm that no critical issues were introduced by the upgrade.</p>
+</li>
+</ul>
+<p><strong>Purpose</strong></p>
+<p>This upgrade enables Horizon SDV to utilize the latest MTK Connect capabilities while ensuring deployment stability, preserving existing automation workflows, and providing documented validation coverage for the new version.</p>
+</td>
+</tr>
+
+<tr>
+<td valign="top" width="12%"><p>TAA-1237</p>
+</td>
+
+<td valign="top" width="24%"><p><strong>[CWS] CONTAINER_IMAGE must be clear!</strong></p>
+</td>
+
+<td valign="top" width="64%"><p><strong>Summary</strong></p>
+<p>Replace the free-text Artifact Registry URL for CONTAINER_IMAGE on Create/Update Configuration with an obvious image choice near the config name (C-OSS/AS/ASfP) and an optional tag (default latest), so operators pick the IDE image without hand-editing registry paths.</p>
+<p><strong>Changes</strong></p>
+<ul>
+<li>
+<p>Convert CONTAINER_IMAGE to choiceParam (C-OSS (VCS) / AS / ASfP) next to CLOUD_WS_CONFIG_NAME on create-config and update-config.</p>
+</li>
+
+<li>
+<p>Add CONTAINER_IMAGE_TAG (default latest) and append it when resolving the platform Artifact Registry URI in both Jenkinsfiles.</p>
+</li>
+
+<li>
+<p>Derive image paths via CLOUD_WS_HORIZON__IMAGE_NAME bindings so ASfP/AS/Code OSS resolve to horizon-sdv/cloud-ws-images/.</p>
+</li>
+
+<li>
+<p>Update config_admin_operations docs for the new parameters.</p>
+</li>
+</ul>
+</td>
+</tr>
+
+<tr>
+<td valign="top" width="12%"><p>TAA-1839</p>
+</td>
+
+<td valign="top" width="24%"><p><strong>[Packer] googlecompute plugin must be capped below v1.2.5 on Argo (SIGSEGV)</strong></p>
+</td>
+
+<td valign="top" width="64%"><p><strong>Summary</strong></p>
+<p>Two things, both about making the Packer plugin version pins usable by an operator rather than only by whoever edits the repo:</p>
+<ol start="1">
+<li>
+<p><strong>Documents the version pinning</strong> — what is pinned where, why the <code>&lt; 1.2.5</code> cap exists, and when to remove it. Also reports the installed Packer binary version in the job log, so the log shows the complete version picture.</p>
+</li>
+
+<li>
+<p><strong>Exposes </strong><code>PACKER_GOOGLECOMPUTE_VERSION_MIN</code><strong> / </strong><code>MAX</code><strong> as Argo workflow parameters</strong>, matching the Jenkins jobs.</p>
+</li>
+</ol>
+<p>Point 2 is review feedback: the parameters were Jenkins job parameters but Helm values on Argo, so the same pipeline offered different options depending on which interface started it. The request was that a parameter exposed to the end user is exposed on both interfaces or on neither.</p>
+<p><strong>What changed</strong></p>
+<table width="100%">
+<tbody>
+<tr>
+<td valign="top"><p>File</p>
+</td>
+
+<td valign="top"><p>Change</p>
+</td>
+</tr>
+
+<tr>
+<td valign="top"><p><code>helm/templates/workflow/workflowtemplates.yaml</code></p>
+</td>
+
+<td valign="top"><p>Adds <code>packerGooglecomputeVersionMin</code> / <code>Max</code> as workflow parameters, threads them through the DAG and the step inputs, and switches the two <code>export</code> lines from chart values to <code>inputs.parameters</code>. One file renders both templates, so x86 and arm64 cannot drift.</p>
+</td>
+</tr>
+
+<tr>
+<td valign="top"><p><code>groovy/job.groovy</code>, <code>groovy/job_arm.groovy</code></p>
+</td>
+
+<td valign="top"><p>Removes the <code>(TAA-1839)</code> reference from the parameter descriptions. No other Jenkins job in the repo puts a ticket reference in a description.</p>
+</td>
+</tr>
+
+<tr>
+<td valign="top"><p><code>docs/.../cf_instance_template.md</code></p>
+</td>
+
+<td valign="top"><p>New <strong>Packer version pinning</strong> section with the pin policy; updates the three places that said Argo needed a chart redeploy.</p>
+</td>
+</tr>
+
+<tr>
+<td valign="top"><p><code>cf_create_instance_template.sh</code></p>
+</td>
+
+<td valign="top"><p>Reports the Packer binary version in the job log; the build-failure message no longer points at a stale location.</p>
+</td>
+</tr>
+</tbody>
+</table>
+<p><code>helm/values.yaml</code> still owns the defaults (<code>1.2.3</code> / <code>1.2.5</code>). The difference is that the chart now sets the default a run starts from, instead of baking the value in at deploy time. Nothing changes for anyone who does not touch the field.</p>
+<p><strong>Verification</strong></p>
+<ul>
+<li>
+<p><code>helm template</code> and <code>helm lint</code> clean.</p>
+</li>
+
+<li>
+<p><code>argo lint --offline</code> produces the same 2 pre-existing errors as <code>HEAD</code> (<code>spec.templates[].hostname</code>, a strict-decoding artifact of the CLI&#39;s bundled schema) and no new ones.</p>
+</li>
+
+<li>
+<p>Rendered-manifest diff against <code>HEAD</code> is additive except for the two <code>export</code> lines.</p>
+</li>
+
+<li>
+<p>Argo tst run at defaults: constraint <code>&gt;= 1.2.3, &lt; 1.2.5</code>, <code>packer init</code> selects v1.2.4, <code>StepImportOSLoginSSHKey</code> completes without the SIGSEGV.</p>
+</li>
+</ul>
+<p>Reviewers: the check that matters is an <strong>override</strong> run, not a default run. Both the old baked value and the new default are <code>1.2.5</code>, so a default run passes whether or not the plumbing is correct. Submitting <code>-p packerGooglecomputeVersionMax=1.2.4</code> should produce constraint <code>&gt;= 1.2.3, &lt; 1.2.4</code> and install v1.2.3.</p>
+<p><strong>Deliberate non-goals</strong></p>
+<p><strong>Not added to </strong><code>webhookWorkflowParameters</code><strong>.</strong> The sensor helper seeds every mapped parameter with <code>value: ""</code> and then overwrites it from the request body, and an explicit <code>""</code> overrides the WorkflowTemplate default. Mapping these would mean a Portal run that omits the keys silently ignores <code>values.yaml</code> and lands on the script fallback — which is exactly the operator workflow this ticket exists to enable. <code>values.yaml</code> already records the same reasoning for <code>subnet</code> / <code>region</code> / <code>zone</code>. Worth knowing: <code>bootDiskSize</code> is already in this state — <code>values.yaml</code> says <code>250GB</code>, the script default is <code>500GB</code>, and it is webhook-mapped. Separate issue, not addressed here.</p>
+<p><strong>Shell interpolation.</strong> The two new <code>export</code> lines interpolate a submit-time parameter into a shell script, which a scanner will flag. The posture is unchanged: <code>cuttlefishPostCommand</code> accepts an arbitrary shell command by design, so anyone able to submit this workflow already has code execution in that pod, and about twenty existing exports use the identical pattern.</p>
+<p><code>packerUseIap</code><strong> / </strong><code>packerSshTimeout</code><strong> / </strong><code>packerIapTunnelLaunchWait</code> stay as they are: Helm values on Argo, hardcoded in the Jenkinsfile. Neither interface exposes them to end users, so user-facing parity holds, but an operator can retune them on Argo and not on Jenkins. Same class of asymmetry, opposite direction, out of scope here.</p>
+<p><code>MIN &gt;= MAX</code><strong> is not validated.</strong> Each value is checked for shape, not for their relationship, so <code>min=1.3.0, max=1.2.5</code> renders <code>&gt;= 1.3.0, &lt; 1.2.5</code> and fails at <code>packer init</code> with "no matching version". Visible and self-explanatory, so left alone.</p>
+</td>
+</tr>
+</tbody>
+</table>
+
+<h2>Documentation update</h2>
+
+<ul>
+<li><p>Rel.4.2.0 provides updates in Horizon documentation.</p>
+
+<ul>
+<li><p>New <strong>Upgrade Guide</strong> (/docs/guides/upgrade_guide_4_1_0_to_4_2_0.md) for Rel.4.1.0 -&gt; Rel.4.2.0 upgrade.</p>
+</li>
+
+<li><p>TAA-1901 Add &quot;Open in Cloud Shell&quot; to README.md. The root README includes an Open in Cloud Shell button that clones the official Horizon SDV repository and opens <code>docs/deployment_guide.md</code>.</p>
+</li>
+
+<li><p>Cloud Workstations and agentic AI</p>
+
+<ul>
+<li><p><code>docs/workloads/cloud-workstations/workstation_images.md</code></p>
+</li>
+
+<li><p><code>docs/workloads/cloud-workstations/config_admin_operations.md</code></p>
+</li>
+
+<li><p><code>docs/workloads/common/agentic-ai/antigravity.md</code></p>
+</li>
+
+<li><p><code>docs/guides/mcp_setup.md</code></p>
+</li>
+</ul>
+</li>
+
+<li><p>Developer Portal, GitOps, and storage modules</p>
+
+<ul>
+<li><p><code>docs/developer_portal_user_guide.md</code></p>
+</li>
+
+<li><p><code>docs/gitops.md</code></p>
+</li>
+
+<li><p><code>gitops/modules/storage-gcs-module/README.md</code></p>
+</li>
+
+<li><p><code>gitops/modules/sample-data-module/README.md</code></p>
+</li>
+</ul>
+</li>
+
+<li><p>Platform, upgrade paths, and seed</p>
+
+<ul>
+<li><p><code>docs/deployment_guide.md</code></p>
+</li>
+
+<li><p><code>docs/terraform.md</code></p>
+</li>
+
+<li><p><code>docs/guides/README.md</code></p>
+</li>
+
+<li><p><code>docs/guides/upgrade_guide_4_0_0_to_4_1_0.md</code> (cross-links)</p>
+</li>
+
+<li><p><code>docs/guides/sub_environments/sub_environment_deployment_guide.md</code></p>
+</li>
+
+<li><p><code>docs/workloads/seed.md</code></p>
+</li>
+</ul>
+</li>
+
+<li><p>Android, OpenBSW, and image template guides</p>
+
+<ul>
+<li><p><code>docs/workloads/android/environment/cf_instance_template.md</code></p>
+</li>
+
+<li><p><code>docs/workloads/android/environment/docker_image_template.md</code></p>
+</li>
+
+<li><p><code>docs/workloads/openbsw/environment/docker_image_template.md</code></p>
+</li>
+
+<li><p><code>docs/workloads/utilities/docker_image_template.md</code></p>
+</li>
+
+<li><p><code>docs/workloads/guides/workload_setup.md</code></p>
+</li>
+
+<li><p><code>docs/workloads/guides/workload_usage.md</code></p>
+</li>
+</ul>
+</li>
+
+<li><p>Container image security: <code>docs/guides/container_image_security_upgrade_guide.md</code></p>
+</li>
+</ul>
+</li>
+</ul>
+
+<h2>Bug Fixes</h2>
+
+<table width="100%">
+<tbody>
+<tr>
+<td valign="top" width="10%"><p><strong>ID</strong></p>
+</td>
+
+<td valign="top" width="24%"><p><strong>Bug</strong></p>
+</td>
+
+<td valign="top" width="51%"><p><strong>Description</strong></p>
+</td>
+
+<td valign="top" width="15%"><p><strong>SHA</strong></p>
+</td>
+</tr>
+
+<tr>
+<td valign="top" width="10%"><p>TAA-1891</p>
+</td>
+
+<td valign="top" width="24%"><p>Gemini Code Assist in Code OSS Workstation Agent Mode Does Not Detect Configured MCP Servers</p>
+</td>
+
+<td valign="top" width="51%"><p><strong>Summary</strong></p>
+<p>Gemini Code Assist (GCA) chat/agent mode on Horizon Code OSS Cloud Workstations was not detecting configured MCP servers, while the Gemini CLI and <code>gemini-mcp-agent</code> bridge continued to work. The Horizon Code OSS image used the floating <code>code-oss:latest</code> predefined base, which pulls a newer bundled Code OSS / GCA stack that regressed MCP exposure in the IDE plugin. Pinning the base to <code>code-oss-1.104.3</code> restores MCP detection and use in GCA agent mode.</p>
+<p><strong>Changes</strong></p>
+<p><code>Dockerfile</code></p>
+<p>File path: <code>workloads/cloud-workstations/pipelines/workstation-images/horizon-code-oss/Dockerfile</code></p>
+<ul>
+<li>
+<p>Changed the <code>FROM</code> base image from <code>us-central1-docker.pkg.dev/cloud-workstations-images/predefined/code-oss:latest</code> to <code>us-central1-docker.pkg.dev/cloud-workstations-images/predefined/code-oss:code-oss-1.104.3</code> to stop floating on <code>:latest</code> and use a known-good predefined base version.</p>
+</li>
+</ul>
+</td>
+
+<td valign="top" width="15%">
+<ul>
+<li><p><code>2229b92169d1cfbd12782f85b6e500a749574a0c</code></p>
+</li>
+</ul>
+</td>
+</tr>
+
+<tr>
+<td valign="top" width="10%"><p>TAA-1797</p>
+</td>
+
+<td valign="top" width="24%"><p>"Open in Argo Workflows" moves to wrong place</p>
+</td>
+
+<td valign="top" width="51%"><p><strong>Description</strong></p>
+<p>Fixes the Horizon Dev Portal &ldquo;Open in Argo Workflows&rdquo; deep link so it opens the correct workflow in the Argo UI instead of falling back to an empty workflow list. The public URL now includes both the gateway mount path (<code>/workflows</code>) and Argo&#39;s SPA base-href route (<code>/workflows/:namespace/:name</code>).</p>
+<p><strong>Changes</strong></p>
+<ul>
+<li>
+<p>Updated <code>argoWorkflowUiUrl</code> in the Dev Portal <code>ModulePage</code> to emit <code>{base}/workflows/workflows/{namespace}/{name}</code> instead of <code>{base}/workflows/{namespace}/{name}</code></p>
+</li>
+
+<li>
+<p>Aligns the generated link with Argo Workflows served behind <code>--base-href /workflows/</code> on the cluster gateway</p>
+</li>
+</ul>
+</td>
+
+<td valign="top" width="15%">
+<ul>
+<li><p><code>b1437632904b6c540496326cd788e2bab176aa67</code></p>
+</li>
+</ul>
+</td>
+</tr>
+
+<tr>
+<td valign="top" width="10%"><p>TAA-1920</p>
+</td>
+
+<td valign="top" width="24%"><p>[ESRlabs][Security] VPC network access is unrestricted</p>
+</td>
+
+<td valign="top" width="51%"><p><strong>Summary</strong></p>
+<p>Implements/modifies deny_all default firewall rules for sdv-network,<br>to ensure no unintended traffic passess the firewall.</p>
+<p><strong>Changes</strong></p>
+<p>Introduce defaut deny_all firewall rule for sdv-network ingress</p>
+<ul>
+<li>
+<p>priority: 65000</p>
+</li>
+
+<li>
+<p>protocols: all</p>
+</li>
+
+<li>
+<p>source_range: 0.0.0.0/0<br>Change priority of deny_all firewall rule for sdv-network egress</p>
+</li>
+
+<li>
+<p>previous priority: 65534</p>
+</li>
+
+<li>
+<p>new priority: 65000</p>
+</li>
+</ul>
+<p><strong>Verification</strong></p>
+<p>Verification through appication on ESRLabs environment and ISD scan.</p>
+<p>Change-Id: I5c656d864323b98c7bc1967cd244f63ce64a146f</p>
+<ul>
+<li>
+<p>TAA-1920 [ESRlabs][Security] VPC ntework access is unrestricted</p>
+</li>
+</ul>
+<p><strong>Summary</strong></p>
+<p>Implements/modifies deny_all default firewall rules for sdv-network,<br>to ensure no unintended traffic passess the firewall.</p>
+<p><strong>Changes</strong></p>
+<p>Remove typo in comment.</p>
+<p>Change-Id: Id779c0dea503173e59d73da3a78751f1431599a5</p>
+</td>
+
+<td valign="top" width="15%">
+<ul>
+<li><p><code>b10d33fd1b0687894010b28d4ae4004ee3e738cc</code></p>
+</li>
+</ul>
+</td>
+</tr>
+
+<tr>
+<td valign="top" width="10%"><p>TAA-1927</p>
+</td>
+
+<td valign="top" width="24%"><p>[ESRlabs][Security] GCP Subnets with Public IP to access GCP API or Service</p>
+</td>
+
+<td valign="top" width="51%"><p><strong>Summary</strong></p>
+<p>Implements TAA-1927<br>Ensure that Google Private Access feature is enabled for the following subnets:<br>sdv-network:</p>
+<ul>
+<li>
+<p>sdv-subnet</p>
+</li>
+
+<li>
+<p>sdv-subnet-arm64<br>sdv-gke-cluster</p>
+</li>
+
+<li>
+<p>gke-sdv-cluster-&lt;hash&gt;-pe-subnet</p>
+</li>
+</ul>
+<p><strong>Changes</strong></p>
+<p>Fix for subnets of sdv-network.</p>
+<p>It was found that even do the terraform/modules/sdv-network/main.tf<br>contains code to set Google Private Access to true, the<br>terraform-google-modules/network/google module in version v13+<br>reads subnet_private_access and maps it into google_ip_private_access:<br>private_ip_google_access = lookup(each.value, "subnet_private_access", "false")<br>Thus replaced private_ip_google_access with subnet_private_access.</p>
+<p><strong>Fix for sdv-gke-cluster.</strong></p>
+<p>As gke-sdv-cluster-&lt;hash&gt;-pe-subnet is GKE control plane subnet,<br>created automatically when the cluster is configured.<br>Found it is already reconfigured by post-create hook to enable flow logs.<br>Introduced another post-create hook to enable Google Private Access on its subnet.</p>
+<p><strong>Verification</strong></p>
+<p>Test deployment of new Horizon instance from scrach.<br>Verification if the Google Private Access feature is enabled on all 3 subnets mentioned above.</p>
+</td>
+
+<td valign="top" width="15%">
+<ul>
+<li><p><code>722cf39ff59a01ac8f4a2c4821255c8f4f36b48c</code></p>
+</li>
+</ul>
+</td>
+</tr>
+
+<tr>
+<td valign="top" width="10%"><p>TAA-1792</p>
+</td>
+
+<td valign="top" width="24%"><p>Inconsistency between status of Workflow template in developer-portal and GCP Workloads</p>
+</td>
+
+<td valign="top" width="51%"><p><strong>Summary</strong></p>
+<ul>
+<li>
+<p>Remap shutdown-interrupted DAG node phases from Argo <code>Failed</code>/<code>Error</code> to <code>Aborted</code> in Horizon API, matching the workflow-level phase already returned after portal abort (<code>spec.shutdown: Stop</code>).</p>
+</li>
+
+<li>
+<p>Apply the same remapping in <code>BuildArchivedLogLinks()</code> so <code>nodes[]</code> and <code>archivedLogs.steps[]</code> stay consistent.</p>
+</li>
+</ul>
+<p>Fixes <strong>TAA-1792</strong> (portal internal inconsistency). Does <strong>not</strong> change GCP Workloads behaviour — that console shows K8s pod status (container exit code), not Argo node phase.</p>
+<p><strong>Problem</strong></p>
+<p>After aborting a workflow from the Developer Portal (T-WF-06):</p>
+<table width="100%">
+<tbody>
+<tr>
+<td valign="top"><p>Location</p>
+</td>
+
+<td valign="top"><p>Before</p>
+</td>
+</tr>
+
+<tr>
+<td valign="top"><p>Workflow result / detail header</p>
+</td>
+
+<td valign="top"><p><code>Aborted</code></p>
+</td>
+</tr>
+
+<tr>
+<td valign="top"><p>DAG node (interrupted step)</p>
+</td>
+
+<td valign="top"><p><code>Failed</code></p>
+</td>
+</tr>
+</tbody>
+</table>
+<p>Workflow-level remapping existed (<code>DisplayPhaseForAPI</code>); node-level phases were passed through raw from Argo.</p>
+<p><strong>Solution</strong></p>
+<ul>
+<li>
+<p><code>DisplayPhaseForNode()</code> + <code>nodeInterruptedByShutdown()</code> in <code>parse.go</code></p>
+</li>
+
+<li>
+<p>Wired into <code>Detail()</code> and <code>archive.go</code> (<code>BuildArchivedLogLinks</code>)</p>
+</li>
+
+<li>
+<p>Unit tests in <code>parse_node_phase_test.go</code></p>
+</li>
+</ul>
+<p>Genuine pre-abort failures (e.g. <code>main: Error (exit code 1)</code>) remain <code>Failed</code>.</p>
+<p><strong>Testing</strong></p>
+<p>Locally, the changes were tested like this:</p>
+<p>Building the horizon-api:</p>
+<pre><code>❯ cd terraform/modules/sdv-container-images/images/horizon-api/horizon-api-app
+❯ go build -o /tmp/horizon-api .</code></pre>
+<p>Running the server by binding to services in tst cluster:</p>
+<pre><code>❯ export OIDC_ISSUER_URL=&quot;https://tst.horizon-sdv.com/auth/realms/horizon&quot;
+❯ export KEYCLOAK_BASE=&quot;https://tst.horizon-sdv.com/auth&quot;
+
+❯ /tmp/horizon-api \
+  --workflows-namespace=&quot;$WORKFLOWS_NAMESPACE&quot; \
+  --oidc-issuer-url=&quot;$OIDC_ISSUER_URL&quot; \
+  --events-webhook-url=&quot;$EVENTS_WEBHOOK_URL&quot; \
+  --http-bind-address=:8082</code></pre>
+<p>Then, when phase is correctly shown as aborted for an actual workflow that was aborted form the developer portal</p>
+<pre><code>❯ export HORIZON_ACCESS_TOKEN=&quot;$(./tools/scripts/horizon-api/horizon-api-get-token.sh --device)&quot;
+❯ curl -s -H &quot;Authorization: Bearer $HORIZON_ACCESS_TOKEN&quot; \
+  http://localhost:8082/v1/workflows/webhook-smoke-4lkdf \
+  | jq &#x27;.phase, (.nodes[] | select(.type==&quot;Pod&quot;) | {stage: .displayName, phase: .phase})&#x27;
+
+&quot;Aborted&quot;
+{
+  &quot;stage&quot;: &quot;log-parameters&quot;,
+  &quot;phase&quot;: &quot;Aborted&quot;
+}</code></pre>
+<p>Without the changes, the following output would be obtained from the horizon-api server. Workflow level phase shows <code>Aborted</code>, but node level shows <code>Failed</code>.</p>
+<pre><code>❯ curl -s -H &quot;Authorization: Bearer $HORIZON_ACCESS_TOKEN&quot; \
+  http://localhost:8082/v1/workflows/webhook-smoke-4lkdf \
+  | jq &#x27;.phase, (.nodes[] | select(.type==&quot;Pod&quot;) | {stage: .displayName, phase: .phase})&#x27;
+
+&quot;Aborted&quot;
+{
+  &quot;stage&quot;: &quot;log-parameters&quot;,
+  &quot;phase&quot;: &quot;Failed&quot;
+}</code></pre>
+</td>
+
+<td valign="top" width="15%">
+<ul>
+<li><p><code>cd28900f1765ff34f837e05736fcd5ebea63c729</code></p>
+</li>
+</ul>
+</td>
+</tr>
+
+<tr>
+<td valign="top" width="10%"><p>TAA-1957</p>
+</td>
+
+<td valign="top" width="24%"><p>[Deployment] terraform apply fails enabling VPC flow logs on GKE auto-created pe-subnet (Invalid fingerprint)</p>
+</td>
+
+<td valign="top" width="51%"><p><strong>Summary</strong></p>
+<ul>
+<li>
+<p>Fixes TAA-1957: <code>terraform apply</code> fails when enabling VPC flow logs on the GKE auto-created pe-subnet (<code>Invalid fingerprint</code>).</p>
+</li>
+
+<li>
+<p>Hardens <code>null_resource.enable_gke_master_subnet_flow_logs</code> and <code>null_resource.enable_gke_master_subnet_private_google_access</code> in <code>terraform/modules/sdv-gke-cluster/main.tf</code>:</p>
+
+<ul>
+<li>
+<p>Wait for cluster + all node pools before running</p>
+</li>
+
+<li>
+<p>Run PGA after flow logs (<code>depends_on</code>) to avoid parallel updates on the same subnet</p>
+</li>
+
+<li>
+<p>Retry subnet discovery and <code>gcloud</code> updates with exponential backoff</p>
+</li>
+
+<li>
+<p>Use <code>interpreter = ["bash", "-c"]</code> so <code>set -o pipefail</code> works (Terraform defaults to <code>/bin/sh</code>)</p>
+</li>
+</ul>
+</li>
+</ul>
+</td>
+
+<td valign="top" width="15%">
+<ul>
+<li><p><code>3d9f928460762da16978398b343c893928b841a1</code></p>
+</li>
+</ul>
+</td>
+</tr>
+
+<tr>
+<td valign="top" width="10%"><p>TAA-1799</p>
+</td>
+
+<td valign="top" width="24%"><p>"Token is not a JWT or could not be decoded" after "./horizon auth whoami" Horizon CLI command</p>
+</td>
+
+<td valign="top" width="51%"><p><strong>Summary</strong></p>
+<p><code>horizon auth whoami</code> intermittently failed with<br>"Token is not a JWT or could not be decoded: illegal base64 data at input byte N", even though the token was valid and API calls succeeded.</p>
+<p>The JWT payload decoder in tools/horizon/jwt.go appended &#39;=&#39; padding to the base64url segment and then decoded it with base64.RawURLEncoding, which rejects padding. Decoding therefore failed whenever the payload length was not a multiple of 4 (remainder 2 or 3). Because the payload length changes every login (expiry, roles, etc.), the failure was intermittent. The reported "byte 1870" equals the payload length, and 1870 % 4 == 2 -- exactly the padded case.</p>
+<p><strong>Changes</strong></p>
+<ul>
+<li>
+<p>tools/horizon/jwt.go: remove the manual &#39;=&#39; padding and decode the unpadded base64url payload directly with base64.RawURLEncoding (trimming any stray padding for robustness). JWT segments are unpadded base64url by spec.</p>
+</li>
+
+<li>
+<p>tools/horizon/jwt_test.go: add regression tests covering payload lengths of every valid shape (len % 4 == 0, 2, 3) and a non-JWT input.</p>
+</li>
+</ul>
+<p><strong>Verification</strong></p>
+<ul>
+<li>
+<p>tools/horizon: <code>go build ./...</code> succeeds.</p>
+</li>
+
+<li>
+<p>tools/horizon: <code>go test -vet=off -run TestDecodeJWTPayload ./...</code> passes (both new tests green). vet is disabled only to bypass an unrelated, pre-existing format-string issue in main.go (separate ticket).</p>
+</li>
+
+<li>
+<p>TODO before PR: on self-deployed instance, run <code>horizon auth login</code> then <code>horizon auth whoami</code> and attach output showing sub / preferred_username / exp for a token that previously failed.</p>
+</li>
+</ul>
+</td>
+
+<td valign="top" width="15%">
+<ul>
+<li><p><code>76ee302388c3360ad23f77e0e768599ce4d25d94</code></p>
+</li>
+</ul>
+</td>
+</tr>
+
+<tr>
+<td valign="top" width="10%"><p>TAA-1916</p>
+</td>
+
+<td valign="top" width="24%"><p>[Security][nginx] CVE-2026-42945 security issue</p>
+</td>
+
+<td valign="top" width="51%"><p><strong>Summary</strong></p>
+<ul>
+<li>
+<p>Advance nginx to 1.31.2-alpine3.23 for <a href="https://github.com/advisories/GHSA-gcgv-v5gf-c543">GHSA-gcgv-v5gf-c543</a>.</p>
+</li>
+
+<li>
+<p>Use common_nginx_version as the single source of<br>truth for landingpage, token-injector, and<br>module-overview (via config.nginx).</p>
+</li>
+
+<li>
+<p>Document the pin in the container image security<br>upgrade guide.</p>
+</li>
+</ul>
+<p><strong>Changes</strong></p>
+<ul>
+<li>
+<p>Bump common_nginx_version and landingpage-app 1.0.2.</p>
+</li>
+
+<li>
+<p>Pass the pin from base into sdv-gke-apps and publish<br>config.nginx on the root Argo CD Application.</p>
+</li>
+
+<li>
+<p>Forward config.nginx via headlamp-token-injector and<br>module-manager MODULE_CONFIG.</p>
+</li>
+
+<li>
+<p>Replace hardcoded nginx:1.23 with config.nginx values.</p>
+</li>
+
+<li>
+<p>Update container_image_security_upgrade_guide.md.</p>
+</li>
+</ul>
+</td>
+
+<td valign="top" width="15%">
+<ul>
+<li><p><code>e6c1efc66328e35191c4bfe03c52755c2381af9e</code></p>
+</li>
+</ul>
+</td>
+</tr>
+
+<tr>
+<td valign="top" width="10%"><p>TAA-2062</p>
+</td>
+
+<td valign="top" width="24%"><p>Platform deployment fails on GKE 1.34.1-gke.3720000+ due to NodeLocal DNSCache</p>
+</td>
+
+<td valign="top" width="51%"><p><strong>Summary</strong></p>
+<p>GKE Standard enables NodeLocal DNSCache by default from <code>1.34.1-gke.3720000</code>. Horizon <code>allow-dns</code> NetworkPolicies only allow DNS egress via <code>namespaceSelector: kube-system</code> and <code>podSelector: k8s-app=kube-dns</code>. NodeLocal DNSCache answers on the node instead of a <code>kube-dns</code> Pod, so those selectors never match and <code>default-deny-all</code> drops all DNS. Fresh deployments fail to bootstrap.</p>
+<p>Impact includes Argo CD <code>horizon-sdv</code> and <code>external-dns</code> stuck in <code>ComparisonError</code> (DNS lookup timeout to <code>argocd-repo-server</code>), Keycloak stuck at <code>Init:0/1</code> with <code>dbchecker</code> looping on <code>nc: bad address &#39;postgresql&#39;</code>, and Argo CD unable to self-heal because its own control plane DNS is blocked.</p>
+<p><strong>Workaround shipped for 4.2.0</strong></p>
+<p>Pinned the add-on off in <code>terraform/modules/sdv-gke-cluster/main.tf</code>:</p>
+<p><code>addons_config { dns_cache_config { enabled = false } }</code></p>
+<p>Omitting the block is not sufficient, because the GKE API default is on even though the Terraform schema default is off. Requires cluster/node recreation.</p>
+<p><strong>Proper fix (follow-up)</strong></p>
+<p>Add <code>ipBlock</code> DNS egress to the <code>allow-dns</code> policies so the add-on can be re-enabled. That follow-up is not included in Rel.4.2.0.</p>
+</td>
+
+<td valign="top" width="15%">
+<ul>
+<li><p><code>3ce867c37d7125b68729e0420645d4973a18e345</code></p>
+</li>
+</ul>
+</td>
+</tr>
+
+<tr>
+<td valign="top" width="10%"><p>TAA-2063</p>
+</td>
+
+<td valign="top" width="24%"><p>monitoring-tools sync failure</p>
+</td>
+
+<td valign="top" width="51%"><p><strong>Summary</strong></p>
+<p>Argo CD <code>monitoring-tools</code> failed to sync. <code>PodMonitoring.monitoring.googleapis.com/node-exporter</code> was rejected: <code>spec.selector: Required value</code>. The GMP CRD requires <code>spec.selector</code>. The template only set <code>endpoints</code>.</p>
+<p>The app stayed <code>OutOfSync</code> / <code>SyncError</code> (other resources still apply). GMP cannot scrape <code>node-exporter</code> until a valid <code>PodMonitoring</code> exists.</p>
+<p><strong>Fix</strong></p>
+<p>Add <code>selector.matchLabels.app.kubernetes.io/name: node-exporter</code> in <code>gitops/apps/monitoring-tools/templates/monitoring-node-exporter.yaml</code> to match the DaemonSet, same pattern as <code>kube-state-metric</code>.</p>
+</td>
+
+<td valign="top" width="15%">
+<ul>
+<li><p><code>ad9e8fc967e6e025db1e25b0bcf3adac7833cf5c</code></p>
+</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+
+<h2>Known Issues</h2>
+<p><strong>TAA-2059</strong> Android 16 Virtual Device Launch not detected using Cuttlefish v1.57 (main)</p>
+<p><strong>Cuttlefish Instance Templates on cuttlefish v1.57 or higher:</strong> By default, the test pipelines use the instance templates with cuttlefish v1.41 installed (i.e. cuttlefish-vm-v1410). If building any instance templates which have cuttlefish v1.57 or higher (including main), use the following parameter in the pipeline <em>CF Instance Template</em> to revert a change made to cuttlefish v1.57+ which changes a crucial logging level and breaks the detection of the virtual devices&#39; boot status of devices on Android16 and higher.</p>
+<p><em>Parameter:</em> <code>ANDROID_CUTTLEFISH_POST_COMMAND</code></p>
+<p><em>Value:</em> <code>git revert --no-commit f97d360d950b89553ee45c004c5fbcb621a5577e &amp;&amp; git reset HEAD .</code></p>
+<p><strong>Antigravity:</strong> Antigravity Desktop App v2.0 can fail to reopen after being closed (workaround: terminate the leftover process). See <code>docs/workloads/common/agentic-ai/antigravity.md#known-issues</code>.</p>
+
 <hr>
 <table width="100%">
 <tbody>

@@ -42,6 +42,20 @@ locals {
     for item in local.flattened_roles_with_sa : "${item.role}-${item.sa_id}" => item
   }
 
+  flattened_sa_roles_with_sa = flatten([
+    for sa_key, sa_value in nonsensitive(var.wi_service_accounts) : [
+      for role in sa_value.sa_roles : {
+        sa_id      = sa_key
+        account_id = sa_value.account_id
+        role       = role
+      }
+    ]
+  ])
+
+  sa_roles_with_sa_map = {
+    for item in local.flattened_sa_roles_with_sa : "${item.role}-${item.sa_id}" => item
+  }
+
   flattened_gke_sas = flatten([
     for sa_key, sa_value in nonsensitive(var.wi_service_accounts) : [
       for gke_sa in sa_value.gke_sas : {
@@ -55,6 +69,22 @@ locals {
 
   gke_sas_with_sa_map = {
     for item in local.flattened_gke_sas : "${item.sa_id}-${item.gke_ns}-${item.gke_sa}" => item
+  }
+
+  flattened_conditional_roles = flatten([
+    for sa_key, sa_value in nonsensitive(var.wi_service_accounts) : [
+      for binding in sa_value.conditional_roles : {
+        sa_id       = sa_key
+        role        = binding.role
+        title       = binding.title
+        description = binding.description
+        expression  = binding.expression
+      }
+    ]
+  ])
+
+  conditional_roles_map = {
+    for item in local.flattened_conditional_roles : "${item.role}-${item.sa_id}-${item.title}" => item
   }
 }
 
@@ -78,6 +108,37 @@ resource "google_project_iam_member" "sdv_wi_sa_iam_2" {
   ]
 }
 
+# SA-scoped IAM (member = this SA). Use for TokenCreator when only self signBlob is required.
+resource "google_service_account_iam_member" "sdv_wi_sa_self_roles" {
+  for_each = local.sa_roles_with_sa_map
+
+  service_account_id = google_service_account.sdv_wi_sa[each.value.sa_id].name
+  role               = each.value.role
+  member             = "serviceAccount:${google_service_account.sdv_wi_sa[each.value.sa_id].email}"
+
+  depends_on = [
+    google_service_account.sdv_wi_sa
+  ]
+}
+
+resource "google_project_iam_member" "sdv_wi_sa_iam_conditional" {
+  for_each = local.conditional_roles_map
+
+  project = data.google_project.project.id
+  role    = each.value.role
+  member  = "serviceAccount:${google_service_account.sdv_wi_sa[each.value.sa_id].email}"
+
+  condition {
+    title       = each.value.title
+    description = each.value.description
+    expression  = each.value.expression
+  }
+
+  depends_on = [
+    google_service_account.sdv_wi_sa
+  ]
+}
+
 # GKE Workload Identity: the Kubernetes SA must have roles/iam.workloadIdentityUser on the
 # *Google* service account (not project IAM). Otherwise token exchange fails with
 # Permission 'iam.serviceAccounts.getAccessToken' denied (e.g. External Secrets + GSM).
@@ -88,7 +149,6 @@ resource "google_service_account_iam_member" "sdv_wi_sa_workload_identity_user" 
   role               = "roles/iam.workloadIdentityUser"
   member             = "serviceAccount:${var.project_id}.svc.id.goog[${each.value.gke_ns}/${each.value.gke_sa}]"
 
-  depends_on = [
-    google_service_account.sdv_wi_sa
-  ]
+  # Caller should apply this module after GKE (e.g. base module.sdv_wi depends_on sdv_gke_cluster) so svc.id.goog exists.
+  depends_on = [google_service_account.sdv_wi_sa]
 }

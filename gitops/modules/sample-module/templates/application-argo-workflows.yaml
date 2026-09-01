@@ -39,6 +39,10 @@ spec:
         eventsNamespace: {{ .Values.config.namespacePrefix }}argo-events
         # Derived from Module Manager soft dependency state for sample-soft.
         referenceSampleSoftWorkflowTemplate: {{ index .Values.softFeaturesEnabled "sample-soft" | default false }}
+        # GCS upload when both storage-gcs (API) and sample-data (sample-workloads-data bucket) soft deps are enabled.
+        referenceGcsEnabled: {{ and (index .Values.softFeaturesEnabled "storage-gcs" | default false) (index .Values.softFeaturesEnabled "sample-data" | default false) }}
+        # Bucket owned by sample-data; passed to storage-gcs-upload (not configured in storage-gcs).
+        sampleWorkloadsDataBucket: {{ .Values.config.projectID }}-sample-workloads-data
   destination:
     server: https://kubernetes.default.svc
     namespace: {{ .Values.config.namespacePrefix }}workflows

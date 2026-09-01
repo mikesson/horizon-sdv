@@ -137,8 +137,8 @@ OPTIONS:
 
 EXAMPLES:
   ${self} -a                                  Build and push all images
-  ${self} -i landingpage-app                  Build and push one image
-  ${self} -i landingpage-app -i gerrit-post   Build and push two images
+  ${self} -i gerrit-post                  Build and push one image
+  ${self} -i gerrit-post -i grafana-post  Build and push two images
   ${self} -a -n                               Build all with no cache
   ${self} -a -q                               Build all, suppress Docker output
   ${self} -a --dry-run                        Preview without executing

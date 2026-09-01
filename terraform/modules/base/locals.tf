@@ -20,20 +20,16 @@ locals {
     module.sdv_gke_cluster.name
   )
 
-  common_nginx_version = "1.28.3-alpine3.23"
+  common_nginx_version = "1.31.2-alpine3.23"
 
   images = {
     # build_version: version of container images to be built and pushed to Artifact Registry.
     # deploy_version: version of container images to be used for Argo CD post-jobs.
 
-    "landingpage-app" = {
-      directory      = "landingpage"
-      build_version  = "1.0.1"
-      deploy_version = "1.0.1"
-      # Optional build args
-      build_args = {
-        NGINX_VERSION = local.common_nginx_version
-      }
+    "storage-gcs-module-app" = {
+      directory      = "storage-gcs-module"
+      build_version  = "1.0.0"
+      deploy_version = "1.0.0"
     }
     "gerrit-mcp-server-app" = {
       directory      = "gerrit-mcp-server"
@@ -130,8 +126,8 @@ locals {
     }
     "horizon-api-app" = {
       directory      = "horizon-api"
-      build_version  = "1.0.0"
-      deploy_version = "1.0.0"
+      build_version  = "1.0.1"
+      deploy_version = "1.0.1"
     }
     "kcc-webhook-cert-monitor" = {
       directory      = "kcc-webhook-cert-monitor"
@@ -147,4 +143,3 @@ locals {
     { for env in var.sdv_sub_environments : env => "${env}.${var.env_name}.${var.domain_name}" }
   )
 }
-

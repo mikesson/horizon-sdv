@@ -14,7 +14,8 @@
 //
 /**
  * Module overview HTML uses prefers-color-scheme; the portal iframe follows MUI palette instead.
- * Inject theme CSS + data-hp-theme on <html> so CSS variables match the Developer Portal light/dark toggle.
+ * Inject theme CSS + data-hp-theme on html so CSS variables match the Developer Portal light/dark toggle.
+ * Keep tokens in sync with gitops/modules portal overview.html files.
  */
 const OVERVIEW_THEME_BRIDGE = `
 html[data-hp-theme="dark"] {
@@ -27,6 +28,10 @@ html[data-hp-theme="dark"] {
   --border: #3c4043;
   --hero-end: rgba(26, 115, 232, 0.12);
   --hero-start: rgba(66, 133, 244, 0.28);
+  --warn-bg: rgba(251, 188, 4, 0.12);
+  --warn-border: rgba(251, 188, 4, 0.28);
+  --warn-text: #fdd663;
+  --code-bg: #3c4043;
 }
 html[data-hp-theme="light"] {
   color-scheme: light;
@@ -38,6 +43,10 @@ html[data-hp-theme="light"] {
   --border: #e8eaed;
   --hero-end: rgba(26, 115, 232, 0.08);
   --hero-start: rgba(66, 133, 244, 0.22);
+  --warn-bg: #fef7e0;
+  --warn-border: #fde293;
+  --warn-text: #b06000;
+  --code-bg: #f1f3f4;
 }
 `.trim();
 

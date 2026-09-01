@@ -135,6 +135,11 @@ Override the model to use.
 The version of gemini-cli to be installed.
 Run `npm view @google/gemini-cli versions` for a full list of valid versions.
 
+### `GOOGLE_ADK_VERSION`
+
+The version of google-adk to be installed.
+Run `pip index versions google-adk` for a full list of valid versions.
+
 ### Groovy Scripts <a name="groovyscripts"></a>
 
 This job uses the "Authorize Project" plugin to set an authorization property, allowing the job to run as the user who triggered the build. This is configured as follows:

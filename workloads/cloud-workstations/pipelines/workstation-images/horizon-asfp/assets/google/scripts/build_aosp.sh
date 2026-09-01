@@ -1,54 +1,36 @@
 #!/bin/bash
 
-# Copyright (c) 2024-2025 Accenture, All Rights Reserved.
+# Copyright 2024-2026 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#         http://www.apache.org/licenses/LICENSE-2.0
+#     https://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
 #
-# This script downloads the Android Open Source Project (AOSP) source code
-# for a specified branch and then builds a chosen device target.
+# Source common utilities
+# shellcheck source=/dev/null
+source /google/scripts/common.sh
 
 OUTPUT_DIR="${HOME}/aosp"
 REPO_URL="https://android.googlesource.com/platform/manifest"
 BRANCH="main"
 BUILD_TARGET="aosp_cf_x86_64_phone-trunk_staging-userdebug"
-THREAD_COUNT=$[$(nproc)*49/100]
+THREAD_COUNT=$(( $(nproc) * 49 / 100 ))
 
 if [[ "${EUID:-$(id -u)}" -eq 0 ]]; then
     exec runuser user "${BASH_SOURCE[0]}" "$@"
 fi
 
 #######################################
-# Simple logging to stderr.
-# Arguments:
-#   Message to log
-#######################################
-function _info() {
-  echo "[$(date +'%Y-%m-%dT%H:%M:%S%z')] [$(basename "$0")] [INFO]:  $*" >&2
-}
-
-#######################################
 # Sync and build the given Android repository
-# Arguments:
-#   output_directory
-#     A directory to perform repo sync and build in.
-#   repo_url
-#     Url of the repository to sync / build.
-#   build_target
-#     Android target to build
-#   repo_threads
-#     The number of threads to use when calling repo sync.
-#   branch
-#     Branch
 #######################################
 function _sync_and_build_repo() {
   local output_directory="${1}"
@@ -57,35 +39,37 @@ function _sync_and_build_repo() {
   local repo_threads="${4}"
   local branch="${5}"
 
+  log_event AOSP_SYNC_START "Starting AOSP synchronization" REPO_URL="${repo_url}" BRANCH="${branch}"
   mkdir -p "${output_directory}"
-  pushd ${output_directory} > /dev/null 2>&1
+  pushd "${output_directory}" > /dev/null 2>&1 || exit
 
   sudo chown user:user /usr/bin/repo
 
   if [[ -z $(git config get user.email) ]]; then
-    _info "no git user.email configured, setting default"
+    log "no git user.email configured, setting default"
     git config --global user.email "aosp-builder"
   fi
 
   if [[ -z $(git config get user.name) ]]; then
-    _info "no git user.name configured, setting default"
+    log "no git user.name configured, setting default"
     git config --global user.name "AOSP Builder"
   fi
 
-  _info "initializing repo url: ${repo_url}"
-  echo yes | repo init --partial-clone -b ${branch} -u ${repo_url}
+  log "initializing repo url: ${repo_url}"
+  echo yes | repo init --partial-clone -b "${branch}" -u "${repo_url}"
 
   # TODO: Validate this no longer flakes when using < 50% of available CPUs.
-  _info "synchronizing repo using ${repo_threads} threads"
+  log "synchronizing repo using ${repo_threads} threads"
   repo sync -j"${repo_threads}"
 
+  # shellcheck source=/dev/null
   source build/envsetup.sh
-  _info "setting build target ${build_target}"
-  lunch ${build_target}
+  log_event AOSP_BUILD_START "Starting AOSP build" TARGET="${build_target}"
+  lunch "${build_target}"
 
-  _info "building."
   m
-  popd > /dev/null 2>&1
+  log_event AOSP_BUILD_COMPLETE "AOSP build finished"
+  popd > /dev/null 2>&1 || exit
 }
 
 #######################################
@@ -93,7 +77,7 @@ function _sync_and_build_repo() {
 #######################################
 function _print_usage() {
   (
-    echo "usage: $(basename $0) [OPTIONS]"
+    echo "usage: $(basename "$0") [OPTIONS]"
     echo "  options:"
     echo "    -o --output_dir    Directory to clone / build the source. Defaults to "
     echo "                       \$HOME/aosp."
@@ -114,7 +98,7 @@ function _print_usage() {
 #######################################
 function _cli_errors() {
   echo "Unrecognized argument recieved." 1>&2
-  printUsage
+  _print_usage
   exit 1
 }
 
@@ -123,20 +107,20 @@ function main() {
     case "$arg" in
       -)
         case "$OPTARG" in
-          output_dir) OUTPUT_DIR="${!OPTIND}"; OPTIND=$(( $OPTIND + 1 ));;
+          output_dir) OUTPUT_DIR="${!OPTIND}"; OPTIND=$(( OPTIND + 1 ));;
           output_dir=*) OUTPUT_DIR="${OPTARG#*=}";;
-          repo_url) REPO_URL="${!OPTIND}"; OPTIND=$(( $OPTIND + 1 ));;
+          repo_url) REPO_URL="${!OPTIND}"; OPTIND=$(( OPTIND + 1 ));;
           repo_url=*) REPO_URL="${OPTARG#*=}";;
-          branch) BRANCH="${!OPTIND}"; OPTIND=$(( $OPTIND + 1 ));;
+          branch) BRANCH="${!OPTIND}"; OPTIND=$(( OPTIND + 1 ));;
           branch=*) BRANCH="${OPTARG#*=}";;
-          build_target) BUILD_TARGET="${!OPTIND}"; OPTIND=$(( $OPTIND + 1 ));;
+          build_target) BUILD_TARGET="${!OPTIND}"; OPTIND=$(( OPTIND + 1 ));;
           build_target=*) BUILD_TARGET="${OPTARG#*=}";;
-          thread_count) THREAD_COUNT="${!OPTIND}"; OPTIND=$(( $OPTIND + 1 ));;
+          thread_count) THREAD_COUNT="${!OPTIND}"; OPTIND=$(( OPTIND + 1 ));;
           thread_count=*) THREAD_COUNT="${OPTARG#*=}";;
           help) _print_usage; exit 0;;
           *)
             if [ "$OPTERR" = 1 ] && [ "${OPTSPEC:0:1}" != ":" ]; then
-              cli_errors; exit 1;
+              _cli_errors;
             fi
             ;;
         esac;;
@@ -146,7 +130,7 @@ function main() {
       t) BUILD_TARGET="$OPTARG";;
       c) THREAD_COUNT="$OPTARG";;
       h) _print_usage; exit 0;;
-      *) cli_errors; exit 1;
+      *) _cli_errors;
     esac
   done
 

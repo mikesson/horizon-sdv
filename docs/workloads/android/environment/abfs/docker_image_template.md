@@ -89,6 +89,11 @@ Enable Gemini AI to support in diagnosis of build and test failures.
 The version of gemini-cli to be installed.
 Run `npm view @google/gemini-cli versions` for a full list of valid versions.
 
+### `GOOGLE_ADK_VERSION`
+
+The version of google-adk to be installed.
+Run `pip index versions google-adk` for a full list of valid versions.
+
 ## SYSTEM VARIABLES <a name="system-variables"></a>
 
 There are a number of system environment variables that are unique to each platform but required by Jenkins build, test and environment pipelines.

@@ -37,6 +37,7 @@ import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
 import HomeIcon from '@mui/icons-material/Home';
 import LogoutIcon from '@mui/icons-material/Logout';
 import ViewModuleIcon from '@mui/icons-material/ViewModule';
+import BusinessIcon from '@mui/icons-material/Business';
 import {
   BrowserRouter,
   Routes,
@@ -54,11 +55,13 @@ import { AdminLayout } from './pages/admin/AdminLayout';
 import { ModulesTab } from './pages/admin/ModulesTab';
 import { SettingsTab } from './pages/admin/SettingsTab';
 import { ModulePage } from './pages/ModulePage';
+import { LandingPage } from './pages/LandingPage';
 import { apiMm } from './utils/api';
 import type { ModuleResponse, StatusResponse } from './types';
 import { deploymentStatus, isReady } from './moduleStatus';
 import { HORIZON_LOGO_SRC, READY_MODULES_REFRESH_EVENT } from './constants';
 import { getRouterBasename } from './utils/publicPath';
+import * as React from 'react';
 
 const drawerWidth = 260;
 
@@ -70,7 +73,9 @@ async function fetchNavModuleNameIfRelevant(m: ModuleResponse): Promise<string |
   const ctrl = new AbortController();
   const tid = window.setTimeout(() => ctrl.abort(), moduleStatusFetchTimeoutMs);
   try {
-    const sr = await apiMm(`/modules/${encodeURIComponent(m.name)}/status`, { signal: ctrl.signal });
+    const sr = await apiMm(`/modules/${encodeURIComponent(m.name)}/status`, {
+      signal: ctrl.signal,
+    });
     if (!sr.ok) {
       return null;
     }
@@ -139,12 +144,7 @@ function ShellLayout() {
   const drawer = (
     <Box>
       <Toolbar sx={{ gap: 1 }}>
-        <Box
-          component="img"
-          src={HORIZON_LOGO_SRC}
-          alt=""
-          sx={{ height: 36, width: 'auto' }}
-        />
+        <Box component="img" src={HORIZON_LOGO_SRC} alt="" sx={{ height: 36, width: 'auto' }} />
         <Typography variant="h6" noWrap>
           Developer Portal
         </Typography>
@@ -153,14 +153,25 @@ function ShellLayout() {
       <List>
         <ListItemButton
           component={Link}
-          to="/"
-          selected={location.pathname === '/' || location.pathname === ''}
+          to="/welcome"
+          selected={location.pathname === '/welcome'}
           onClick={() => isMobile && setMobileOpen(false)}
         >
           <ListItemIcon>
             <HomeIcon />
           </ListItemIcon>
           <ListItemText primary="Welcome" />
+        </ListItemButton>
+        <ListItemButton
+          component={Link}
+          to="/"
+          selected={location.pathname === '/' || location.pathname === ''}
+          onClick={() => isMobile && setMobileOpen(false)}
+        >
+          <ListItemIcon>
+            <BusinessIcon />
+          </ListItemIcon>
+          <ListItemText primary="Landing page" />
         </ListItemButton>
         <ListItemButton
           component={Link}
@@ -193,95 +204,92 @@ function ShellLayout() {
 
   return (
     <Box sx={{ display: 'flex', minHeight: '100vh' }}>
-        <AppBar
-          position="fixed"
-          sx={{ zIndex: (t) => t.zIndex.drawer + 1 }}
-        >
-          <Toolbar>
+      <AppBar position="fixed" sx={{ zIndex: (t) => t.zIndex.drawer + 1 }}>
+        <Toolbar>
+          <IconButton
+            color="inherit"
+            edge="start"
+            onClick={() => setMobileOpen(!mobileOpen)}
+            sx={{ mr: 2, display: { sm: 'none' } }}
+          >
+            <MenuIcon />
+          </IconButton>
+          <Box
+            component={Link}
+            to="/"
+            sx={{
+              flexGrow: 1,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 1,
+              minWidth: 0,
+              textDecoration: 'none',
+              color: 'inherit',
+            }}
+          >
+            <Box
+              component="img"
+              src={HORIZON_LOGO_SRC}
+              alt=""
+              sx={{ height: 34, width: 'auto', flexShrink: 0 }}
+            />
+            <Typography variant="h6" component="span" noWrap>
+              Horizon Developer Portal
+            </Typography>
+          </Box>
+          <Typography variant="body2" sx={{ mr: 2, display: { xs: 'none', sm: 'block' } }}>
+            {authService.getUsername()}
+          </Typography>
+          <Tooltip title={darkMode ? 'Light mode' : 'Dark mode'}>
             <IconButton
               color="inherit"
-              edge="start"
-              onClick={() => setMobileOpen(!mobileOpen)}
-              sx={{ mr: 2, display: { sm: 'none' } }}
+              onClick={toggleTheme}
+              aria-label={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
             >
-              <MenuIcon />
+              {darkMode ? <Brightness7Icon /> : <Brightness4Icon />}
             </IconButton>
-            <Box
-              component={Link}
-              to="/"
-              sx={{
-                flexGrow: 1,
-                display: 'flex',
-                alignItems: 'center',
-                gap: 1,
-                minWidth: 0,
-                textDecoration: 'none',
-                color: 'inherit',
-              }}
-            >
-              <Box
-                component="img"
-                src={HORIZON_LOGO_SRC}
-                alt=""
-                sx={{ height: 34, width: 'auto', flexShrink: 0 }}
-              />
-              <Typography variant="h6" component="span" noWrap>
-                Horizon Developer Portal
-              </Typography>
-            </Box>
-            <Typography variant="body2" sx={{ mr: 2, display: { xs: 'none', sm: 'block' } }}>
-              {authService.getUsername()}
-            </Typography>
-            <Tooltip title={darkMode ? 'Light mode' : 'Dark mode'}>
-              <IconButton
-                color="inherit"
-                onClick={toggleTheme}
-                aria-label={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
-              >
-                {darkMode ? <Brightness7Icon /> : <Brightness4Icon />}
-              </IconButton>
-            </Tooltip>
-            <IconButton color="inherit" onClick={() => authService.logout()} aria-label="logout">
-              <LogoutIcon />
-            </IconButton>
-          </Toolbar>
-        </AppBar>
-        <Box component="nav" sx={{ width: { sm: drawerWidth }, flexShrink: { sm: 0 } }}>
-          <Drawer
-            variant="temporary"
-            open={mobileOpen}
-            onClose={() => setMobileOpen(false)}
-            ModalProps={{ keepMounted: true }}
-            sx={{
-              display: { xs: 'block', sm: 'none' },
-              '& .MuiDrawer-paper': { boxSizing: 'border-box', width: drawerWidth },
-            }}
-          >
-            {drawer}
-          </Drawer>
-          <Drawer
-            variant="permanent"
-            sx={{
-              display: { xs: 'none', sm: 'block' },
-              '& .MuiDrawer-paper': { boxSizing: 'border-box', width: drawerWidth },
-            }}
-            open
-          >
-            {drawer}
-          </Drawer>
-        </Box>
-        <Box
-          component="main"
+          </Tooltip>
+          <IconButton color="inherit" onClick={() => authService.logout()} aria-label="logout">
+            <LogoutIcon />
+          </IconButton>
+        </Toolbar>
+      </AppBar>
+      <Box component="nav" sx={{ width: { sm: drawerWidth }, flexShrink: { sm: 0 } }}>
+        <Drawer
+          variant="temporary"
+          open={mobileOpen}
+          onClose={() => setMobileOpen(false)}
+          ModalProps={{ keepMounted: true }}
           sx={{
-            flexGrow: 1,
-            p: 3,
-            width: { sm: `calc(100% - ${drawerWidth}px)` },
-            mt: 8,
+            display: { xs: 'block', sm: 'none' },
+            '& .MuiDrawer-paper': { boxSizing: 'border-box', width: drawerWidth },
           }}
         >
-          <Outlet />
-        </Box>
+          {drawer}
+        </Drawer>
+        <Drawer
+          variant="permanent"
+          sx={{
+            display: { xs: 'none', sm: 'block' },
+            '& .MuiDrawer-paper': { boxSizing: 'border-box', width: drawerWidth },
+          }}
+          open
+        >
+          {drawer}
+        </Drawer>
       </Box>
+      <Box
+        component="main"
+        sx={{
+          flexGrow: 1,
+          p: 3,
+          width: { sm: `calc(100% - ${drawerWidth}px)` },
+          mt: 8,
+        }}
+      >
+        <Outlet />
+      </Box>
+    </Box>
   );
 }
 
@@ -310,25 +318,26 @@ export default function App() {
   return (
     <ThemeModeProvider>
       <BrowserRouter basename={getRouterBasename()}>
-      <Routes>
-        <Route path="/login" element={<LoginPage />} />
-        <Route
-          element={
-            <RequireAuth>
-              <ShellLayout />
-            </RequireAuth>
-          }
-        >
-          <Route path="/" element={<WelcomePage />} />
-          <Route path="/admin" element={<AdminLayout />}>
-            <Route index element={<Navigate to="modules" replace />} />
-            <Route path="modules" element={<ModulesTab />} />
-            <Route path="settings" element={<SettingsTab />} />
+        <Routes>
+          <Route path="/login" element={<LoginPage />} />
+          <Route
+            element={
+              <RequireAuth>
+                <ShellLayout />
+              </RequireAuth>
+            }
+          >
+            <Route path="/" element={<LandingPage />} />
+            <Route path="/welcome" element={<WelcomePage />} />
+            <Route path="/admin" element={<AdminLayout />}>
+              <Route index element={<Navigate to="modules" replace />} />
+              <Route path="modules" element={<ModulesTab />} />
+              <Route path="settings" element={<SettingsTab />} />
+            </Route>
+            <Route path="/module/:name" element={<ModulePage />} />
           </Route>
-          <Route path="/module/:name" element={<ModulePage />} />
-        </Route>
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
       </BrowserRouter>
     </ThemeModeProvider>
   );

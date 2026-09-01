@@ -1,0 +1,51 @@
+# Copyright (c) 2024-2026 Accenture, All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+
+{{- if include "storage-gcs-module.mainEnv" . | eq "true" }}
+{{- $horizonNS := printf "%shorizon" .Values.config.namespacePrefix }}
+{{- $project := .Values.config.projectID }}
+---
+# Enforce spec.bucketName prefix at admission (CRD cannot embed project id in OpenAPI pattern).
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: storage-gcs-gcsbucket
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+      - apiGroups: ["gcsmanager.horizon.io"]
+        apiVersions: ["v1alpha1"]
+        operations: ["CREATE", "UPDATE"]
+        resources: ["gcsbuckets"]
+  validations:
+    - expression: >-
+        object.spec.bucketName.startsWith('{{ $project }}-')
+      message: >-
+        spec.bucketName must start with "{{ $project }}-"
+    - expression: >-
+        object.spec.deletionPolicy != "Delete" ||
+        !(object.spec.bucketName.endsWith("-aaos") ||
+          object.spec.bucketName.endsWith("-openbsw") ||
+          object.spec.bucketName.endsWith("-argo-workflows"))
+      message: >-
+        spec.deletionPolicy Delete is not allowed on platform buckets (-aaos, -openbsw, -argo-workflows)
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: storage-gcs-gcsbucket
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  policyName: storage-gcs-gcsbucket
+  validationActions: [Deny]
+  matchResources:
+    namespaceSelector:
+      matchLabels:
+        kubernetes.io/metadata.name: {{ $horizonNS | quote }}
+{{- end }}

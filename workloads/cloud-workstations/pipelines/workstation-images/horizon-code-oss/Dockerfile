@@ -12,15 +12,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM us-central1-docker.pkg.dev/cloud-workstations-images/predefined/code-oss:latest
+FROM us-central1-docker.pkg.dev/cloud-workstations-images/predefined/code-oss:code-oss-1.104.3
 
 ARG ADDITIONAL_PACKAGES=""
 ARG INSTALL_ABFS="false"
 ARG HORIZON_DOMAIN
 ARG GOOGLE_CLOUD_PROJECT
 ARG NODE_MAJOR=20
+ARG ANTIGRAVITY_CLI_VERSION=1.1.0
+ARG ANTIGRAVITY_CLI_TARBALL_URL=https://github.com/google-antigravity/antigravity-cli/releases/download/1.1.0/agy_cli_linux_x64.tar.gz
+ARG ANTIGRAVITY_CLI_SHA256=7ee512440af5ed0c819065cd7cc14eec90699214df4be32280ac346f0100577e
 
 ENV GOOGLE_CLOUD_PROJECT="${GOOGLE_CLOUD_PROJECT}"
+# Shared MCP Gateway core + Gemini and Antigravity MCP agents.
+# Stable paths via ENV so bridge entries in client configs keep resolving.
+ENV HORIZON_MCP_LIB="/usr/local/lib/horizon-mcp" \
+    GEMINI_MCP_AGENT_PATH="/usr/local/bin/gemini-mcp-agent" \
+    ANTIGRAVITY_MCP_AGENT_PATH="/usr/local/bin/antigravity-mcp-agent"
 
 # Base tools, Yarn key fix, Node.js 20, Gemini CLI
 RUN mkdir -p /etc/apt/keyrings && \
@@ -80,6 +88,18 @@ RUN if [ "${INSTALL_ABFS}" = "true" ]; then \
 
 COPY ./assets/. /
 
-# Configure gemini-mcp-agent script
-COPY --chmod=755 ./common-utils/gemini/gemini-mcp-agent.py /usr/local/bin/gemini-mcp-agent
-RUN sed -i 's/^\(HORIZON_DOMAIN = os.environ.get("HORIZON_DOMAIN", "\)##DOMAIN##\(")\)/\1'"${HORIZON_DOMAIN}"'\2/' /usr/local/bin/gemini-mcp-agent
+# Configure mcp-agent scripts
+COPY --chmod=644 ./common-utils/mcp-agents/mcp_registry_client.py /usr/local/lib/horizon-mcp/mcp_registry_client.py
+COPY --chmod=755 ./common-utils/mcp-agents/gemini_mcp_agent.py /usr/local/bin/gemini-mcp-agent
+COPY --chmod=755 ./common-utils/mcp-agents/antigravity_mcp_agent.py /usr/local/bin/antigravity-mcp-agent
+RUN sed -i 's/^\(HORIZON_DOMAIN = os.environ.get("HORIZON_DOMAIN", "\)##DOMAIN##\(")\)/\1'"${HORIZON_DOMAIN}"'\2/' /usr/local/lib/horizon-mcp/mcp_registry_client.py \
+    && chmod 755 /usr/local/lib/horizon-mcp
+
+# Install Antigravity CLI (agy)
+COPY --chmod=755 ./common-utils/antigravity/install-antigravity-cli.sh /tmp/install-antigravity-cli.sh
+RUN ANTIGRAVITY_CLI_VERSION="${ANTIGRAVITY_CLI_VERSION}" \
+    ANTIGRAVITY_CLI_TARBALL_URL="${ANTIGRAVITY_CLI_TARBALL_URL}" \
+    ANTIGRAVITY_CLI_SHA256="${ANTIGRAVITY_CLI_SHA256}" \
+    /tmp/install-antigravity-cli.sh && \
+    agy --version && \
+    rm -f /tmp/install-antigravity-cli.sh

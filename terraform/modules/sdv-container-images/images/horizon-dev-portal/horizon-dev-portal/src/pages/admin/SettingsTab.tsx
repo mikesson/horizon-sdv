@@ -158,7 +158,9 @@ export function SettingsTab() {
     }
     const v = writeMaxWorkflowLogLines(n);
     setLogBufferLines(String(v));
-    setLogBufferSaved(`Saved. Log dialogs will buffer up to ${v.toLocaleString()} lines (browser memory scales with line count and line length).`);
+    setLogBufferSaved(
+      `Saved. Log dialogs will buffer up to ${v.toLocaleString()} lines (browser memory scales with line count and line length).`
+    );
   };
 
   if (loading) {
@@ -193,8 +195,8 @@ export function SettingsTab() {
       <Typography variant="body2" color="text.secondary">
         Control which workflow runs appear under <strong>Running Workflows</strong> and{' '}
         <strong>History</strong> in each module, based on the{' '}
-        <code>horizon-sdv.io/submitted-from</code> label (REST API, Developer Portal, Horizon CLI, or
-        overrides). Options combine Horizon OpenAPI enums with values seen in recent workflows.
+        <code>horizon-sdv.io/submitted-from</code> label (REST API, Developer Portal, Horizon CLI,
+        or overrides). Options combine Horizon OpenAPI enums with values seen in recent workflows.
       </Typography>
       {err && (
         <Alert severity="error" onClose={() => setErr(null)}>
@@ -266,10 +268,12 @@ export function SettingsTab() {
             Workflow log buffer (browser)
           </Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            Maximum number of lines kept in memory for the live / archived log viewer on module workflow pages. Higher
-            values use more RAM in this browser tab (roughly proportional to total text size). Allowed range:{' '}
-            {MIN_MAX_WORKFLOW_LOG_LINES.toLocaleString()}–{MAX_MAX_WORKFLOW_LOG_LINES.toLocaleString()} (default{' '}
-            {DEFAULT_MAX_WORKFLOW_LOG_LINES.toLocaleString()}). Stored only in this browser (localStorage).
+            Maximum number of lines kept in memory for the live / archived log viewer on module
+            workflow pages. Higher values use more RAM in this browser tab (roughly proportional to
+            total text size). Allowed range: {MIN_MAX_WORKFLOW_LOG_LINES.toLocaleString()}–
+            {MAX_MAX_WORKFLOW_LOG_LINES.toLocaleString()} (default{' '}
+            {DEFAULT_MAX_WORKFLOW_LOG_LINES.toLocaleString()}). Stored only in this browser
+            (localStorage).
           </Typography>
           <TextField
             label="Max lines"

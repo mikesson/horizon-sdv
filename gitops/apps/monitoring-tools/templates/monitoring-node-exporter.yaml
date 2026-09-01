@@ -76,6 +76,9 @@ metadata:
   namespace: gmp-public
   name: node-exporter
 spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: node-exporter
   endpoints:
   - port: metrics
     interval: 30s

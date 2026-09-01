@@ -46,6 +46,21 @@ pipelineJob('Cloud-Workstations/Config-Admin-Operations/Update Existing Configur
 
   parameters {
     stringParam('CLOUD_WS_CONFIG_NAME', '', '<strong>REQUIRED</strong>: Name of the workstation Configuration to update')
+    choiceParam('CONTAINER_IMAGE',
+      ['C-OSS (VCS)', 'AS', 'ASfP'],
+      '''
+        <strong>REQUIRED</strong>: Workstation container image type.<br>
+        Options:
+        <ul>
+          <li><code>C-OSS (VCS)</code> — Horizon Code OSS / VS Code (<code>horizon-code-oss</code>). Default.</li>
+          <li><code>AS</code> — Android Studio (<code>horizon-android-studio</code>).</li>
+          <li><code>ASfP</code> — Android Studio for Platform (<code>horizon-asfp</code>).</li>
+        </ul>
+        Based on the selected container image and the provided container image tag, the full Artifact Registry URI is derived automatically from the platform registry path.<br>
+        Note: Container configuration changes are effective on new and restarted workstations.
+      '''
+    )
+    stringParam('CONTAINER_IMAGE_TAG', 'latest', 'Optional: Container image tag appended to the selected image.<br>Default: <code>latest</code>')
 
     // Timeouts
     separator {
@@ -66,7 +81,7 @@ pipelineJob('Cloud-Workstations/Config-Admin-Operations/Update Existing Configur
     }
     stringParam('HOST_MACHINE_TYPE', 'e2-standard-4', 'Optional: GCP Compute Engine Machine type for the host VM.<br>Default: <code>e2-standard-4</code>')
     stringParam('HOST_QUICK_START_POOL_SIZE', '0', 'Optional: Pool size of pre-created host VMs (0 means none and low cost).<br>Default: 0')
-    stringParam('HOST_BOOT_DISK_SIZE', '30', 'Optional: Boot disk size (GB) for host VM (min: 30GB).<br>Default: 30 (GB)')
+    stringParam('HOST_BOOT_DISK_SIZE', '40', 'Optional: Boot disk size (GB) for host VM (min: 31GB).<br>Default: 40 (GB)')
     booleanParam('HOST_DISABLE_PUBLIC_IP_ADDRESSES', true, 'Optional: If selected, your workstation will NOT have a public IP.<br>Note: Enabling public IP addresses might be restricted in certain GCP projects by admin.')
     booleanParam('HOST_DISABLE_SSH', true, 'Optional: If selected, your workstation will NOT have SSH enabled.<br>Note: Enabling SSH connections might be restricted in certain GCP projects by admin.')
     booleanParam('HOST_ENABLE_NESTED_VIRTUALIZATION', false, '''
@@ -143,7 +158,6 @@ pipelineJob('Cloud-Workstations/Config-Admin-Operations/Update Existing Configur
       sectionHeaderStyle("${HEADER_STYLE}")
       separatorStyle("${SEPARATOR_STYLE}")
     }
-    stringParam('CONTAINER_IMAGE', "${CLOUD_REGION}-docker.pkg.dev/${CLOUD_PROJECT}/${CLOUD_WS_HORIZON_CODE_OSS_IMAGE_NAME}:latest", 'Optional: Container image URI.<br>Default: Full URI of the <code>horizon-code-oss</code> image.')
     stringParam('CONTAINER_ENTRYPOINT_COMMANDS', '', '''
       Optional: Comma separated list of Entrypoint commands for the container.<br>
       Example: <code>"sh", "-c", "echo", "ls -al"</code>

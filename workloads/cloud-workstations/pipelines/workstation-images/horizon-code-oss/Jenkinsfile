@@ -93,6 +93,9 @@ pipeline {
                    --opt platform=linux/amd64 \
                    --opt build-arg:HORIZON_DOMAIN=${HORIZON_DOMAIN} \
                    --opt build-arg:GOOGLE_CLOUD_PROJECT=${GOOGLE_CLOUD_PROJECT} \
+                   --opt build-arg:ANTIGRAVITY_CLI_VERSION=${ANTIGRAVITY_CLI_VERSION} \
+                   --opt build-arg:ANTIGRAVITY_CLI_TARBALL_URL=${ANTIGRAVITY_CLI_TARBALL_URL} \
+                   --opt build-arg:ANTIGRAVITY_CLI_SHA256=${ANTIGRAVITY_CLI_SHA256} \
                    --registry-auth-tlscontext host=${REGISTRY},insecure=true \
                    --output=type=image,name=${DESTINATION}:${IMAGE_TAG},push=${PUSH}
                 '''

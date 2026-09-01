@@ -57,11 +57,11 @@ Setup operations need to be carried out only once (although per-user access setu
 
 ## <span style="color:#335bff">Prerequisites<a name="prerequisites"></a></span>
 
-| Prerequisite | Description |
-| --- | --- |
-| Horizon SDV Platform Provisioned | - User added to Horizon Keycloak and appropriate Jenkins group/role has been assigned <br> - User has access to Horizon SDV landing page and can access the applications in the browser (e.g. Gerrit, Jenkins, MTK Connect) |
-| PC Tools | PC (Mac, Linux, Windows) with [git](https://git-scm.com/book/en/v2/Getting-Started-Installing-Git) and [gcloud CLI](https://cloud.google.com/sdk/docs/install) installed |
-| Google Cloud Platform Project set up | User has access to the Google Cloud Platform project (verify on [Google Cloud Console](https://console.cloud.google.com/) - ensure the correct project is selected) |
+| Prerequisite | Description                                                                                                                                                                                            |
+| --- |--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Horizon SDV Platform Provisioned | - User added to Horizon Keycloak and appropriate Jenkins group/role has been assigned <br> - User can access Horizon applications in the browser (e.g. Developer Portal, Gerrit, Jenkins, MTK Connect) |
+| PC Tools | PC (Mac, Linux, Windows) with [git](https://git-scm.com/book/en/v2/Getting-Started-Installing-Git) and [gcloud CLI](https://cloud.google.com/sdk/docs/install) installed                               |
+| Google Cloud Platform Project set up | User has access to the Google Cloud Platform project (verify on [Google Cloud Console](https://console.cloud.google.com/) - ensure the correct project is selected)                                    |
 
 
 [ ============================================================================= ]::
