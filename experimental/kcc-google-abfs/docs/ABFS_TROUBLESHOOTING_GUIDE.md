@@ -188,7 +188,7 @@ In hardened enterprise GCP landing zones, several default organization policies 
 
 ## 8. Standalone GCE VM Troubleshooting & Operations Reference
 
-When operating an ABFS client on a standalone Ubuntu VM (as documented in [ABFS_CLIENT_VM_BUILD_GUIDE.md](file:///usr/local/google/home/tkliefoth/repos/horizon-sdv/incubator/kcc-google-abfs/docs/ABFS_CLIENT_VM_BUILD_GUIDE.md)), use the following debugging and operational procedures:
+When operating an ABFS client on a standalone Ubuntu VM (as documented in [ABFS_CLIENT_VM_BUILD_GUIDE.md](ABFS_CLIENT_VM_BUILD_GUIDE.md)), use the following debugging and operational procedures:
 
 *   **Check CASFS Module Registration**:
     ```bash

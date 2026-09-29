@@ -8,7 +8,7 @@ Pinning kernel **`6.14.0-1021-gcp`** ensures symbol compatibility with `casfs-km
 
 ## 1. Step 1: Provision the Client VM
 
-Assuming [STANDALONE_ABFS_DEPLOYMENT_GUIDE.md](file:///usr/local/google/home/tkliefoth/repos/horizon-sdv/incubator/kcc-google-abfs/docs/STANDALONE_ABFS_DEPLOYMENT_GUIDE.md) was executed (`vpc-abfs`, `subnet-abfs`, firewall rules, and `abfs-runtime` service account exist), provision a high-memory VM inside `vpc-abfs`:
+Assuming [STANDALONE_ABFS_DEPLOYMENT_GUIDE.md](STANDALONE_ABFS_DEPLOYMENT_GUIDE.md) was executed (`vpc-abfs`, `subnet-abfs`, firewall rules, and `abfs-runtime` service account exist), provision a high-memory VM inside `vpc-abfs`:
 
 ```bash
 export PROJECT_ID="YOUR_PROJECT_ID"
@@ -38,7 +38,7 @@ gcloud compute instances create ${INSTANCE_NAME} \
 
 ## 2. Step 2: Automated Kernel Pinning & CASFS Installation
 
-The script at [scripts/setup-abfs-vm.sh](file:///usr/local/google/home/tkliefoth/repos/horizon-sdv/incubator/kcc-google-abfs/scripts/setup-abfs-vm.sh) automates APT repository setup, kernel pinning (`6.14.0-1021-gcp`), AppArmor relaxation, and `casfs.ko` module insertion.
+The script at [scripts/setup-abfs-vm.sh](../scripts/setup-abfs-vm.sh) automates APT repository setup, kernel pinning (`6.14.0-1021-gcp`), AppArmor relaxation, and `casfs.ko` module insertion.
 
 Allow ~30 seconds after VM creation for SSH to initialize, then execute:
 
@@ -159,4 +159,4 @@ m droid
 
 ## 5. Troubleshooting & Operations Reference
 
-For debugging workflows—including checking `casfs.ko` registration (`lsmod | grep casfs`), kernel diagnostics (`dmesg`), tailing `cacheman` logs, and running `abfs doctor`—refer to [Section 9 of the ABFS Troubleshooting Guide](file:///usr/local/google/home/tkliefoth/repos/horizon-sdv/incubator/kcc-google-abfs/docs/ABFS_TROUBLESHOOTING_GUIDE.md#9-standalone-gce-vm-troubleshooting--operations-reference).
+For debugging workflows - including checking `casfs.ko` registration (`lsmod | grep casfs`), kernel diagnostics (`dmesg`), tailing `cacheman` logs, and running `abfs doctor` - refer to [Section 8 of the ABFS Troubleshooting Guide](ABFS_TROUBLESHOOTING_GUIDE.md#8-standalone-gce-vm-troubleshooting--operations-reference).

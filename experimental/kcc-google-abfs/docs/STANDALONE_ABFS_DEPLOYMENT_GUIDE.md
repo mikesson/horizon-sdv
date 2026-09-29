@@ -75,7 +75,7 @@ Go to **IAM & Admin > Quotas** in the GCP Console and ensure your target region 
 Before executing any commands, change your working directory to the consolidated module subdirectory. This guarantees that all relative paths for declarative YAML templates and Helm configurations (such as `rendered/`) resolve flawlessly:
 
 ```bash
-cd incubator/kcc-google-abfs/
+cd experimental/kcc-google-abfs/
 ```
 
 ---
@@ -396,6 +396,6 @@ kubectl exec -it abfs-gerrit-uploader-0 -n abfs -- df -h | grep casfs
 4. Track the seeding phase:
 
 ```bash
-# inside horizon-sdv/incubator/kcc-google-abfs
+# inside horizon-sdv/experimental/kcc-google-abfs
 python scripts/track-seeding.py
 ``` 
