@@ -244,14 +244,20 @@ load_registry_id() {
 # Parse Image Catalog from locals.tf
 #
 # Populates globals:
-#   IMAGE_NAMES       - ordered array of image names
-#   IMAGE_DIRS[]      - associative: image name -> build directory
-#   IMAGE_VERSIONS[]  - associative: image name -> version tag
-#   IMAGE_BUILD_ARGS[] - associative: image name -> comma-separated KEY=VAL pairs
+#   IMAGE_NAMES            - ordered array of image names
+#   IMAGE_DIRS[]           - associative: image name -> build directory
+#   IMAGE_VERSIONS[]       - associative: image name -> version tag
+#   IMAGE_BUILD_ARGS[]     - associative: image name -> comma-separated KEY=VAL pairs
+#   IMAGE_CONTEXT_PATHS[]  - associative: image name -> optional resolved context_path
+#   IMAGE_DOCKERFILE_PATHS[] - associative: image name -> optional resolved dockerfile_path
+#   IMAGE_PLATFORMS[]      - associative: image name -> optional target platform
 # ---------------------------------------------------------------------------
 declare -A IMAGE_DIRS=()
 declare -A IMAGE_VERSIONS=()
 declare -A IMAGE_BUILD_ARGS=()
+declare -A IMAGE_CONTEXT_PATHS=()
+declare -A IMAGE_DOCKERFILE_PATHS=()
+declare -A IMAGE_PLATFORMS=()
 IMAGE_NAMES=()
 
 # Horizon platform version from versions.yaml (components.horizoncore). Terraform reads the
@@ -307,6 +313,228 @@ PY
   fi
 }
 
+trim_ws() {
+  local s="$1"
+  s="${s#"${s%%[![:space:]]*}"}"
+  s="${s%"${s##*[![:space:]]}"}"
+  printf '%s' "$s"
+}
+
+strip_hcl_comment() {
+  local s="$1"
+  if [[ "$s" != *#* && "$s" != *//* ]]; then
+    printf '%s' "$s"
+    return 0
+  fi
+  local i=0 len=${#s}
+  local in_quotes=0 escaped=0
+  local c next_c
+  while [[ $i -lt $len ]]; do
+    c="${s:i:1}"
+    if [[ $in_quotes -eq 1 ]]; then
+      if [[ $escaped -eq 1 ]]; then
+        escaped=0
+      elif [[ "$c" == '\' ]]; then
+        escaped=1
+      elif [[ "$c" == '"' ]]; then
+        in_quotes=0
+      fi
+    else
+      if [[ "$c" == '"' ]]; then
+        in_quotes=1
+      elif [[ "$c" == '#' ]]; then
+        printf '%s' "${s:0:i}"
+        return 0
+      elif [[ "$c" == '/' && $(( i + 1 )) -lt $len ]]; then
+        next_c="${s:i+1:1}"
+        if [[ "$next_c" == '/' ]]; then
+          printf '%s' "${s:0:i}"
+          return 0
+        fi
+      fi
+    fi
+    i=$(( i + 1 ))
+  done
+  printf '%s' "$s"
+}
+
+count_unquoted_braces() {
+  local s="$1"
+  _OPEN_BRACES=0
+  _CLOSE_BRACES=0
+  if [[ "$s" != *\{* && "$s" != *\}* ]]; then
+    return 0
+  fi
+  if [[ "$s" != *\"* ]]; then
+    local opens="${s//[^\{]/}"
+    local closes="${s//[^\}]/}"
+    _OPEN_BRACES=${#opens}
+    _CLOSE_BRACES=${#closes}
+    return 0
+  fi
+  local i=0 len=${#s}
+  local in_quotes=0 escaped=0
+  local c
+  while [[ $i -lt $len ]]; do
+    c="${s:i:1}"
+    if [[ $in_quotes -eq 1 ]]; then
+      if [[ $escaped -eq 1 ]]; then
+        escaped=0
+      elif [[ "$c" == '\' ]]; then
+        escaped=1
+      elif [[ "$c" == '"' ]]; then
+        in_quotes=0
+      fi
+    else
+      if [[ "$c" == '"' ]]; then
+        in_quotes=1
+      elif [[ "$c" == '{' ]]; then
+        _OPEN_BRACES=$(( _OPEN_BRACES + 1 ))
+      elif [[ "$c" == '}' ]]; then
+        _CLOSE_BRACES=$(( _CLOSE_BRACES + 1 ))
+      fi
+    fi
+    i=$(( i + 1 ))
+  done
+}
+
+# Parses one line or fragment of an HCL `build_args = { ... }` map block.
+# Mutates caller-scoped `cur_ba`, `in_build_args`, `local_vars`, and `cur_image`.
+parse_build_args_segment() {
+  local seg="$1"
+  local i=0 len=${#seg}
+  local in_quotes=0 escaped=0
+  local close_pos=-1
+  local c
+
+  while [[ $i -lt $len ]]; do
+    c="${seg:i:1}"
+    if [[ $in_quotes -eq 1 ]]; then
+      if [[ $escaped -eq 1 ]]; then
+        escaped=0
+      elif [[ "$c" == '\' ]]; then
+        escaped=1
+      elif [[ "$c" == '"' ]]; then
+        in_quotes=0
+      fi
+    else
+      if [[ "$c" == '"' ]]; then
+        in_quotes=1
+      elif [[ "$c" == '}' ]]; then
+        close_pos=$i
+        break
+      fi
+    fi
+    i=$(( i + 1 ))
+  done
+
+  local chunk="$seg"
+  if [[ $close_pos -ge 0 ]]; then
+    chunk="${seg:0:close_pos}"
+    in_build_args=0
+  fi
+
+  while true; do
+    chunk="${chunk#"${chunk%%[![:space:],]*}"}"
+    [[ -z "$chunk" ]] && break
+
+    if [[ "$chunk" =~ ^([A-Z_][A-Z0-9_]*)[[:space:]]*=[[:space:]]*(.*)$ ]]; then
+      local ba_key="${BASH_REMATCH[1]}"
+      local rest="${BASH_REMATCH[2]}"
+      local ba_val=""
+
+      if [[ "${rest:0:1}" == '"' ]]; then
+        local j=1 rlen=${#rest} r_esc=0 closed=0 rc
+        while [[ $j -lt $rlen ]]; do
+          rc="${rest:j:1}"
+          if [[ $r_esc -eq 1 ]]; then
+            if [[ "$rc" == '"' || "$rc" == '\' ]]; then
+              ba_val+="$rc"
+            else
+              ba_val+="\\$rc"
+            fi
+            r_esc=0
+          elif [[ "$rc" == '\' ]]; then
+            r_esc=1
+          elif [[ "$rc" == '"' ]]; then
+            closed=1
+            j=$(( j + 1 ))
+            break
+          else
+            ba_val+="$rc"
+          fi
+          j=$(( j + 1 ))
+        done
+        if [[ $closed -eq 1 ]]; then
+          chunk="${rest:j}"
+        else
+          chunk=""
+        fi
+      else
+        local token="" j=0 rlen=${#rest} rc
+        while [[ $j -lt $rlen ]]; do
+          rc="${rest:j:1}"
+          if [[ "$rc" == ',' || "$rc" =~ [[:space:]] ]]; then
+            break
+          fi
+          token+="$rc"
+          j=$(( j + 1 ))
+        done
+        chunk="${rest:j}"
+
+        if [[ "$token" =~ ^local\.([a-z_][a-z0-9_]*)$ ]]; then
+          local ref="${BASH_REMATCH[1]}"
+          if [[ "$ref" == "horizon_core_version" ]]; then
+            ba_val="$HORIZON_CORE_VERSION"
+          else
+            ba_val="${local_vars[$ref]:-}"
+          fi
+          if [[ -z "$ba_val" ]]; then
+            log_warn "Could not resolve local.${ref} for build_arg ${ba_key} in image '${cur_image}'"
+          fi
+        else
+          ba_val="$token"
+        fi
+      fi
+
+      [[ -n "$cur_ba" ]] && cur_ba+=","
+      cur_ba+="${ba_key}=${ba_val}"
+    else
+      log_warn "Unrecognized build_args entry in image '${cur_image}': ${chunk}"
+      break
+    fi
+  done
+}
+
+resolve_hcl_path() {
+  local raw="$1"
+  local base_dir="${2:-}"
+  local locals_dir
+  locals_dir="$(cd "$(dirname "$LOCALS_FILE")" && pwd)"
+
+  # Strip trailing HCL comments outside quotes and trim surrounding whitespace
+  raw="$(strip_hcl_comment "$raw")"
+  raw="$(trim_ws "$raw")"
+
+  if [[ "$raw" =~ ^abspath\((.*)\)$ ]]; then
+    raw="$(trim_ws "${BASH_REMATCH[1]}")"
+  fi
+
+  raw="${raw//\"/}"
+  raw="$(trim_ws "$raw")"
+  raw="${raw//\$\{path.module\}/$locals_dir}"
+
+  if [[ -z "$raw" || "$raw" == "null" ]]; then
+    return 0
+  fi
+
+  if [[ -n "$base_dir" && "$raw" != /* ]]; then
+    raw="${base_dir}/${raw}"
+  fi
+
+  python3 -c 'import os, sys; print(os.path.normpath(sys.argv[1]), end="")' "$raw"
+}
+
 parse_image_catalog() {
   if [[ ! -f "$LOCALS_FILE" ]]; then
     log_err "locals.tf not found at: ${LOCALS_FILE}"
@@ -316,11 +544,15 @@ parse_image_catalog() {
 
   read_horizon_core_version
 
+  local locals_dir
+  locals_dir="$(cd "$(dirname "$LOCALS_FILE")" && pwd)"
+
   # Pass 1: extract simple local variable assignments for resolving build_arg references
   # (e.g.  common_nginx_version = "1.28.1-alpine3.23")
   declare -A local_vars
   while IFS= read -r line; do
-    [[ "$line" =~ ^[[:space:]]*# ]] && continue
+    line="$(strip_hcl_comment "$line")"
+    [[ -z "$(trim_ws "$line")" ]] && continue
     if [[ "$line" =~ ^[[:space:]]+([a-z_][a-z0-9_]*)[[:space:]]*=[[:space:]]*\"([^\"]*)\" ]]; then
       local_vars["${BASH_REMATCH[1]}"]="${BASH_REMATCH[2]}"
     fi
@@ -328,10 +560,12 @@ parse_image_catalog() {
 
   # Pass 2: parse the `images = { ... }` block using a brace-depth state machine
   local in_images=0 brace_depth=0 in_build_args=0
-  local cur_image="" cur_dir="" cur_ver="" cur_ba=""
+  local cur_image="" cur_dir="" cur_ver="" cur_ba="" cur_ctx="" cur_df="" cur_plat=""
+  local _OPEN_BRACES=0 _CLOSE_BRACES=0
 
   while IFS= read -r line; do
-    [[ "$line" =~ ^[[:space:]]*# ]] && continue
+    line="$(strip_hcl_comment "$line")"
+    [[ -z "$(trim_ws "$line")" ]] && continue
 
     # Detect start of the images block
     if [[ $in_images -eq 0 ]]; then
@@ -342,10 +576,9 @@ parse_image_catalog() {
       continue
     fi
 
-    # Count braces on this line
-    local opens="${line//[^\{]/}"
-    local closes="${line//[^\}]/}"
-    brace_depth=$(( brace_depth + ${#opens} - ${#closes} ))
+    # Count unquoted braces on this line
+    count_unquoted_braces "$line"
+    brace_depth=$(( brace_depth + _OPEN_BRACES - _CLOSE_BRACES ))
 
     # End of the entire images block
     if [[ $brace_depth -le 0 ]]; then
@@ -354,6 +587,9 @@ parse_image_catalog() {
         IMAGE_DIRS["$cur_image"]="$cur_dir"
         IMAGE_VERSIONS["$cur_image"]="$cur_ver"
         IMAGE_BUILD_ARGS["$cur_image"]="$cur_ba"
+        IMAGE_CONTEXT_PATHS["$cur_image"]="$cur_ctx"
+        IMAGE_DOCKERFILE_PATHS["$cur_image"]="$cur_df"
+        IMAGE_PLATFORMS["$cur_image"]="$cur_plat"
       fi
       break
     fi
@@ -366,49 +602,51 @@ parse_image_catalog() {
         IMAGE_DIRS["$cur_image"]="$cur_dir"
         IMAGE_VERSIONS["$cur_image"]="$cur_ver"
         IMAGE_BUILD_ARGS["$cur_image"]="$cur_ba"
+        IMAGE_CONTEXT_PATHS["$cur_image"]="$cur_ctx"
+        IMAGE_DOCKERFILE_PATHS["$cur_image"]="$cur_df"
+        IMAGE_PLATFORMS["$cur_image"]="$cur_plat"
       fi
       cur_image="${BASH_REMATCH[1]}"
       cur_dir=""
       cur_ver=""
       cur_ba=""
+      cur_ctx=""
+      cur_df=""
+      cur_plat=""
       continue
     fi
 
-    # build_args block start
-    if [[ $in_build_args -eq 0 && "$line" =~ build_args[[:space:]]*=[[:space:]]*\{ ]]; then
+    # build_args block start (supports both multi-line and single-line `build_args = { ... }`)
+    if [[ $in_build_args -eq 0 && "$line" =~ build_args[[:space:]]*=[[:space:]]*\{(.*)$ ]]; then
       in_build_args=1
+      parse_build_args_segment "${BASH_REMATCH[1]}"
       continue
     fi
 
     # Inside build_args block
     if [[ $in_build_args -eq 1 ]]; then
-      if [[ "$line" =~ \} ]]; then
-        in_build_args=0
-        continue
-      fi
-      if [[ "$line" =~ ([A-Z_][A-Z0-9_]*)[[:space:]]*=[[:space:]]*(.*) ]]; then
-        local ba_key="${BASH_REMATCH[1]}"
-        local ba_val
-        ba_val="$(echo "${BASH_REMATCH[2]}" | xargs)"
-        # Resolve local.* references
-        if [[ "$ba_val" =~ ^local\.(.+)$ ]]; then
-          local ref="${BASH_REMATCH[1]}"
-          ba_val="${local_vars[$ref]:-}"
-          if [[ -z "$ba_val" ]]; then
-            log_warn "Could not resolve local.${ref} for build_arg ${ba_key} in image '${cur_image}'"
-          fi
-        else
-          ba_val="${ba_val//\"/}"
-        fi
-        [[ -n "$cur_ba" ]] && cur_ba+=","
-        cur_ba+="${ba_key}=${ba_val}"
-      fi
+      parse_build_args_segment "$line"
       continue
     fi
 
     # Parse directory
     if [[ "$line" =~ directory[[:space:]]*=[[:space:]]*\"([^\"]*)\" ]]; then
       cur_dir="${BASH_REMATCH[1]}"
+    fi
+
+    # Parse optional context_path (plain relative paths resolve relative to locals.tf directory)
+    if [[ "$line" =~ context_path[[:space:]]*=[[:space:]]*(.*) ]]; then
+      cur_ctx="$(resolve_hcl_path "${BASH_REMATCH[1]}" "$locals_dir")"
+    fi
+
+    # Parse optional dockerfile_path (plain relative paths stay relative to context_dir)
+    if [[ "$line" =~ dockerfile_path[[:space:]]*=[[:space:]]*(.*) ]]; then
+      cur_df="$(resolve_hcl_path "${BASH_REMATCH[1]}" "")"
+    fi
+
+    # Parse optional platform
+    if [[ "$line" =~ platform[[:space:]]*=[[:space:]]*\"([^\"]*)\" ]]; then
+      cur_plat="${BASH_REMATCH[1]}"
     fi
 
     # Parse build_version
@@ -525,9 +763,10 @@ build_image() {
     build_args_raw+="HORIZON_CLI_VERSION=${HORIZON_CORE_VERSION}"
   fi
   local full_image="${registry_host}/${GCP_PROJECT}/${REGISTRY_ID}/${name}:${version}"
-  local context_dir="${IMAGES_DIR}/${directory}/${name}"
-  local dockerfile_path=""
-  local platform_flag=""
+  local context_override="${IMAGE_CONTEXT_PATHS[$name]:-}"
+  local context_dir="${context_override:-${IMAGES_DIR}/${directory}/${name}}"
+  local dockerfile_path="${IMAGE_DOCKERFILE_PATHS[$name]:-}"
+  local platform_flag="${IMAGE_PLATFORMS[$name]:-}"
 
   if [[ ! -d "$context_dir" ]]; then
     log_err "Build context directory not found: ${context_dir}"
@@ -535,6 +774,9 @@ build_image() {
   fi
 
   if [[ -n "$dockerfile_path" ]]; then
+    if [[ "$dockerfile_path" != /* ]]; then
+      dockerfile_path="$(python3 -c 'import os, sys; print(os.path.normpath(os.path.join(sys.argv[1], sys.argv[2])), end="")' "$context_dir" "$dockerfile_path")"
+    fi
     if [[ ! -f "$dockerfile_path" ]]; then
       log_err "Dockerfile not found: ${dockerfile_path}"
       return 1

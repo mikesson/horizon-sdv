@@ -551,6 +551,8 @@ resource "kubectl_manifest" "argocd_application" {
                 storageGcsModule: ${var.gcp_cloud_region}-docker.pkg.dev/${var.gcp_project_id}/${var.gcp_registry_id}/storage-gcs-module-app:${var.images["storage-gcs-module-app"].version}
                 cloudWorkstationsModule: ${var.gcp_cloud_region}-docker.pkg.dev/${var.gcp_project_id}/${var.gcp_registry_id}/cloud-workstations-module-app:${var.images["cloud-workstations-module-app"].version}
                 horizonApi: ${var.gcp_cloud_region}-docker.pkg.dev/${var.gcp_project_id}/${var.gcp_registry_id}/horizon-api-app:${var.images["horizon-api-app"].version}
+                cuttlefishOrchestratorApi: ${var.gcp_cloud_region}-docker.pkg.dev/${var.gcp_project_id}/${var.gcp_registry_id}/cuttlefish-orchestrator-api:${var.images["cuttlefish-orchestrator-api"].version}
+                cuttlefishConsole: ${var.gcp_cloud_region}-docker.pkg.dev/${var.gcp_project_id}/${var.gcp_registry_id}/cuttlefish-console:${var.images["cuttlefish-console"].version}
               apps:
                 kccWebhookCertMonitor: ${var.gcp_cloud_region}-docker.pkg.dev/${var.gcp_project_id}/${var.gcp_registry_id}/kcc-webhook-cert-monitor:${var.images["kcc-webhook-cert-monitor"].version}
                 horizonPortal: ${var.gcp_cloud_region}-docker.pkg.dev/${var.gcp_project_id}/${var.gcp_registry_id}/horizon-dev-portal:${var.images["horizon-dev-portal"].version}

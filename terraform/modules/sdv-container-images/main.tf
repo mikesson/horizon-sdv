@@ -27,19 +27,27 @@ locals {
   ])
   portal_image_key = "horizon-dev-portal"
 
+  # Custom context fileset patterns per image (avoids hashing unrelated or build-generated trees).
   # The portal's cli/ is written during apply by local_file.horizon_cli_docker_src, so it must never be listed:
   # Terraform fails when fileset() returns a different result at apply than at plan.
-  # Add any new top-level portal source directory here, or changes to it will not trigger a rebuild.
-  portal_context_patterns = ["*", "proxy/**", "public/**", "src/**"]
+  # Add any new top-level portal/cuttlefish source directory here, or changes to it will not trigger a rebuild.
+  custom_context_patterns = {
+    "horizon-dev-portal"          = ["*", "proxy/**", "public/**", "src/**"]
+    "cuttlefish-orchestrator-api" = ["Dockerfile", ".dockerignore", "go.mod", "go.sum", "cmd/**", "internal/**"]
+    "cuttlefish-console"          = ["*", ".dockerignore", "nginx/**", "scripts/**", "src/**"]
+  }
 
-  # When context_path is set, skip hashing paths that match local npm/build artifacts (like .dockerignore).
+  # When context_path is set, skip hashing paths that match local npm/build/test artifacts (like .dockerignore).
+  # Keep cli/ root-anchored so nested Go packages such as cmd/cfctl/internal/cli/ remain hashed.
   docker_context_files = {
     for name, img in var.images : name => sort([
       for f in setunion([
-        for p in(name == local.portal_image_key ? local.portal_context_patterns : ["**"]) : fileset(local.docker_context[name], p)
+        for p in lookup(local.custom_context_patterns, name, ["**"]) : fileset(local.docker_context[name], p)
       ]...) : f
       if try(img.context_path, null) == null ? true : !(
-        startswith(f, "node_modules/") || startswith(f, "dist/") || startswith(f, ".git/") || startswith(f, "cli/")
+        startswith(f, "cli/") ||
+        can(regex("(^|/)(node_modules|dist|\\.angular|coverage|\\.git|playwright-report|test-results)(/|$)", f)) ||
+        can(regex("(^|/)\\.DS_Store$|\\.(log|test|out)$", f))
       )
     ])
   }

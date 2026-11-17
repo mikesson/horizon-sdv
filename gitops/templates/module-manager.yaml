@@ -72,6 +72,8 @@ spec:
           containerImages:
             storageGcsModule: {{ .Values.config.containerImages.storageGcsModule | quote }}
             cloudWorkstationsModule: {{ .Values.config.containerImages.cloudWorkstationsModule | quote }}
+            cuttlefishOrchestratorApi: {{ .Values.config.containerImages.cuttlefishOrchestratorApi | quote }}
+            cuttlefishConsole: {{ .Values.config.containerImages.cuttlefishConsole | quote }}
           scm:
             authMethod: {{ .Values.scm.authMethod | quote }}
           workloads:
