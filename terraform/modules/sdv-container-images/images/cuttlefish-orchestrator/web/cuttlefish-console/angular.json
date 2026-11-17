@@ -1,0 +1,117 @@
+{
+    "$schema": "./node_modules/@angular/cli/lib/config/schema.json",
+    "version": 1,
+    "newProjectRoot": "projects",
+    "projects": {
+        "cuttlefish-console": {
+            "projectType": "application",
+            "schematics": {
+                "@schematics/angular:component": {
+                    "style": "scss"
+                }
+            },
+            "root": "",
+            "sourceRoot": "src",
+            "prefix": "app",
+            "architect": {
+                "build": {
+                    "builder": "@angular/build:application",
+                    "options": {
+                        "outputPath": "dist/cuttlefish-console",
+                        "index": "src/index.html",
+                        "browser": "src/main.ts",
+                        "polyfills": ["@angular/localize/init"],
+                        "tsConfig": "tsconfig.app.json",
+                        "inlineStyleLanguage": "scss",
+                        "assets": [
+                            "src/favicon.ico",
+                            "src/favicon.svg",
+                            {
+                                "glob": "**/*",
+                                "input": "src/assets",
+                                "output": "assets",
+                                "ignore": ["fonts.css", "fonts/**"]
+                            }
+                        ],
+                        "styles": [
+                            "node_modules/@xterm/xterm/css/xterm.css",
+                            "src/assets/fonts.css",
+                            "src/styles.scss"
+                        ],
+                        "scripts": [],
+                        "allowedCommonJsDependencies": [
+                            "@sagold/json-pointer",
+                            "best-effort-json-parser",
+                            "deepmerge",
+                            "ebnf",
+                            "fast-deep-equal",
+                            "json5",
+                            "loglevel",
+                            "smtp-address-parser",
+                            "valid-url"
+                        ]
+                    },
+                    "configurations": {
+                        "production": {
+                            "budgets": [{
+                                    "type": "initial",
+                                    "maximumWarning": "2mb",
+                                    "maximumError": "3mb"
+                                },
+                                {
+                                    "type": "anyComponentStyle",
+                                    "maximumWarning": "15kb",
+                                    "maximumError": "20kb"
+                                }
+                            ],
+                            "outputHashing": "all"
+                        },
+                        "development": {
+                            "optimization": false,
+                            "extractLicenses": false,
+                            "sourceMap": true,
+                            "namedChunks": true
+                        }
+                    },
+                    "defaultConfiguration": "production"
+                },
+                "serve": {
+                    "builder": "@angular/build:dev-server",
+                    "configurations": {
+                        "production": {
+                            "buildTarget": "cuttlefish-console:build:production"
+                        },
+                        "development": {
+                            "buildTarget": "cuttlefish-console:build:development"
+                        }
+                    },
+                    "defaultConfiguration": "development"
+                },
+                "extract-i18n": {
+                    "builder": "@angular/build:extract-i18n",
+                    "options": {
+                        "buildTarget": "cuttlefish-console:build"
+                    }
+                },
+                "test": {
+                    "builder": "@angular/build:unit-test",
+                    "options": {
+                        "tsConfig": "tsconfig.spec.json",
+                        "coverageReporters": ["text-summary", "json-summary", "lcov"],
+                        "coverageInclude": ["src/app/**/*.ts", "src/main.ts"],
+                        "coverageExclude": ["src/**/*.spec.ts", "src/**/*.d.ts"],
+                        "coverageThresholds": {
+                            "statements": 44.8,
+                            "branches": 42.5,
+                            "functions": 31.9,
+                            "lines": 42.6
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "cli": {
+        "analytics": "379168de-6784-465f-aaad-9684271e13d4"
+    }
+}

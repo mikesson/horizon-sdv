@@ -1,0 +1,13 @@
+# Class selectors `scripts/gates/dead-css.mjs` reports as unreferenced and that
+# are not to be deleted. One `path<TAB>.selector` per line; a reason is
+# required, because the only thing separating an accepted finding from an
+# unfixed defect is what is written here.
+#
+# Empty, and that is the intended state. The matcher cannot see a class name
+# assembled at runtime, so an entry here should name the expression that builds
+# it. An entry that says "dead, but not mine to delete" is a deferral. Carry
+# those in the change that owns the file.
+#
+# Some findings are never allow-listed. A custom property nothing reads, a
+# `var()` nothing declares, a `var(--cco-*, fallback)`, a `--mdc-*` name and a
+# deleted light-ramp hex are closed questions, so they fail unconditionally.

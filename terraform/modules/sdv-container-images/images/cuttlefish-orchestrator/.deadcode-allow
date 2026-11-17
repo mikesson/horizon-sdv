@@ -1,0 +1,56 @@
+# Functions x/tools/cmd/deadcode reports as unreachable from cmd/ that are
+# nonetheless meant to exist. One "pkg.Func" or "pkg.Type.Method" per line.
+#
+# Adding a line is a claim that the function is meant to be unreachable from
+# every shipped binary. Anything else belongs deleted, not listed here.
+#
+# The roots are cmd/ only, so a package no shipped binary imports at all is
+# absent from the program and never reported. The harness fakes under tests/
+# need no entry here.
+
+# Standalone constructor kept for tests and one-off clients; production code
+# obtains clients from Factory.ClientForHost so they share a pooled transport.
+hoclient.NewHostClient
+
+# Reached only from the harnesses under tests/, which are not roots for this
+# run, so a harness-only helper reads as unreachable by construction.
+taskworker.Pool.Stats
+spanner.SetClockOffsetForTesting
+
+# The canonical GPU-mode vocabulary. Its consumer is the agreement test that
+# binds the domain constants to the `enum` tag on the create body, because a
+# struct tag cannot reference a constant. Production reads the tag, not this.
+device.GPUModes
+
+# Same shape, for snapshot states: the agreement test binds the SnapshotState
+# constants to the `enum` tag on the entity's state field, which the console's
+# drift gate reads as the published vocabulary.
+device.SnapshotStates
+
+# Same shape, for the machine-type list filters: the workload categories and CPU
+# architectures are declared twice, here and in the `enum` tags, and only the
+# agreement tests hold the copies together. Five Category constants and ArchArm
+# have no other reader, which is exactly why deleting them on a dead-code report
+# would have removed the vocabulary and left the tag unchecked.
+machinetype.Categories
+machinetype.Architectures
+
+# Every registered operation verb. The agreement tests derive their cases from
+# it so they cannot silently stop covering a verb added later; the requeue
+# predicate reads TaskTypes instead.
+operation.Verbs
+
+# The canonical GCE error-classification vocabulary, same shape as the enum
+# vocabularies above: its consumer is the agreement test binding it to the
+# `enum` tag on the host error_type response field.
+gce.ErrorTypes
+
+# The @import template names admission accepts. Its consumers are the cvd
+# package tests that bind the name list to the table of template bodies and
+# run every expansion back through admission; the list itself is unexported.
+validation.ImportTemplateNames
+
+# Test-key factory for the cfctl auth tests. The authtest package ships in no
+# binary, but it sits under cmd/, so the cmd/... roots load it and report it,
+# unlike the harness fakes under tests/.
+authtest.WriteKeyFile

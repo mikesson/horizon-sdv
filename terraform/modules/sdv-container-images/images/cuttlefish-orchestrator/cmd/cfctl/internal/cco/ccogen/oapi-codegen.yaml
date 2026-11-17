@@ -1,0 +1,42 @@
+# Copyright 2026 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# Consumed by scripts/generate-ccogen.sh, which owns the input spec and the
+# output path. Models only, decided 2026-08-01 after the aliasing landed:
+# the response models were the drift surface, and they are generated; the
+# hand-written client methods are each a path string plus query params
+# decoding into those models, with transport (retries, idempotency keys,
+# error classification, request bounds) written once in do/retry. A
+# generated client would replace that with per-operation wrapper unpacking,
+# string→UUID conversions and re-derived error classification. That is more
+# code guarding drift classes the coverage gate and the CLI E2E harness
+# already pin. Revisit only if the method count stops being the thin layer
+# it is.
+package: ccogen
+generate:
+  models: true
+output-options:
+  # Huma schema names such as ListDisplaysResponse collide with the names the
+  # generator mints for per-operation response wrappers when client: true.
+  # Harmless for models-only; set now so enabling the client later does not
+  # rename anything.
+  response-type-suffix: HTTPResponse
+  # Optional fields become plain fields with omitempty rather than pointers,
+  # matching the shape of the hand-written mirrors these models replace.
+  prefer-skip-optional-pointer: true
+  # Id -> ID etc., matching the hand-written mirrors and Google Go style.
+  name-normalizer: ToCamelCaseWithInitialisms
+  # The built-in list covers ID/IP/VM/CPU/TTL/URI...; these are the extra
+  # tokens this API uses, so gpu_mode comes out GPUMode, not GpuMode.
+  additional-initialisms: [ADB, CVD, DPI, GB, GCE, GPU, GS, HO, VNC]

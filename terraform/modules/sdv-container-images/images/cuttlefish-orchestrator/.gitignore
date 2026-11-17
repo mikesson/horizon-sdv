@@ -1,0 +1,48 @@
+# Configuration files with secrets
+config-hybrid.toml
+backup_config-hybrid.toml
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.backup
+*.tfstate.*.backup
+.terraform.lock.hcl
+*.tfvars
+!*.tfvars.example
+
+# Build artifacts and binaries
+*.exe
+*.dll
+*.so
+*.dylib
+/cfctl
+/orchestrator
+/relayhook
+/tools/legacyparity/legacyparity
+
+# Bundled JavaScript (build these from source)
+main.js
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Node
+node_modules/
+
+# Go
+vendor/
+
+# Secrets
+*.pem
+*.key
+
+# Local-dev environment (dotenv); real values never committed.
+.env

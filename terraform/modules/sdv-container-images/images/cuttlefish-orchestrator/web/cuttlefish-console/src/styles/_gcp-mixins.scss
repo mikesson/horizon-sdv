@@ -1,0 +1,129 @@
+// Copyright 2026 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     https://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// =============================================================================
+// Google Cloud Reusable Mixins
+// =============================================================================
+
+@use '@angular/material' as mat;
+@use 'gcp-variables' as gcp;
+
+// -----------------------------------------------------------------------------
+// Button Styles
+// -----------------------------------------------------------------------------
+
+@mixin gcp-button-secondary {
+  background-color: transparent;
+  color: var(--cco-accent);
+  border: 1px solid var(--cco-border);
+  border-radius: gcp.$gcp-radius-xs;
+  font-weight: gcp.$gcp-font-weight-medium;
+
+  &:hover:not(:disabled) {
+    background-color: var(--cco-accent-surface);
+    border-color: var(--cco-accent);
+  }
+}
+
+@mixin gcp-button-text {
+  background-color: transparent;
+  color: var(--cco-accent);
+  border-radius: gcp.$gcp-radius-xs;
+  font-weight: gcp.$gcp-font-weight-medium;
+
+  &:hover:not(:disabled) {
+    background-color: var(--cco-accent-surface);
+  }
+}
+
+
+// -----------------------------------------------------------------------------
+// Form Field Styles
+// -----------------------------------------------------------------------------
+@mixin gcp-form-field {
+  // The outline was three MDC-internal selectors per state. The overrides API
+  // exposes the same three colours directly, and Material's own rules read them.
+  @include mat.form-field-overrides((
+    outlined-outline-color: var(--cco-border),
+    outlined-hover-outline-color: gcp.$gcp-grey-700,
+    outlined-focus-outline-color: var(--cco-accent),
+  ));
+}
+
+// -----------------------------------------------------------------------------
+// Table Styles
+// -----------------------------------------------------------------------------
+@mixin gcp-table {
+  width: 100%;
+  border-collapse: collapse;
+  background-color: var(--cco-surface);
+
+  th {
+    text-align: left;
+    padding: gcp.$gcp-space-16;
+    font-size: gcp.$gcp-font-size-label-md;
+    font-weight: gcp.$gcp-font-weight-medium;
+    color: var(--cco-text-secondary);
+    border-bottom: 1px solid var(--cco-divider);
+    background-color: var(--cco-surface-dim);
+  }
+
+  td {
+    padding: gcp.$gcp-space-16;
+    font-size: gcp.$gcp-font-size-body-md;
+    color: var(--cco-text);
+    border-bottom: 1px solid var(--cco-divider);
+  }
+
+  tr:hover td {
+    background-color: var(--cco-surface-dim);
+  }
+}
+
+// -----------------------------------------------------------------------------
+// Dialog Styles
+// -----------------------------------------------------------------------------
+@mixin gcp-dialog {
+  border-radius: gcp.$gcp-radius-lg !important;
+
+  .mat-mdc-dialog-title {
+    font-size: gcp.$gcp-font-size-headline-sm;
+    font-weight: gcp.$gcp-font-weight-medium;
+    color: var(--cco-text);
+    padding: gcp.$gcp-space-24 gcp.$gcp-space-24 gcp.$gcp-space-16;
+  }
+
+  .mat-mdc-dialog-content {
+    color: var(--cco-text-secondary);
+    padding: 0 gcp.$gcp-space-24;
+  }
+
+  .mat-mdc-dialog-actions {
+    padding: gcp.$gcp-space-16 gcp.$gcp-space-24 gcp.$gcp-space-24;
+  }
+}
+
+// -----------------------------------------------------------------------------
+// Link Styles
+// -----------------------------------------------------------------------------
+@mixin gcp-link {
+  color: var(--cco-accent);
+  text-decoration: none;
+  font-weight: gcp.$gcp-font-weight-medium;
+
+  &:hover {
+    text-decoration: underline;
+  }
+}
+

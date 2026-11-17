@@ -1,0 +1,206 @@
+# Copyright 2026 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# Example Argo Workflow using GKE Workload Identity
+#
+# This workflow demonstrates how to authenticate to Cloud Cuttlefish Orchestrator
+# using GKE Workload Identity for keyless, secure access from Argo Workflows.
+#
+# Prerequisites:
+# 1. GKE cluster with Workload Identity enabled
+# 2. Kubernetes ServiceAccount annotated with GSA email
+# 3. GSA on the CCO IAP access list
+# 4. GSA holding roles/iam.serviceAccountTokenCreator on itself, so cfctl can
+#    sign the IAP JWT as that account
+#
+# See setup-gke-workload-identity.sh for configuration steps, and
+# docs/guides/cicd-integration.md for the authentication model.
+
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: cco-device-test-
+  labels:
+    app: cco-ci
+spec:
+  # Use the ServiceAccount configured with GKE Workload Identity
+  serviceAccountName: cco-ci-sa
+
+  entrypoint: device-test
+
+  # Workflow-level parameters
+  arguments:
+    parameters:
+      - name: cco-server
+        value: "https://cco.example.com"
+      - name: cco-service-account
+        value: "cco-argo-sa@PROJECT_ID.iam.gserviceaccount.com"
+      - name: host-id
+        value: ""
+
+  templates:
+    - name: device-test
+      steps:
+        - - name: list-devices
+            template: cfctl-command
+            arguments:
+              parameters:
+                - name: command
+                  value: "device list --json"
+
+        - - name: create-device
+            template: create-test-device
+            arguments:
+              parameters:
+                - name: host-id
+                  value: "{{workflow.parameters.host-id}}"
+            when: "{{workflow.parameters.host-id}} != ''"
+
+        - - name: run-tests
+            template: run-tests
+            arguments:
+              parameters:
+                - name: device-id
+                  value: "{{steps.create-device.outputs.parameters.device-id}}"
+            when: "{{workflow.parameters.host-id}} != ''"
+
+        - - name: cleanup
+            template: delete-device
+            arguments:
+              parameters:
+                - name: device-id
+                  value: "{{steps.create-device.outputs.parameters.device-id}}"
+            when: "{{workflow.parameters.host-id}} != ''"
+
+    # Template for running cfctl commands
+    - name: cfctl-command
+      inputs:
+        parameters:
+          - name: command
+      container:
+        # Use an image with cfctl pre-installed, or install it in the script
+        image: google/cloud-sdk:slim
+        # cfctl reads these directly, so the pod needs no config file. The
+        # pod's Kubernetes ServiceAccount is mapped to the Google Service
+        # Account, and cfctl signs the IAP JWT as CFCTL_IMPERSONATE.
+        env:
+          - name: CFCTL_SERVER
+            value: "{{workflow.parameters.cco-server}}"
+          - name: CFCTL_IMPERSONATE
+            value: "{{workflow.parameters.cco-service-account}}"
+        command: ["/bin/bash", "-c"]
+        args:
+          - |
+            set -e
+            cfctl {{inputs.parameters.command}}
+
+    # Create a test device and output its ID
+    - name: create-test-device
+      inputs:
+        parameters:
+          - name: host-id
+      outputs:
+        parameters:
+          - name: device-id
+            valueFrom:
+              path: /tmp/device-id
+      container:
+        image: google/cloud-sdk:slim
+        env:
+          - name: CFCTL_SERVER
+            value: "{{workflow.parameters.cco-server}}"
+          - name: CFCTL_IMPERSONATE
+            value: "{{workflow.parameters.cco-service-account}}"
+        command: ["/bin/bash", "-c"]
+        args:
+          - |
+            set -e
+
+            # Create device and capture ID
+            DEVICE_ID=$(cfctl device create \
+              --host="{{inputs.parameters.host-id}}" \
+              --name="argo-{{workflow.name}}" \
+              --json | jq -r '.id')
+
+            echo "$DEVICE_ID" > /tmp/device-id
+            echo "Created device: $DEVICE_ID"
+
+    # Run tests against the device
+    - name: run-tests
+      inputs:
+        parameters:
+          - name: device-id
+      container:
+        image: google/cloud-sdk:slim
+        env:
+          - name: CFCTL_SERVER
+            value: "{{workflow.parameters.cco-server}}"
+          - name: CFCTL_IMPERSONATE
+            value: "{{workflow.parameters.cco-service-account}}"
+        command: ["/bin/bash", "-c"]
+        args:
+          - |
+            set -e
+            echo "Running tests against device: {{inputs.parameters.device-id}}"
+
+            # Get device details
+            cfctl device get "{{inputs.parameters.device-id}}" --json
+
+            # Your test commands here
+            echo "Tests completed successfully"
+
+    # Cleanup: delete the test device
+    - name: delete-device
+      inputs:
+        parameters:
+          - name: device-id
+      container:
+        image: google/cloud-sdk:slim
+        env:
+          - name: CFCTL_SERVER
+            value: "{{workflow.parameters.cco-server}}"
+          - name: CFCTL_IMPERSONATE
+            value: "{{workflow.parameters.cco-service-account}}"
+        command: ["/bin/bash", "-c"]
+        args:
+          - |
+            set -e
+            echo "Cleaning up device: {{inputs.parameters.device-id}}"
+
+            cfctl device delete "{{inputs.parameters.device-id}}" || true
+            echo "Cleanup completed"
+
+---
+# Minimal example for quick start
+#
+# apiVersion: argoproj.io/v1alpha1
+# kind: Workflow
+# metadata:
+#   generateName: cco-quick-
+# spec:
+#   serviceAccountName: cco-ci-sa  # Must be configured with GKE Workload Identity
+#   entrypoint: main
+#   templates:
+#     - name: main
+#       container:
+#         image: google/cloud-sdk:slim
+#         env:
+#           - name: CFCTL_SERVER
+#             value: "https://cco.example.com"
+#           - name: CFCTL_IMPERSONATE
+#             value: "cco-argo-sa@PROJECT_ID.iam.gserviceaccount.com"
+#         command: ["/bin/bash", "-c"]
+#         args:
+#           - |
+#             cfctl device list

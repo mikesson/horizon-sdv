@@ -1,0 +1,477 @@
+assemble_cvd I 08-11 16:15:59  1787  1787 fetcher_config.cpp:146] Adjusting cvd_file paths to directory: /var/tmp/cvd/104/1786464889230835/artifacts/0
+assemble_cvd D 08-11 16:15:59  1787  1787 fetcher_config.cpp:240] Could not find file ending in kernel
+assemble_cvd D 08-11 16:15:59  1787  1787 fetcher_config.cpp:240] Could not find file ending in initramfs.img
+assemble_cvd I 08-11 16:15:59  1787  1787 config_flag.cpp:215] Reading --config option from: /var/tmp/cvd/104/1786464889230835/artifacts/0/android-info.txt
+assemble_cvd I 08-11 16:15:59  1787  1787 config_flag.cpp:166] Launching CVD using --config='phone'.
+assemble_cvd D 08-11 16:15:59  1787  1787 subprocess.cpp:472] Started (pid: 1788): /var/tmp/cvd/104/1786464889230835/artifacts/host_tools/bin/avbtool
+assemble_cvd D 08-11 16:15:59  1787  1787 subprocess.cpp:474] info_image
+assemble_cvd D 08-11 16:15:59  1787  1787 subprocess.cpp:474] --image
+assemble_cvd D 08-11 16:15:59  1787  1787 subprocess.cpp:474] /var/tmp/cvd/104/1786464889230835/artifacts/0/boot.img
+assemble_cvd D 08-11 16:16:00  1787  1787 subprocess.cpp:472] Started (pid: 1789): /var/tmp/cvd/104/1786464889230835/artifacts/host_tools/bin/extract-ikconfig
+assemble_cvd D 08-11 16:16:00  1787  1787 subprocess.cpp:474] /var/tmp/cvd/104/1786464889230835/artifacts/0/boot.img
+assemble_cvd I 08-11 16:16:01  1787  1787 flags.cc:947] Defaulting to `android-info.txt` because guest protobuf config is missing.
+assemble_cvd D 08-11 16:16:01  1787  1787 subprocess.cpp:472] Started (pid: 1870): /usr/lib/cuttlefish-common/bin/capability_query.py
+assemble_cvd D 08-11 16:16:01  1787  1787 subprocess.cpp:474] qemu_cli
+assemble_cvd D 08-11 16:16:01  1787  1787 flags.cc:1652] rootcanal_instance_num: 0
+assemble_cvd D 08-11 16:16:01  1787  1787 flags.cc:1653] launch rootcanal: 1
+assemble_cvd D 08-11 16:16:01  1787  1787 flags.cc:1662] casimir_instance_num: 0
+assemble_cvd D 08-11 16:16:01  1787  1787 flags.cc:1663] launch casimir: 1
+assemble_cvd D 08-11 16:16:01  1787  1787 flags.cc:1667] netsim_instance_num: 0
+assemble_cvd D 08-11 16:16:01  1787  1787 flags.cc:1686] launch pica: 1
+assemble_cvd D 08-11 16:16:01  1787  1787 subprocess.cpp:472] Started (pid: 1872): /var/tmp/cvd/104/1786464889230835/artifacts/host_tools/bin/graphics_detector
+assemble_cvd D 08-11 16:16:01  1787  1787 subprocess.cpp:474] /tmp/TemporaryFile-Jk5gDk
+assemble_cvd D 08-11 16:16:03  1787  1787 network_flags.cpp:48] Network config:
+assemble_cvd D 08-11 16:16:03  1787  1787 network_flags.cpp:49] ipaddr = 192.168.97.2
+assemble_cvd D 08-11 16:16:03  1787  1787 network_flags.cpp:50] gateway = 192.168.97.1
+assemble_cvd D 08-11 16:16:03  1787  1787 network_flags.cpp:51] dns = 8.8.8.8
+assemble_cvd D 08-11 16:16:03  1787  1787 network_flags.cpp:52] broadcast = 192.168.97.3
+assemble_cvd D 08-11 16:16:03  1787  1787 network_flags.cpp:53] prefix length = 30
+assemble_cvd D 08-11 16:16:03  1787  1787 graphics_flags.cc:411] Checking requirements for --gpu_mode=guest_swiftshader
+assemble_cvd I 08-11 16:16:03  1787  1787 graphics_flags.cc:502] GPU vhost user auto mode: not needed for --gpu_mode=guest_swiftshader. Not enabling vhost user gpu.
+assemble_cvd D 08-11 16:16:03  1787  1787 graphics_flags.cc:301] ANGLE features: 
+assemble_cvd D 08-11 16:16:03  1787  1787 graphics_flags.cc:301]  - prefer_linear_filtering_for_yuv: false
+assemble_cvd D 08-11 16:16:03  1787  1787 graphics_flags.cc:301]  - map_unspecified_color_space_to_pass_through: true
+assemble_cvd D 08-11 16:16:03  1787  1787 graphics_flags.cc:301]  - ignore_precision_qualifiers: false
+assemble_cvd D 08-11 16:16:03  1787  1787 graphics_flags.cc:301] 
+assemble_cvd D 08-11 16:16:03  1787  1787 disk_builder.cpp:163] Composite disk text config mismatch
+assemble_cvd D 08-11 16:16:03  1787  1787 disk_builder.cpp:163] Composite disk text config mismatch
+assemble_cvd I 08-11 16:16:03  1787  1787 assemble_cvd.cc:237] Requested resuming a previous session (the default behavior) but the base images have changed under the overlay, making the overlay incompatible. Wiping the overlay files.
+assemble_cvd D 08-11 16:16:03  1787  1787 clean.cc:99] Prior dirs: 
+assemble_cvd D 08-11 16:16:03  1787  1787 clean.cc:100] Prior files: 
+assemble_cvd I 08-11 16:16:03  1787  1787 assemble_cvd.cc:449] Path for instance UDS: /tmp/cf_avd_104
+assemble_cvd D 08-11 16:16:03  1787  1787 feature.cpp:49] Running setup for SuperImageRebuilderImpl
+assemble_cvd D 08-11 16:16:03  1787  1787 feature.cpp:49] Running setup for cuttlefish::InitializeEspImage
+assemble_cvd D 08-11 16:16:03  1787  1787 feature.cpp:49] Running setup for cuttlefish::InitializeMiscImage
+assemble_cvd D 08-11 16:16:03  1787  1787 data_image.cpp:246] misc partition image: creating empty at "/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/misc.img"
+assemble_cvd D 08-11 16:16:03  1787  1787 data_image.cpp:157] Creating /var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/misc.img
+Start modem simulator, server_fds: 95, Sim type: normal
+secure_env::kmr_cf I 08-11 16:16:04  2202  2235 lib.rs:60] KeyMint Rust TA running with infile=54, outfile=53, security_level=Software
+secure_env::kmr_cf::sdd I 08-11 16:16:04  2202  2235 sdd.rs:65] No secure deletion data file found. Creating one.
+run_cvd D 08-11 16:16:04  2165  2165 subprocess.cpp:472] Started (pid: 2244): /var/tmp/cvd/104/1786464889230835/artifacts/host_tools/bin/process_restarter
+run_cvd D 08-11 16:16:04  2165  2165 subprocess.cpp:474] -when_exited_with_code=32
+run_cvd D 08-11 16:16:04  2165  2165 subprocess.cpp:474] -ignore_sigtstp
+run_cvd D 08-11 16:16:04  2165  2165 subprocess.cpp:474] --
+run_cvd D 08-11 16:16:04  2165  2165 subprocess.cpp:474] /var/tmp/cvd/104/1786464889230835/artifacts/host_tools/bin/crosvm
+run_cvd D 08-11 16:16:04  2165  2165 subprocess.cpp:474] --extended-status
+run_cvd D 08-11 16:16:04  2165  2165 subprocess.cpp:474] run
+run_cvd D 08-11 16:16:04  2165  2165 subprocess.cpp:474] --socket=/tmp/cf_avd_104/cvd-1/internal/ap_control.sock
+run_cvd D 08-11 16:16:04  2165  2165 subprocess.cpp:474] --no-usb
+run_cvd D 08-11 16:16:04  2165  2165 subprocess.cpp:474] --core-scheduling=false
+run_cvd D 08-11 16:16:04  2165  2165 subprocess.cpp:474] --vhost-user=mac80211-hwsim,socket=/tmp/cf_env_104/env-1/vhost_user_mac80211
+run_cvd D 08-11 16:16:04  2165  2165 subprocess.cpp:474] --net=tap-name=cvd-wifiap-01
+run_cvd D 08-11 16:16:04  2165  2165 subprocess.cpp:474] --disable-sandbox
+run_cvd D 08-11 16:16:04  2165  2165 subprocess.cpp:474] --block=path=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/ap_overlay.img
+run_cvd D 08-11 16:16:04  2165  2165 subprocess.cpp:474] --serial=hardware=serial,num=1,type=file,path=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/logs/crosvm_openwrt_boot.log,earlycon=true
+run_cvd D 08-11 16:16:04  2165  2165 subprocess.cpp:474] --serial=hardware=virtio-console,num=1,type=file,path=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/logs/crosvm_openwrt.log
+run_cvd D 08-11 16:16:04  2165  2165 subprocess.cpp:474] --params="root=/dev/vda1"
+run_cvd D 08-11 16:16:04  2165  2165 subprocess.cpp:474] --params=wan_broadcast=192.168.94.3
+run_cvd D 08-11 16:16:04  2165  2165 subprocess.cpp:474] --params=wan_gateway=192.168.94.1
+run_cvd D 08-11 16:16:04  2165  2165 subprocess.cpp:474] --params=wan_ipaddr=192.168.94.2
+run_cvd D 08-11 16:16:04  2165  2165 subprocess.cpp:474] --params=bridged_wifi_tap=false
+run_cvd D 08-11 16:16:04  2165  2165 subprocess.cpp:474] --params=webrtc_device_id=cvddc4f503f-diag-simple-1
+run_cvd D 08-11 16:16:04  2165  2165 subprocess.cpp:474] /var/tmp/cvd/104/1786464889230835/artifacts/host_tools/etc/openwrt/images/openwrt_kernel_x86_64
+run_cvd I 08-11 16:16:04  2165  2165 process_monitor.cc:261] /var/tmp/cvd/104/1786464889230835/artifacts/host_tools/bin/log_tee
+run_cvd D 08-11 16:16:04  2165  2165 subprocess.cpp:472] Started (pid: 2245): /var/tmp/cvd/104/1786464889230835/artifacts/host_tools/bin/log_tee
+run_cvd D 08-11 16:16:04  2165  2165 subprocess.cpp:474] --process_name=crosvm
+run_cvd D 08-11 16:16:04  2165  2165 subprocess.cpp:474] --log_fd_in=164
+run_cvd I 08-11 16:16:04  2165  2165 process_monitor.cc:261] /var/tmp/cvd/104/1786464889230835/artifacts/host_tools/bin/process_restarter
+run_cvd D 08-11 16:16:04  2165  2165 subprocess.cpp:472] Started (pid: 2246): /var/tmp/cvd/104/1786464889230835/artifacts/host_tools/bin/process_restarter
+run_cvd D 08-11 16:16:04  2165  2165 subprocess.cpp:474] -when_exited_with_code=32
+run_cvd D 08-11 16:16:04  2165  2165 subprocess.cpp:474] -ignore_sigtstp
+run_cvd D 08-11 16:16:04  2165  2165 subprocess.cpp:474] --
+run_cvd D 08-11 16:16:04  2165  2165 subprocess.cpp:474] /var/tmp/cvd/104/1786464889230835/artifacts/host_tools/bin/crosvm
+run_cvd D 08-11 16:16:04  2165  2165 subprocess.cpp:474] --extended-status
+run_cvd D 08-11 16:16:04  2165  2165 subprocess.cpp:474] run
+run_cvd D 08-11 16:16:04  2165  2165 subprocess.cpp:474] --socket=/tmp/cf_avd_104/cvd-1/internal/crosvm_control.sock
+run_cvd D 08-11 16:16:04  2165  2165 subprocess.cpp:474] --no-smt
+run_cvd D 08-11 16:16:04  2165  2165 subprocess.cpp:474] --no-usb
+run_cvd D 08-11 16:16:04  2165  2165 subprocess.cpp:474] --core-scheduling=false
+run_cvd D 08-11 16:16:04  2165  2165 subprocess.cpp:474] --vhost-user-connect-timeout-ms=30000
+run_cvd D 08-11 16:16:04  2165  2165 subprocess.cpp:474] --vhost-user=mac80211-hwsim,socket=/tmp/cf_env_104/env-1/vhost_user_mac80211
+run_cvd D 08-11 16:16:04  2165  2165 subprocess.cpp:474] --wayland-sock=/tmp/cf_avd_104/cvd-1/internal/frames.sock
+run_cvd D 08-11 16:16:04  2165  2165 subprocess.cpp:474] --gpu=displays=[[mode=windowed[720,1280],dpi=[320,320],refresh-rate=60]],backend=2D,pci-address=00:02.0
+run_cvd D 08-11 16:16:04  2165  2165 subprocess.cpp:474] --pmem=path=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/hwcomposer-pmem
+run_cvd D 08-11 16:16:04  2165  2165 subprocess.cpp:474] --mem=8192
+run_cvd D 08-11 16:16:04  2165  2165 subprocess.cpp:474] --cpus=8
+run_cvd D 08-11 16:16:04  2165  2165 subprocess.cpp:474] --block=path=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/overlay.img
+run_cvd D 08-11 16:16:04  2165  2165 subprocess.cpp:474] --block=path=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/persistent_composite.img
+run_cvd D 08-11 16:16:04  2165  2165 subprocess.cpp:474] --block=path=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/sdcard.img
+run_cvd D 08-11 16:16:04  2165  2165 subprocess.cpp:474] --vhost-user=type=input,socket=/tmp/cf_avd_104/cvd-1/internal/touch_0.sock,max-queue-size=256
+run_cvd D 08-11 16:16:04  2165  2165 subprocess.cpp:474] --vhost-user=type=input,socket=/tmp/cf_avd_104/cvd-1/internal/rotary.sock,max-queue-size=256
+run_cvd D 08-11 16:16:04  2165  2165 subprocess.cpp:474] --vhost-user=type=input,socket=/tmp/cf_avd_104/cvd-1/internal/keyboard.sock,max-queue-size=256
+run_cvd D 08-11 16:16:04  2165  2165 subprocess.cpp:474] --vhost-user=type=input,socket=/tmp/cf_avd_104/cvd-1/internal/switches.sock,max-queue-size=256
+run_cvd D 08-11 16:16:04  2165  2165 subprocess.cpp:474] --net=tap-name=cvd-mtap-01,mac=00:1a:11:e0:cf:00,pci-address=00:01.1
+run_cvd D 08-11 16:16:04  2165  2165 subprocess.cpp:474] --net=tap-name=cvd-etap-01,mac=00:1a:11:e1:cf:00,pci-address=00:01.2
+run_cvd D 08-11 16:16:04  2165  2165 subprocess.cpp:474] --pmem=path=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/access-kregistry
+run_cvd D 08-11 16:16:04  2165  2165 subprocess.cpp:474] --pstore=path=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/pstore,size=2097152
+run_cvd D 08-11 16:16:04  2165  2165 subprocess.cpp:474] --disable-sandbox
+run_cvd D 08-11 16:16:04  2165  2165 subprocess.cpp:474] --vsock=cid=3
+run_cvd D 08-11 16:16:04  2165  2165 subprocess.cpp:474] --serial=hardware=virtio-console,num=1,type=file,path=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/kernel-log-pipe,console=true
+run_cvd D 08-11 16:16:04  2165  2165 subprocess.cpp:474] --serial=hardware=serial,num=1,type=file,path=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/kernel-log-pipe,earlycon=true
+run_cvd D 08-11 16:16:04  2165  2165 subprocess.cpp:474] --serial=hardware=virtio-console,num=2,type=sink
+run_cvd D 08-11 16:16:04  2165  2165 subprocess.cpp:474] --serial=hardware=virtio-console,num=3,type=file,path=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/logcat-pipe
+run_cvd D 08-11 16:16:04  2165  2165 subprocess.cpp:474] --serial=hardware=virtio-console,num=4,type=file,path=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/keymaster_fifo_vm.out,input=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/keymaster_fifo_vm.in
+run_cvd D 08-11 16:16:04  2165  2165 subprocess.cpp:474] --serial=hardware=virtio-console,num=5,type=file,path=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/gatekeeper_fifo_vm.out,input=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/gatekeeper_fifo_vm.in
+run_cvd D 08-11 16:16:04  2165  2165 subprocess.cpp:474] --serial=hardware=virtio-console,num=6,type=file,path=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/bt_fifo_vm.out,input=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/bt_fifo_vm.in
+run_cvd D 08-11 16:16:04  2165  2165 subprocess.cpp:474] --serial=hardware=virtio-console,num=7,type=file,path=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/gnsshvc_fifo_vm.out,input=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/gnsshvc_fifo_vm.in
+run_cvd D 08-11 16:16:04  2165  2165 subprocess.cpp:474] --serial=hardware=virtio-console,num=8,type=file,path=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/locationhvc_fifo_vm.out,input=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/locationhvc_fifo_vm.in
+run_cvd D 08-11 16:16:04  2165  2165 subprocess.cpp:474] --serial=hardware=virtio-console,num=9,type=file,path=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/confui_fifo_vm.out,input=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/confui_fifo_vm.in
+run_cvd D 08-11 16:16:04  2165  2165 subprocess.cpp:474] --serial=hardware=virtio-console,num=10,type=file,path=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/uwb_fifo_vm.out,input=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/uwb_fifo_vm.in
+run_cvd D 08-11 16:16:04  2165  2165 subprocess.cpp:474] --serial=hardware=virtio-console,num=11,type=file,path=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/oemlock_fifo_vm.out,input=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/oemlock_fifo_vm.in
+run_cvd D 08-11 16:16:04  2165  2165 subprocess.cpp:474] --serial=hardware=virtio-console,num=12,type=file,path=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/keymint_fifo_vm.out,input=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/keymint_fifo_vm.in
+run_cvd D 08-11 16:16:04  2165  2165 subprocess.cpp:474] --serial=hardware=virtio-console,num=13,type=file,path=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/nfc_fifo_vm.out,input=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/nfc_fifo_vm.in
+run_cvd D 08-11 16:16:04  2165  2165 subprocess.cpp:474] --serial=hardware=virtio-console,num=14,type=sink
+run_cvd D 08-11 16:16:04  2165  2165 subprocess.cpp:474] --serial=hardware=virtio-console,num=15,type=sink
+run_cvd D 08-11 16:16:04  2165  2165 subprocess.cpp:474] --serial=hardware=virtio-console,num=16,type=sink
+run_cvd D 08-11 16:16:04  2165  2165 subprocess.cpp:474] --serial=hardware=virtio-console,num=17,type=sink
+run_cvd D 08-11 16:16:04  2165  2165 subprocess.cpp:474] --serial=hardware=virtio-console,num=18,type=sink
+run_cvd D 08-11 16:16:04  2165  2165 subprocess.cpp:474] --serial=hardware=virtio-console,num=19,type=file,path=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/sensors_control_fifo_vm.out,input=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/sensors_control_fifo_vm.in
+run_cvd D 08-11 16:16:04  2165  2165 subprocess.cpp:474] --serial=hardware=virtio-console,num=20,type=file,path=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/sensors_data_fifo_vm.out,input=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/sensors_data_fifo_vm.in
+run_cvd D 08-11 16:16:04  2165  2165 subprocess.cpp:474] --sound=/tmp/cf_avd_104/cvd-1/internal/audio_server.sock
+run_cvd D 08-11 16:16:04  2165  2165 subprocess.cpp:474] --pflash=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/pflash.img
+run_cvd D 08-11 16:16:04  2165  2165 subprocess.cpp:474] --bios=/var/tmp/cvd/104/1786464889230835/artifacts/host_tools/etc/bootloader_x86_64/bootloader.crosvm
+run_cvd D 08-11 16:16:04  2165  2247 process_monitor.cc:279] Waiting for a `stop` message from the parent
+log_tee(2245)  W 08-11 16:16:04  2245  2245 log_tee.cpp:82] Log tags unsupported with abseil logging: crosvm
+log_tee(2245)  D 08-11 16:16:04  2245  2245 log_tee.cpp:114] Starting to read from process crosvm
+adb_connector(2182)  D 08-11 16:16:04  2182  2248 adb_connection_maintainer.cpp:220] Attempting to connect to device with address 0.0.0.0:6520
+socket_vsock_proxy(2184)  W 08-11 16:16:04  2184  2184 socket_vsock_proxy.cpp:244] Log tags unsupported with abseil logging: fastboot
+socket_vsock_proxy(2201)  W 08-11 16:16:04  2201  2201 socket_vsock_proxy.cpp:244] Log tags unsupported with abseil logging: socket_vsock_proxy
+socket_vsock_proxy(2201)  D 08-11 16:16:04  2201  2201 socket_vsock_proxy.cpp:226] Starting proxy
+socket_vsock_proxy(2200)  W 08-11 16:16:04  2200  2200 socket_vsock_proxy.cpp:244] Log tags unsupported with abseil logging: socket_vsock_proxy
+socket_vsock_proxy(2183)  W 08-11 16:16:04  2183  2183 socket_vsock_proxy.cpp:244] Log tags unsupported with abseil logging: adb
+socket_vsock_proxy(2184)  D 08-11 16:16:04  2184  2184 socket_vsock_proxy.cpp:177] Start reading events to start/stop proxying
+socket_vsock_proxy(2200)  D 08-11 16:16:04  2200  2200 socket_vsock_proxy.cpp:226] Starting proxy
+socket_vsock_proxy(2183)  D 08-11 16:16:04  2183  2183 socket_vsock_proxy.cpp:177] Start reading events to start/stop proxying
+process_restarter(2244)  D 08-11 16:16:04  2244  2244 subprocess.cpp:512] Started (pid: 2255): /var/tmp/cvd/104/1786464889230835/artifacts/host_tools/bin/crosvm
+process_restarter(2193)  D 08-11 16:16:04  2193  2193 subprocess.cpp:512] Started (pid: 2254): /var/tmp/cvd/104/1786464889230835/artifacts/host_tools/bin/casimir
+process_restarter(2246)  D 08-11 16:16:04  2246  2246 subprocess.cpp:512] Started (pid: 2253): /var/tmp/cvd/104/1786464889230835/artifacts/host_tools/bin/crosvm
+process_restarter(2244)  D 08-11 16:16:04  2244  2244 subprocess.cpp:514] --extended-status
+process_restarter(2193)  D 08-11 16:16:04  2193  2193 subprocess.cpp:514] --nci-unix-fd
+process_restarter(2246)  D 08-11 16:16:04  2246  2246 subprocess.cpp:514] --extended-status
+process_restarter(2244)  D 08-11 16:16:04  2244  2244 subprocess.cpp:514] run
+process_restarter(2193)  D 08-11 16:16:04  2193  2193 subprocess.cpp:514] 101
+process_restarter(2246)  D 08-11 16:16:04  2246  2246 subprocess.cpp:514] run
+process_restarter(2244)  D 08-11 16:16:04  2244  2244 subprocess.cpp:514] --socket=/tmp/cf_avd_104/cvd-1/internal/ap_control.sock
+process_restarter(2193)  D 08-11 16:16:04  2193  2193 subprocess.cpp:514] --rf-unix-fd
+process_restarter(2246)  D 08-11 16:16:04  2246  2246 subprocess.cpp:514] --socket=/tmp/cf_avd_104/cvd-1/internal/crosvm_control.sock
+process_restarter(2244)  D 08-11 16:16:04  2244  2244 subprocess.cpp:514] --no-usb
+process_restarter(2193)  D 08-11 16:16:04  2193  2193 subprocess.cpp:514] 102
+process_restarter(2246)  D 08-11 16:16:04  2246  2246 subprocess.cpp:514] --no-smt
+process_restarter(2244)  D 08-11 16:16:04  2244  2244 subprocess.cpp:514] --core-scheduling=false
+process_restarter(2246)  D 08-11 16:16:04  2246  2246 subprocess.cpp:514] --no-usb
+process_restarter(2244)  D 08-11 16:16:04  2244  2244 subprocess.cpp:514] --vhost-user=mac80211-hwsim,socket=/tmp/cf_env_104/env-1/vhost_user_mac80211
+process_restarter(2246)  D 08-11 16:16:04  2246  2246 subprocess.cpp:514] --core-scheduling=false
+process_restarter(2244)  D 08-11 16:16:04  2244  2244 subprocess.cpp:514] --net=tap-name=cvd-wifiap-01
+process_restarter(2246)  D 08-11 16:16:04  2246  2246 subprocess.cpp:514] --vhost-user-connect-timeout-ms=30000
+process_restarter(2244)  D 08-11 16:16:04  2244  2244 subprocess.cpp:514] --disable-sandbox
+process_restarter(2246)  D 08-11 16:16:04  2246  2246 subprocess.cpp:514] --vhost-user=mac80211-hwsim,socket=/tmp/cf_env_104/env-1/vhost_user_mac80211
+process_restarter(2244)  D 08-11 16:16:04  2244  2244 subprocess.cpp:514] --block=path=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/ap_overlay.img
+process_restarter(2246)  D 08-11 16:16:04  2246  2246 subprocess.cpp:514] --wayland-sock=/tmp/cf_avd_104/cvd-1/internal/frames.sock
+process_restarter(2244)  D 08-11 16:16:04  2244  2244 subprocess.cpp:514] --serial=hardware=serial,num=1,type=file,path=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/logs/crosvm_openwrt_boot.log,earlycon=true
+process_restarter(2246)  D 08-11 16:16:04  2246  2246 subprocess.cpp:514] --gpu=displays=[[mode=windowed[720,1280],dpi=[320,320],refresh-rate=60]],backend=2D,pci-address=00:02.0
+process_restarter(2244)  D 08-11 16:16:04  2244  2244 subprocess.cpp:514] --serial=hardware=virtio-console,num=1,type=file,path=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/logs/crosvm_openwrt.log
+process_restarter(2246)  D 08-11 16:16:04  2246  2246 subprocess.cpp:514] --pmem=path=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/hwcomposer-pmem
+process_restarter(2244)  D 08-11 16:16:04  2244  2244 subprocess.cpp:514] --params="root=/dev/vda1"
+process_restarter(2246)  D 08-11 16:16:04  2246  2246 subprocess.cpp:514] --mem=8192
+process_restarter(2244)  D 08-11 16:16:04  2244  2244 subprocess.cpp:514] --params=wan_broadcast=192.168.94.3
+process_restarter(2246)  D 08-11 16:16:04  2246  2246 subprocess.cpp:514] --cpus=8
+process_restarter(2244)  D 08-11 16:16:04  2244  2244 subprocess.cpp:514] --params=wan_gateway=192.168.94.1
+process_restarter(2246)  D 08-11 16:16:04  2246  2246 subprocess.cpp:514] --block=path=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/overlay.img
+process_restarter(2244)  D 08-11 16:16:04  2244  2244 subprocess.cpp:514] --params=wan_ipaddr=192.168.94.2
+process_restarter(2244)  D 08-11 16:16:04  2244  2244 subprocess.cpp:514] --params=bridged_wifi_tap=false
+process_restarter(2246)  D 08-11 16:16:04  2246  2246 subprocess.cpp:514] --block=path=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/persistent_composite.img
+process_restarter(2244)  D 08-11 16:16:04  2244  2244 subprocess.cpp:514] --params=webrtc_device_id=cvddc4f503f-diag-simple-1
+process_restarter(2246)  D 08-11 16:16:04  2246  2246 subprocess.cpp:514] --block=path=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/sdcard.img
+process_restarter(2244)  D 08-11 16:16:04  2244  2244 subprocess.cpp:514] /var/tmp/cvd/104/1786464889230835/artifacts/host_tools/etc/openwrt/images/openwrt_kernel_x86_64
+process_restarter(2246)  D 08-11 16:16:04  2246  2246 subprocess.cpp:514] --vhost-user=type=input,socket=/tmp/cf_avd_104/cvd-1/internal/touch_0.sock,max-queue-size=256
+process_restarter(2246)  D 08-11 16:16:04  2246  2246 subprocess.cpp:514] --vhost-user=type=input,socket=/tmp/cf_avd_104/cvd-1/internal/rotary.sock,max-queue-size=256
+process_restarter(2246)  D 08-11 16:16:04  2246  2246 subprocess.cpp:514] --vhost-user=type=input,socket=/tmp/cf_avd_104/cvd-1/internal/keyboard.sock,max-queue-size=256
+process_restarter(2246)  D 08-11 16:16:04  2246  2246 subprocess.cpp:514] --vhost-user=type=input,socket=/tmp/cf_avd_104/cvd-1/internal/switches.sock,max-queue-size=256
+process_restarter(2246)  D 08-11 16:16:04  2246  2246 subprocess.cpp:514] --net=tap-name=cvd-mtap-01,mac=00:1a:11:e0:cf:00,pci-address=00:01.1
+process_restarter(2246)  D 08-11 16:16:04  2246  2246 subprocess.cpp:514] --net=tap-name=cvd-etap-01,mac=00:1a:11:e1:cf:00,pci-address=00:01.2
+process_restarter(2246)  D 08-11 16:16:04  2246  2246 subprocess.cpp:514] --pmem=path=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/access-kregistry
+process_restarter(2246)  D 08-11 16:16:04  2246  2246 subprocess.cpp:514] --pstore=path=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/pstore,size=2097152
+process_restarter(2246)  D 08-11 16:16:04  2246  2246 subprocess.cpp:514] --disable-sandbox
+process_restarter(2246)  D 08-11 16:16:04  2246  2246 subprocess.cpp:514] --vsock=cid=3
+process_restarter(2246)  D 08-11 16:16:04  2246  2246 subprocess.cpp:514] --serial=hardware=virtio-console,num=1,type=file,path=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/kernel-log-pipe,console=true
+process_restarter(2246)  D 08-11 16:16:04  2246  2246 subprocess.cpp:514] --serial=hardware=serial,num=1,type=file,path=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/kernel-log-pipe,earlycon=true
+process_restarter(2246)  D 08-11 16:16:04  2246  2246 subprocess.cpp:514] --serial=hardware=virtio-console,num=2,type=sink
+process_restarter(2246)  D 08-11 16:16:04  2246  2246 subprocess.cpp:514] --serial=hardware=virtio-console,num=3,type=file,path=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/logcat-pipe
+process_restarter(2246)  D 08-11 16:16:04  2246  2246 subprocess.cpp:514] --serial=hardware=virtio-console,num=4,type=file,path=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/keymaster_fifo_vm.out,input=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/keymaster_fifo_vm.in
+process_restarter(2246)  D 08-11 16:16:04  2246  2246 subprocess.cpp:514] --serial=hardware=virtio-console,num=5,type=file,path=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/gatekeeper_fifo_vm.out,input=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/gatekeeper_fifo_vm.in
+process_restarter(2246)  D 08-11 16:16:04  2246  2246 subprocess.cpp:514] --serial=hardware=virtio-console,num=6,type=file,path=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/bt_fifo_vm.out,input=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/bt_fifo_vm.in
+process_restarter(2246)  D 08-11 16:16:04  2246  2246 subprocess.cpp:514] --serial=hardware=virtio-console,num=7,type=file,path=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/gnsshvc_fifo_vm.out,input=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/gnsshvc_fifo_vm.in
+process_restarter(2246)  D 08-11 16:16:04  2246  2246 subprocess.cpp:514] --serial=hardware=virtio-console,num=8,type=file,path=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/locationhvc_fifo_vm.out,input=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/locationhvc_fifo_vm.in
+process_restarter(2246)  D 08-11 16:16:04  2246  2246 subprocess.cpp:514] --serial=hardware=virtio-console,num=9,type=file,path=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/confui_fifo_vm.out,input=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/confui_fifo_vm.in
+process_restarter(2246)  D 08-11 16:16:04  2246  2246 subprocess.cpp:514] --serial=hardware=virtio-console,num=10,type=file,path=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/uwb_fifo_vm.out,input=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/uwb_fifo_vm.in
+process_restarter(2246)  D 08-11 16:16:04  2246  2246 subprocess.cpp:514] --serial=hardware=virtio-console,num=11,type=file,path=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/oemlock_fifo_vm.out,input=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/oemlock_fifo_vm.in
+log_tee(2192)  D 08-11 16:16:42  2192  2192 log_tee.cpp:146] [INFO  casimir::controller]          TechMode: NfcFPassivePollMode
+log_tee(2192)  D 08-11 16:16:42  2192  2192 log_tee.cpp:146] [INFO  casimir::controller]          TechMode: NfcAPassiveListenMode
+log_tee(2192)  D 08-11 16:16:42  2192  2192 log_tee.cpp:146] [INFO  casimir::controller]          TechMode: NfcVPassivePollMode
+log_tee(2192)  D 08-11 16:16:43  2192  2192 log_tee.cpp:146] [INFO  casimir::controller] [0] RF_DEACTIVATE_CMD
+log_tee(2192)  D 08-11 16:16:43  2192  2192 log_tee.cpp:146] [INFO  casimir::controller]          Type: IdleMode
+log_tee(2192)  D 08-11 16:16:43  2192  2192 log_tee.cpp:146] [INFO  casimir::controller] [0] ANDROID_SET_PASSIVE_OBSERVER_EXIT_FRAMES_CMD
+log_tee(2192)  D 08-11 16:16:43  2192  2192 log_tee.cpp:146] [INFO  casimir::controller] number of exit frames 0
+log_tee(2192)  D 08-11 16:16:43  2192  2192 log_tee.cpp:146] [INFO  casimir::controller] [0] RF_DISCOVER_CMD
+log_tee(2192)  D 08-11 16:16:43  2192  2192 log_tee.cpp:146] [INFO  casimir::controller]          TechMode: NfcAPassivePollMode
+log_tee(2192)  D 08-11 16:16:43  2192  2192 log_tee.cpp:146] [INFO  casimir::controller]          TechMode: NfcBPassivePollMode
+log_tee(2192)  D 08-11 16:16:43  2192  2192 log_tee.cpp:146] [INFO  casimir::controller]          TechMode: NfcFPassivePollMode
+log_tee(2192)  D 08-11 16:16:43  2192  2192 log_tee.cpp:146] [INFO  casimir::controller]          TechMode: NfcAPassiveListenMode
+log_tee(2192)  D 08-11 16:16:43  2192  2192 log_tee.cpp:146] [INFO  casimir::controller]          TechMode: NfcVPassivePollMode
+log_tee(2192)  D 08-11 16:16:45  2192  2192 log_tee.cpp:146] [INFO  casimir::controller] [0] RF_DEACTIVATE_CMD
+log_tee(2192)  D 08-11 16:16:45  2192  2192 log_tee.cpp:146] [INFO  casimir::controller]          Type: IdleMode
+log_tee(2192)  D 08-11 16:16:45  2192  2192 log_tee.cpp:146] [INFO  casimir::controller] [0] ANDROID_SET_PASSIVE_OBSERVER_EXIT_FRAMES_CMD
+log_tee(2192)  D 08-11 16:16:45  2192  2192 log_tee.cpp:146] [INFO  casimir::controller] number of exit frames 0
+log_tee(2192)  D 08-11 16:16:45  2192  2192 log_tee.cpp:146] [INFO  casimir::controller] [0] RF_DISCOVER_CMD
+log_tee(2192)  D 08-11 16:16:45  2192  2192 log_tee.cpp:146] [INFO  casimir::controller]          TechMode: NfcAPassivePollMode
+log_tee(2192)  D 08-11 16:16:45  2192  2192 log_tee.cpp:146] [INFO  casimir::controller]          TechMode: NfcBPassivePollMode
+log_tee(2192)  D 08-11 16:16:45  2192  2192 log_tee.cpp:146] [INFO  casimir::controller]          TechMode: NfcFPassivePollMode
+log_tee(2192)  D 08-11 16:16:45  2192  2192 log_tee.cpp:146] [INFO  casimir::controller]          TechMode: NfcAPassiveListenMode
+log_tee(2192)  D 08-11 16:16:45  2192  2192 log_tee.cpp:146] [INFO  casimir::controller]          TechMode: NfcVPassivePollMode
+kernel_log_monitor(2190)  I 08-11 16:16:46  2190  2190 kernel_log_server.cc:153] VIRTUAL_DEVICE_BOOT_STARTED
+kernel_log_monitor(2190)  I 08-11 16:16:47  2190  2190 kernel_log_server.cc:153] VIRTUAL_DEVICE_BOOT_COMPLETED
+run_cvd I 08-11 16:16:47  2162  2163 boot_state_machine.cc:574] Virtual device booted successfully
+run_cvd I 08-11 16:16:47  2156  2156 boot_state_machine.cc:154] Virtual device booted successfully
+run_cvd I 08-11 16:16:47  2156  2156 boot_state_machine.cc:173] VIRTUAL_DEVICE_BOOT_COMPLETED
+kernel_log_monitor(2190)  I 08-11 16:16:49  2190  2190 kernel_log_server.cc:153] VIRTUAL_DEVICE_NETWORK_MOBILE_CONNECTED
+run_cvd D 08-11 16:19:51  2165  2247 channel_sharedfd.cpp:44] Received message with id: 1
+run_cvd D 08-11 16:19:51  2165  2165 process_monitor.cc:156] Stopping monitored subprocesses
+run_cvd D 08-11 16:19:51  2165  2165 subprocess.cpp:472] Started (pid: 2789): /var/tmp/cvd/104/1786464889230835/artifacts/host_tools/bin/crosvm
+run_cvd D 08-11 16:19:51  2165  2165 subprocess.cpp:474] stop
+run_cvd D 08-11 16:19:51  2165  2165 subprocess.cpp:474] /tmp/cf_avd_104/cvd-1/internal/crosvm_control.sock
+[2026-08-11T16:19:51.802007519+00:00 INFO  crosvm] exiting with success
+log_tee(2245)  E 08-11 16:19:51  2245  2245 log_tee.cpp:159] [2026-08-11T16:19:51.803442216+00:00 ERROR devices::virtio::gpu] unhandled virtio-gpu worker event hang-up detected: ResourceBridge { index: 0 }
+log_tee(2245)  E 08-11 16:19:51  2245  2245 log_tee.cpp:159] [2026-08-11T16:19:51.803511941+00:00 ERROR devices::virtio::gpu] Failed to process resource bridge: Error receiving resource bridge request: tube was disconnected
+log_tee(2245)  E 08-11 16:19:51  2245  2245 log_tee.cpp:159] [2026-08-11T16:19:51.803530451+00:00 ERROR devices::virtio::gpu] Removing that resource bridge from the wait context.
+log_tee(2175)  D 08-11 16:19:51  2175  2175 log_tee.cpp:179] [2026-08-11T16:19:51Z ERROR cf_vhost_user_input] Error: HandleRequest(Disconnected)
+log_tee(2175)  D 08-11 16:19:51  2175  2175 log_tee.cpp:179] [2026-08-11T16:19:51Z INFO  cf_vhost_user_input] Daemon exited
+log_tee(2169)  D 08-11 16:19:51  2169  2169 log_tee.cpp:179] [2026-08-11T16:19:51Z ERROR cf_vhost_user_input] Error: HandleRequest(Disconnected)
+log_tee(2169)  D 08-11 16:19:51  2169  2169 log_tee.cpp:179] [2026-08-11T16:19:51Z INFO  cf_vhost_user_input] Daemon exited
+log_tee(2175)  D 08-11 16:19:51  2175  2175 log_tee.cpp:179] [2026-08-11T16:19:51Z INFO  cf_vhost_user_input] Created vhost-user daemon
+log_tee(2169)  D 08-11 16:19:51  2169  2169 log_tee.cpp:179] [2026-08-11T16:19:51Z INFO  cf_vhost_user_input] Created vhost-user daemon
+log_tee(2171)  D 08-11 16:19:51  2171  2171 log_tee.cpp:179] [2026-08-11T16:19:51Z ERROR cf_vhost_user_input] Error: HandleRequest(Disconnected)
+log_tee(2171)  D 08-11 16:19:51  2171  2171 log_tee.cpp:179] [2026-08-11T16:19:51Z INFO  cf_vhost_user_input] Daemon exited
+log_tee(2171)  D 08-11 16:19:51  2171  2171 log_tee.cpp:179] [2026-08-11T16:19:51Z INFO  cf_vhost_user_input] Created vhost-user daemon
+log_tee(2173)  D 08-11 16:19:51  2173  2173 log_tee.cpp:179] [2026-08-11T16:19:51Z ERROR cf_vhost_user_input] Error: HandleRequest(Disconnected)
+log_tee(2173)  D 08-11 16:19:51  2173  2173 log_tee.cpp:179] [2026-08-11T16:19:51Z INFO  cf_vhost_user_input] Daemon exited
+log_tee(2173)  D 08-11 16:19:51  2173  2173 log_tee.cpp:179] [2026-08-11T16:19:51Z INFO  cf_vhost_user_input] Created vhost-user daemon
+webRTC(2179)  I 08-11 16:19:51  2179  2368 vsock_connection.cpp:58] Disconnecting with fd status:UNAVAILABLE: StrError(): Connection reset by peer
+modem_simulator(2166)  D 08-11 16:19:51  2166  2241 channel_monitor.cpp:93] Error reading from client fd: UNAVAILABLE: StrError(): Connection reset by peer
+webRTC(2179)  E 08-11 16:19:51  2179  2368 vsock_connection.cpp:222] Failed to connect:NOT_FOUND: StrError(): No such device
+webRTC(2179)  D 08-11 16:19:51  2179  2384 server.cpp:284] VRTIO_SND_R_PCM_STOP: stream_id=0
+webRTC(2179)  D 08-11 16:19:51  2179  2384 server.cpp:257] VRTIO_SND_R_PCM_RELEASE: stream_id=0
+webRTC(2179)  D 08-11 16:19:51  2179  2384 server.cpp:284] VRTIO_SND_R_PCM_STOP: stream_id=1
+webRTC(2179)  D 08-11 16:19:51  2179  2384 server.cpp:257] VRTIO_SND_R_PCM_RELEASE: stream_id=1
+webRTC(2179)  E 08-11 16:19:51  2179  2384 server.cpp:457] Client closed the connection
+webRTC(2179)  E 08-11 16:19:51  2179  2389 server.cpp:457] Client closed the connection
+webRTC(2179)  E 08-11 16:19:51  2179  2388 server.cpp:457] Client closed the connection
+log_tee(2245)  I 08-11 16:19:52  2245  2245 log_tee.cpp:168] [2026-08-11T16:19:52.552897326+00:00 INFO  crosvm] exiting with success
+log_tee(2245)  D 08-11 16:19:52  2245  2245 log_tee.cpp:200] Finished reading from process crosvm
+run_cvd D 08-11 16:19:52  2165  2165 subprocess.cpp:472] Started (pid: 2830): /var/tmp/cvd/104/1786464889230835/artifacts/host_tools/bin/crosvm
+run_cvd D 08-11 16:19:52  2165  2165 subprocess.cpp:474] stop
+run_cvd D 08-11 16:19:52  2165  2165 subprocess.cpp:474] /tmp/cf_avd_104/cvd-1/internal/ap_control.sock
+[2026-08-11T16:19:52.570759478+00:00 INFO  crosvm] exiting with success
+log_tee(2207)  I 08-11 16:19:52  2207  2207 log_tee.cpp:168] [2026-08-11T16:19:52.643536201+00:00 INFO  crosvm] exiting with success
+webRTC(2179)  D 08-11 16:19:52  2179  2382 channel_sharedfd.cpp:47] Received message with id: 0
+webRTC(2179)  I 08-11 16:19:52  2179  2382 main.cpp:153] Received command to stop recording in main.cpp.
+run_cvd D 08-11 16:19:52  2165  2165 channel_sharedfd.cpp:44] Received message with id: 0
+run_cvd I 08-11 16:19:52  2165  2165 process_monitor.cc:97] Detected unexpected exit of monitored subprocess /var/tmp/cvd/104/1786464889230835/artifacts/host_tools/bin/webRTC
+run_cvd E 08-11 16:19:52  2165  2165 process_monitor.cc:102] Subprocess /var/tmp/cvd/104/1786464889230835/artifacts/host_tools/bin/webRTC (2179) was interrupted by a signal 'Killed' (9)
+modem_simulator(2166)  I 08-11 16:19:52  2166  2166 main.cpp:147] Exit request from parent process
+Exit request from parent process
+run_cvd D 08-11 16:19:52  2165  2165 process_monitor.cc:444] Done monitoring subprocesses
+run_cvd D 08-11 16:19:52  2162  2162 subprocess.cpp:472] Started (pid: 2835): /usr/lib/cuttlefish-common/bin/capability_query.py
+run_cvd D 08-11 16:19:52  2162  2162 subprocess.cpp:474] qemu_cli
+run_cvd I 08-11 16:19:52  2162  2162 reporting.cpp:33] The following lines contain useful debugging information:
+The following lines contain useful debugging information:
+run_cvd I 08-11 16:19:52  2162  2162 reporting.cpp:38]   Point your browser to https://localhost:8443 to interact with the device.
+  Point your browser to https://localhost:8443 to interact with the device.
+run_cvd I 08-11 16:19:52  2162  2162 reporting.cpp:38]   Serial console is disabled; use -console=true to enable it.
+  Serial console is disabled; use -console=true to enable it.
+run_cvd I 08-11 16:19:52  2162  2162 reporting.cpp:38]   Logcat output: /var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/logs/logcat
+  Logcat output: /var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/logs/logcat
+run_cvd I 08-11 16:19:52  2162  2162 reporting.cpp:38]   Kernel log: /var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/kernel.log
+  Kernel log: /var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/kernel.log
+run_cvd I 08-11 16:19:52  2162  2162 reporting.cpp:38]   Launcher log: /var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/logs/launcher.log
+  Launcher log: /var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/logs/launcher.log
+run_cvd I 08-11 16:19:52  2162  2162 reporting.cpp:38]   Instance configuration: /var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/cuttlefish_config.json
+  Instance configuration: /var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/cuttlefish_config.json
+run_cvd I 08-11 16:19:52  2162  2162 reporting.cpp:38]   Launcher Build ID: 15885347
+  Launcher Build ID: 15885347
+run_cvd D 08-11 16:19:52  2162  2162 feature.cpp:49] Running setup for cuttlefish::ValidateHostConfiguration
+run_cvd D 08-11 16:19:52  2162  2162 feature.cpp:49] Running setup for cuttlefish::SensorsSocketPair::Create
+run_cvd D 08-11 16:19:52  2162  2162 feature.cpp:49] Running setup for Netsim
+run_cvd D 08-11 16:19:52  2162  2162 feature.cpp:49] Running setup for cuttlefish::Pica
+run_cvd D 08-11 16:19:52  2162  2162 feature.cpp:49] Running setup for KernelLogMonitor
+run_cvd D 08-11 16:19:52  2162  2162 feature.cpp:49] Running setup for cuttlefish::SensorsSimulator
+run_cvd D 08-11 16:19:52  2162  2162 feature.cpp:49] Running setup for cuttlefish::MetricsService
+run_cvd D 08-11 16:19:52  2162  2162 feature.cpp:49] Running setup for cuttlefish::SnapshotControlFiles::Create
+log_tee(2888)  D 08-11 16:19:52  2888  2888 log_tee.cpp:146] [INFO  casimir] Listening for NCI connections on fd 77
+log_tee(2888)  D 08-11 16:19:52  2888  2888 log_tee.cpp:146] [INFO  casimir] Listening for RF connections on fd 78
+log_tee(2888)  D 08-11 16:19:52  2888  2888 log_tee.cpp:146] [INFO  casimir] Incoming NCI connection from (unnamed)
+log_tee(2888)  D 08-11 16:19:52  2888  2888 log_tee.cpp:146] [INFO  casimir] Accepted NCI connection from (unnamed) in slot 0
+run_cvd D 08-11 16:19:52  2843  2843 subprocess.cpp:472] Started (pid: 2986): /var/tmp/cvd/104/1786464889230835/artifacts/host_tools/bin/process_restarter
+run_cvd D 08-11 16:19:52  2843  2843 subprocess.cpp:474] -when_exited_with_code=32
+run_cvd D 08-11 16:19:52  2843  2843 subprocess.cpp:474] -ignore_sigtstp
+run_cvd D 08-11 16:19:52  2843  2843 subprocess.cpp:474] --
+run_cvd D 08-11 16:19:52  2843  2843 subprocess.cpp:474] /var/tmp/cvd/104/1786464889230835/artifacts/host_tools/bin/crosvm
+run_cvd D 08-11 16:19:52  2843  2843 subprocess.cpp:474] --extended-status
+run_cvd D 08-11 16:19:52  2843  2843 subprocess.cpp:474] run
+run_cvd D 08-11 16:19:52  2843  2843 subprocess.cpp:474] --socket=/tmp/cf_avd_104/cvd-1/internal/ap_control.sock
+run_cvd D 08-11 16:19:52  2843  2843 subprocess.cpp:474] --no-usb
+run_cvd D 08-11 16:19:52  2843  2843 subprocess.cpp:474] --core-scheduling=false
+run_cvd D 08-11 16:19:52  2843  2843 subprocess.cpp:474] --vhost-user=mac80211-hwsim,socket=/tmp/cf_env_104/env-1/vhost_user_mac80211
+run_cvd D 08-11 16:19:52  2843  2843 subprocess.cpp:474] --net=tap-name=cvd-wifiap-01
+run_cvd D 08-11 16:19:52  2843  2843 subprocess.cpp:474] --disable-sandbox
+run_cvd D 08-11 16:19:52  2843  2843 subprocess.cpp:474] --block=path=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/ap_overlay.img
+run_cvd D 08-11 16:19:52  2843  2843 subprocess.cpp:474] --serial=hardware=serial,num=1,type=file,path=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/logs/crosvm_openwrt_boot.log,earlycon=true
+run_cvd D 08-11 16:19:52  2843  2843 subprocess.cpp:474] --serial=hardware=virtio-console,num=1,type=file,path=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/logs/crosvm_openwrt.log
+run_cvd D 08-11 16:19:52  2843  2843 subprocess.cpp:474] --params="root=/dev/vda1"
+run_cvd D 08-11 16:19:52  2843  2843 subprocess.cpp:474] --params=wan_broadcast=192.168.94.3
+run_cvd D 08-11 16:19:52  2843  2843 subprocess.cpp:474] --params=wan_gateway=192.168.94.1
+run_cvd D 08-11 16:19:52  2843  2843 subprocess.cpp:474] --params=wan_ipaddr=192.168.94.2
+run_cvd D 08-11 16:19:52  2843  2843 subprocess.cpp:474] --params=bridged_wifi_tap=false
+run_cvd D 08-11 16:19:52  2843  2843 subprocess.cpp:474] --params=webrtc_device_id=cvddc4f503f-diag-simple-1
+run_cvd D 08-11 16:19:52  2843  2843 subprocess.cpp:474] /var/tmp/cvd/104/1786464889230835/artifacts/host_tools/etc/openwrt/images/openwrt_kernel_x86_64
+run_cvd I 08-11 16:19:52  2843  2843 process_monitor.cc:261] /var/tmp/cvd/104/1786464889230835/artifacts/host_tools/bin/log_tee
+run_cvd D 08-11 16:19:52  2843  2843 subprocess.cpp:472] Started (pid: 2991): /var/tmp/cvd/104/1786464889230835/artifacts/host_tools/bin/log_tee
+run_cvd D 08-11 16:19:52  2843  2843 subprocess.cpp:474] --process_name=crosvm
+run_cvd D 08-11 16:19:52  2843  2843 subprocess.cpp:474] --log_fd_in=165
+run_cvd I 08-11 16:19:52  2843  2843 process_monitor.cc:261] /var/tmp/cvd/104/1786464889230835/artifacts/host_tools/bin/process_restarter
+run_cvd D 08-11 16:19:52  2843  2843 subprocess.cpp:472] Started (pid: 3000): /var/tmp/cvd/104/1786464889230835/artifacts/host_tools/bin/process_restarter
+Server listening on unix:/tmp/cf_avd_104/cvd-1/grpc_socket/ControlEnvProxyServer.sock
+run_cvd D 08-11 16:19:52  2843  2843 subprocess.cpp:474] -when_exited_with_code=32
+run_cvd D 08-11 16:19:52  2843  2843 subprocess.cpp:474] -ignore_sigtstp
+run_cvd D 08-11 16:19:52  2843  2843 subprocess.cpp:474] --
+run_cvd D 08-11 16:19:52  2843  2843 subprocess.cpp:474] /var/tmp/cvd/104/1786464889230835/artifacts/host_tools/bin/crosvm
+run_cvd D 08-11 16:19:52  2843  2843 subprocess.cpp:474] --extended-status
+run_cvd D 08-11 16:19:52  2843  2843 subprocess.cpp:474] run
+run_cvd D 08-11 16:19:52  2843  2843 subprocess.cpp:474] --socket=/tmp/cf_avd_104/cvd-1/internal/crosvm_control.sock
+run_cvd D 08-11 16:19:52  2843  2843 subprocess.cpp:474] --no-smt
+run_cvd D 08-11 16:19:52  2843  2843 subprocess.cpp:474] --no-usb
+run_cvd D 08-11 16:19:52  2843  2843 subprocess.cpp:474] --core-scheduling=false
+run_cvd D 08-11 16:19:52  2843  2843 subprocess.cpp:474] --vhost-user-connect-timeout-ms=30000
+run_cvd D 08-11 16:19:52  2843  2843 subprocess.cpp:474] --vhost-user=mac80211-hwsim,socket=/tmp/cf_env_104/env-1/vhost_user_mac80211
+run_cvd D 08-11 16:19:52  2843  2843 subprocess.cpp:474] --wayland-sock=/tmp/cf_avd_104/cvd-1/internal/frames.sock
+run_cvd D 08-11 16:19:52  2843  2843 subprocess.cpp:474] --gpu=displays=[[mode=windowed[720,1280],dpi=[320,320],refresh-rate=60]],backend=2D,pci-address=00:02.0
+run_cvd D 08-11 16:19:52  2843  2843 subprocess.cpp:474] --pmem=path=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/hwcomposer-pmem
+run_cvd D 08-11 16:19:52  2843  2843 subprocess.cpp:474] --mem=8192
+run_cvd D 08-11 16:19:52  2843  2843 subprocess.cpp:474] --cpus=8
+run_cvd D 08-11 16:19:52  2843  2843 subprocess.cpp:474] --block=path=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/overlay.img
+run_cvd D 08-11 16:19:52  2843  2843 subprocess.cpp:474] --block=path=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/persistent_composite.img
+run_cvd D 08-11 16:19:52  2843  2843 subprocess.cpp:474] --block=path=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/sdcard.img
+run_cvd D 08-11 16:19:52  2843  2843 subprocess.cpp:474] --vhost-user=type=input,socket=/tmp/cf_avd_104/cvd-1/internal/touch_0.sock,max-queue-size=256
+run_cvd D 08-11 16:19:52  2843  2843 subprocess.cpp:474] --vhost-user=type=input,socket=/tmp/cf_avd_104/cvd-1/internal/rotary.sock,max-queue-size=256
+run_cvd D 08-11 16:19:52  2843  2843 subprocess.cpp:474] --vhost-user=type=input,socket=/tmp/cf_avd_104/cvd-1/internal/keyboard.sock,max-queue-size=256
+run_cvd D 08-11 16:19:52  2843  2843 subprocess.cpp:474] --vhost-user=type=input,socket=/tmp/cf_avd_104/cvd-1/internal/switches.sock,max-queue-size=256
+run_cvd D 08-11 16:19:52  2843  2843 subprocess.cpp:474] --net=tap-name=cvd-mtap-01,mac=00:1a:11:e0:cf:00,pci-address=00:01.1
+run_cvd D 08-11 16:19:52  2843  2843 subprocess.cpp:474] --net=tap-name=cvd-etap-01,mac=00:1a:11:e1:cf:00,pci-address=00:01.2
+run_cvd D 08-11 16:19:52  2843  2843 subprocess.cpp:474] --pmem=path=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/access-kregistry
+run_cvd D 08-11 16:19:52  2843  2843 subprocess.cpp:474] --pstore=path=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/pstore,size=2097152
+run_cvd D 08-11 16:19:52  2843  2843 subprocess.cpp:474] --disable-sandbox
+run_cvd D 08-11 16:19:52  2843  2843 subprocess.cpp:474] --vsock=cid=3
+run_cvd D 08-11 16:19:52  2843  2843 subprocess.cpp:474] --serial=hardware=virtio-console,num=1,type=file,path=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/kernel-log-pipe,console=true
+run_cvd D 08-11 16:19:52  2843  2843 subprocess.cpp:474] --serial=hardware=serial,num=1,type=file,path=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/kernel-log-pipe,earlycon=true
+run_cvd D 08-11 16:19:52  2843  2843 subprocess.cpp:474] --serial=hardware=virtio-console,num=2,type=sink
+run_cvd D 08-11 16:19:52  2843  2843 subprocess.cpp:474] --serial=hardware=virtio-console,num=3,type=file,path=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/logcat-pipe
+run_cvd D 08-11 16:19:52  2843  2843 subprocess.cpp:474] --serial=hardware=virtio-console,num=4,type=file,path=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/keymaster_fifo_vm.out,input=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/keymaster_fifo_vm.in
+run_cvd D 08-11 16:19:52  2843  2843 subprocess.cpp:474] --serial=hardware=virtio-console,num=5,type=file,path=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/gatekeeper_fifo_vm.out,input=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/gatekeeper_fifo_vm.in
+run_cvd D 08-11 16:19:52  2843  2843 subprocess.cpp:474] --serial=hardware=virtio-console,num=6,type=file,path=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/bt_fifo_vm.out,input=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/bt_fifo_vm.in
+run_cvd D 08-11 16:19:52  2843  2843 subprocess.cpp:474] --serial=hardware=virtio-console,num=7,type=file,path=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/gnsshvc_fifo_vm.out,input=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/gnsshvc_fifo_vm.in
+run_cvd D 08-11 16:19:52  2843  2843 subprocess.cpp:474] --serial=hardware=virtio-console,num=8,type=file,path=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/locationhvc_fifo_vm.out,input=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/locationhvc_fifo_vm.in
+run_cvd D 08-11 16:19:52  2843  2843 subprocess.cpp:474] --serial=hardware=virtio-console,num=9,type=file,path=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/confui_fifo_vm.out,input=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/confui_fifo_vm.in
+run_cvd D 08-11 16:19:52  2843  2843 subprocess.cpp:474] --serial=hardware=virtio-console,num=10,type=file,path=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/uwb_fifo_vm.out,input=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/uwb_fifo_vm.in
+run_cvd D 08-11 16:19:52  2843  2843 subprocess.cpp:474] --serial=hardware=virtio-console,num=11,type=file,path=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/oemlock_fifo_vm.out,input=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/oemlock_fifo_vm.in
+run_cvd D 08-11 16:19:52  2843  2843 subprocess.cpp:474] --serial=hardware=virtio-console,num=12,type=file,path=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/keymint_fifo_vm.out,input=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/keymint_fifo_vm.in
+run_cvd D 08-11 16:19:52  2843  2843 subprocess.cpp:474] --serial=hardware=virtio-console,num=13,type=file,path=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/nfc_fifo_vm.out,input=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/nfc_fifo_vm.in
+run_cvd D 08-11 16:19:52  2843  2843 subprocess.cpp:474] --serial=hardware=virtio-console,num=14,type=sink
+run_cvd D 08-11 16:19:52  2843  2843 subprocess.cpp:474] --serial=hardware=virtio-console,num=15,type=sink
+run_cvd D 08-11 16:19:52  2843  2843 subprocess.cpp:474] --serial=hardware=virtio-console,num=16,type=sink
+process_restarter(2986)  D 08-11 16:19:52  2986  2986 subprocess.cpp:512] Started (pid: 3002): /var/tmp/cvd/104/1786464889230835/artifacts/host_tools/bin/crosvm
+run_cvd D 08-11 16:19:52  2843  2843 subprocess.cpp:474] --serial=hardware=virtio-console,num=17,type=sink
+run_cvd D 08-11 16:19:52  2843  2843 subprocess.cpp:474] --serial=hardware=virtio-console,num=18,type=sink
+process_restarter(2986)  D 08-11 16:19:52  2986  2986 subprocess.cpp:514] --extended-status
+process_restarter(2986)  D 08-11 16:19:52  2986  2986 subprocess.cpp:514] run
+run_cvd D 08-11 16:19:52  2843  2843 subprocess.cpp:474] --serial=hardware=virtio-console,num=19,type=file,path=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/sensors_control_fifo_vm.out,input=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/sensors_control_fifo_vm.in
+process_restarter(2986)  D 08-11 16:19:52  2986  2986 subprocess.cpp:514] --socket=/tmp/cf_avd_104/cvd-1/internal/ap_control.sock
+process_restarter(2986)  D 08-11 16:19:52  2986  2986 subprocess.cpp:514] --no-usb
+run_cvd D 08-11 16:19:52  2843  2843 subprocess.cpp:474] --serial=hardware=virtio-console,num=20,type=file,path=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/sensors_data_fifo_vm.out,input=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/sensors_data_fifo_vm.in
+process_restarter(2986)  D 08-11 16:19:52  2986  2986 subprocess.cpp:514] --core-scheduling=false
+run_cvd D 08-11 16:19:52  2843  2843 subprocess.cpp:474] --sound=/tmp/cf_avd_104/cvd-1/internal/audio_server.sock
+process_restarter(2986)  D 08-11 16:19:52  2986  2986 subprocess.cpp:514] --vhost-user=mac80211-hwsim,socket=/tmp/cf_env_104/env-1/vhost_user_mac80211
+run_cvd D 08-11 16:19:52  2843  2843 subprocess.cpp:474] --pflash=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/pflash.img
+process_restarter(2986)  D 08-11 16:19:52  2986  2986 subprocess.cpp:514] --net=tap-name=cvd-wifiap-01
+run_cvd D 08-11 16:19:52  2843  2843 subprocess.cpp:474] --bios=/var/tmp/cvd/104/1786464889230835/artifacts/host_tools/etc/bootloader_x86_64/bootloader.crosvm
+process_restarter(2986)  D 08-11 16:19:52  2986  2986 subprocess.cpp:514] --disable-sandbox
+process_restarter(2986)  D 08-11 16:19:52  2986  2986 subprocess.cpp:514] --block=path=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/ap_overlay.img
+process_restarter(2986)  D 08-11 16:19:52  2986  2986 subprocess.cpp:514] --serial=hardware=serial,num=1,type=file,path=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/logs/crosvm_openwrt_boot.log,earlycon=true
+process_restarter(2986)  D 08-11 16:19:52  2986  2986 subprocess.cpp:514] --serial=hardware=virtio-console,num=1,type=file,path=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/logs/crosvm_openwrt.log
+process_restarter(2986)  D 08-11 16:19:52  2986  2986 subprocess.cpp:514] --params="root=/dev/vda1"
+process_restarter(2986)  D 08-11 16:19:52  2986  2986 subprocess.cpp:514] --params=wan_broadcast=192.168.94.3
+process_restarter(2986)  D 08-11 16:19:52  2986  2986 subprocess.cpp:514] --params=wan_gateway=192.168.94.1
+process_restarter(2986)  D 08-11 16:19:52  2986  2986 subprocess.cpp:514] --params=wan_ipaddr=192.168.94.2
+process_restarter(2986)  D 08-11 16:19:52  2986  2986 subprocess.cpp:514] --params=bridged_wifi_tap=false
+process_restarter(2986)  D 08-11 16:19:52  2986  2986 subprocess.cpp:514] --params=webrtc_device_id=cvddc4f503f-diag-simple-1
+run_cvd D 08-11 16:19:52  2843  3003 process_monitor.cc:279] Waiting for a `stop` message from the parent
+process_restarter(2986)  D 08-11 16:19:52  2986  2986 subprocess.cpp:514] /var/tmp/cvd/104/1786464889230835/artifacts/host_tools/etc/openwrt/images/openwrt_kernel_x86_64
+log_tee(2991)  W 08-11 16:19:52  2991  2991 log_tee.cpp:82] Log tags unsupported with abseil logging: crosvm
+log_tee(2991)  D 08-11 16:19:52  2991  2991 log_tee.cpp:114] Starting to read from process crosvm
+process_restarter(3000)  D 08-11 16:19:52  3000  3000 subprocess.cpp:512] Started (pid: 3007): /var/tmp/cvd/104/1786464889230835/artifacts/host_tools/bin/crosvm
+process_restarter(3000)  D 08-11 16:19:52  3000  3000 subprocess.cpp:514] --extended-status
+process_restarter(3000)  D 08-11 16:19:52  3000  3000 subprocess.cpp:514] run
+process_restarter(3000)  D 08-11 16:19:52  3000  3000 subprocess.cpp:514] --socket=/tmp/cf_avd_104/cvd-1/internal/crosvm_control.sock
+process_restarter(3000)  D 08-11 16:19:52  3000  3000 subprocess.cpp:514] --no-smt
+process_restarter(3000)  D 08-11 16:19:52  3000  3000 subprocess.cpp:514] --no-usb
+process_restarter(3000)  D 08-11 16:19:52  3000  3000 subprocess.cpp:514] --core-scheduling=false
+process_restarter(3000)  D 08-11 16:19:52  3000  3000 subprocess.cpp:514] --vhost-user-connect-timeout-ms=30000
+process_restarter(3000)  D 08-11 16:19:52  3000  3000 subprocess.cpp:514] --vhost-user=mac80211-hwsim,socket=/tmp/cf_env_104/env-1/vhost_user_mac80211
+process_restarter(3000)  D 08-11 16:19:52  3000  3000 subprocess.cpp:514] --wayland-sock=/tmp/cf_avd_104/cvd-1/internal/frames.sock
+process_restarter(3000)  D 08-11 16:19:52  3000  3000 subprocess.cpp:514] --gpu=displays=[[mode=windowed[720,1280],dpi=[320,320],refresh-rate=60]],backend=2D,pci-address=00:02.0
+process_restarter(3000)  D 08-11 16:19:52  3000  3000 subprocess.cpp:514] --pmem=path=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/hwcomposer-pmem
+process_restarter(3000)  D 08-11 16:19:52  3000  3000 subprocess.cpp:514] --mem=8192
+process_restarter(3000)  D 08-11 16:19:52  3000  3000 subprocess.cpp:514] --cpus=8
+process_restarter(3000)  D 08-11 16:19:52  3000  3000 subprocess.cpp:514] --block=path=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/overlay.img
+process_restarter(3000)  D 08-11 16:19:52  3000  3000 subprocess.cpp:514] --block=path=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/persistent_composite.img
+process_restarter(3000)  D 08-11 16:19:52  3000  3000 subprocess.cpp:514] --block=path=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/sdcard.img
+process_restarter(3000)  D 08-11 16:19:52  3000  3000 subprocess.cpp:514] --vhost-user=type=input,socket=/tmp/cf_avd_104/cvd-1/internal/touch_0.sock,max-queue-size=256
+process_restarter(3000)  D 08-11 16:19:52  3000  3000 subprocess.cpp:514] --vhost-user=type=input,socket=/tmp/cf_avd_104/cvd-1/internal/rotary.sock,max-queue-size=256
+process_restarter(3000)  D 08-11 16:19:52  3000  3000 subprocess.cpp:514] --vhost-user=type=input,socket=/tmp/cf_avd_104/cvd-1/internal/keyboard.sock,max-queue-size=256
+process_restarter(3000)  D 08-11 16:19:52  3000  3000 subprocess.cpp:514] --vhost-user=type=input,socket=/tmp/cf_avd_104/cvd-1/internal/switches.sock,max-queue-size=256
+process_restarter(3000)  D 08-11 16:19:52  3000  3000 subprocess.cpp:514] --net=tap-name=cvd-mtap-01,mac=00:1a:11:e0:cf:00,pci-address=00:01.1
+process_restarter(3000)  D 08-11 16:19:52  3000  3000 subprocess.cpp:514] --net=tap-name=cvd-etap-01,mac=00:1a:11:e1:cf:00,pci-address=00:01.2
+process_restarter(3000)  D 08-11 16:19:52  3000  3000 subprocess.cpp:514] --pmem=path=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/access-kregistry
+process_restarter(3000)  D 08-11 16:19:52  3000  3000 subprocess.cpp:514] --pstore=path=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/pstore,size=2097152
+process_restarter(3000)  D 08-11 16:19:52  3000  3000 subprocess.cpp:514] --disable-sandbox
+process_restarter(3000)  D 08-11 16:19:52  3000  3000 subprocess.cpp:514] --vsock=cid=3
+process_restarter(3000)  D 08-11 16:19:52  3000  3000 subprocess.cpp:514] --serial=hardware=virtio-console,num=1,type=file,path=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/kernel-log-pipe,console=true
+process_restarter(3000)  D 08-11 16:19:52  3000  3000 subprocess.cpp:514] --serial=hardware=serial,num=1,type=file,path=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/kernel-log-pipe,earlycon=true
+process_restarter(3000)  D 08-11 16:19:52  3000  3000 subprocess.cpp:514] --serial=hardware=virtio-console,num=2,type=sink
+process_restarter(3000)  D 08-11 16:19:52  3000  3000 subprocess.cpp:514] --serial=hardware=virtio-console,num=3,type=file,path=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/logcat-pipe
+process_restarter(3000)  D 08-11 16:19:52  3000  3000 subprocess.cpp:514] --serial=hardware=virtio-console,num=4,type=file,path=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/keymaster_fifo_vm.out,input=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/keymaster_fifo_vm.in
+process_restarter(3000)  D 08-11 16:19:52  3000  3000 subprocess.cpp:514] --serial=hardware=virtio-console,num=5,type=file,path=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/gatekeeper_fifo_vm.out,input=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/gatekeeper_fifo_vm.in
+process_restarter(3000)  D 08-11 16:19:52  3000  3000 subprocess.cpp:514] --serial=hardware=virtio-console,num=6,type=file,path=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/bt_fifo_vm.out,input=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/bt_fifo_vm.in
+process_restarter(3000)  D 08-11 16:19:52  3000  3000 subprocess.cpp:514] --serial=hardware=virtio-console,num=7,type=file,path=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/gnsshvc_fifo_vm.out,input=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/gnsshvc_fifo_vm.in
+process_restarter(3000)  D 08-11 16:19:52  3000  3000 subprocess.cpp:514] --serial=hardware=virtio-console,num=8,type=file,path=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/locationhvc_fifo_vm.out,input=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/locationhvc_fifo_vm.in
+process_restarter(3000)  D 08-11 16:19:52  3000  3000 subprocess.cpp:514] --serial=hardware=virtio-console,num=9,type=file,path=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/confui_fifo_vm.out,input=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/confui_fifo_vm.in
+process_restarter(3000)  D 08-11 16:19:52  3000  3000 subprocess.cpp:514] --serial=hardware=virtio-console,num=10,type=file,path=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/uwb_fifo_vm.out,input=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/uwb_fifo_vm.in
+process_restarter(3000)  D 08-11 16:19:52  3000  3000 subprocess.cpp:514] --serial=hardware=virtio-console,num=11,type=file,path=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/oemlock_fifo_vm.out,input=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/oemlock_fifo_vm.in
+process_restarter(3000)  D 08-11 16:19:52  3000  3000 subprocess.cpp:514] --serial=hardware=virtio-console,num=12,type=file,path=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/keymint_fifo_vm.out,input=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/keymint_fifo_vm.in
+process_restarter(3000)  D 08-11 16:19:52  3000  3000 subprocess.cpp:514] --serial=hardware=virtio-console,num=13,type=file,path=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/nfc_fifo_vm.out,input=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/nfc_fifo_vm.in
+secure_env D 08-11 16:19:54  2965  3105 channel_sharedfd.cpp:44] Received message with id: 3
+secure_env D 08-11 16:19:54  2965  3105 oemlock_responder.cpp:84] Sending oemlock response
+secure_env D 08-11 16:19:54  2965  3105 oemlock_responder.cpp:32] Receiving oemlock command
+secure_env D 08-11 16:19:54  2965  3105 channel_sharedfd.cpp:44] Received message with id: 3
+secure_env D 08-11 16:19:54  2965  3105 oemlock_responder.cpp:84] Sending oemlock response
+webRTC(2863)  E 08-11 16:19:54  2863  2958 vsock_connection.cpp:222] Failed to connect:NOT_FOUND: StrError(): No such device
+kernel_log_monitor(2884)  I 08-11 16:19:55  2884  2884 kernel_log_server.cc:143] GUEST_KERNEL_VERSION: 6.12.74-android16-6-g3ec022196c4e-ab15076761 (kleaf@build-host) (Android (14043575, +pgo, +bolt, +lto, +mlgo, based on r536225) clang version 19.0.1 (https://android.googlesource.com/toolchain/llvm-project b3a530ec6537146650e42be89f1089e9a3588460), LLD 19.0.1) #1 SMP PREEMPT Tue Mar 24 05:36:21 UTC 2026
+kernel_log_monitor(2884)  I 08-11 16:19:55  2884  2884 kernel_log_server.cc:153] ] Linux version
+webRTC(2863)  E 08-11 16:19:55  2863  2958 vsock_connection.cpp:222] Failed to connect:NOT_FOUND: StrError(): No such device
+webRTC(2863)  E 08-11 16:19:56  2863  2958 vsock_connection.cpp:222] Failed to connect:NOT_FOUND: StrError(): No such device
+webRTC(2863)  E 08-11 16:19:57  2863  2958 vsock_connection.cpp:222] Failed to connect:NOT_FOUND: StrError(): No such device
+webRTC(2863)  E 08-11 16:19:58  2863  2958 vsock_connection.cpp:222] Failed to connect:NOT_FOUND: StrError(): No such device
+webRTC(2863)  E 08-11 16:19:59  2863  2958 vsock_connection.cpp:222] Failed to connect:NOT_FOUND: StrError(): No such device
+webRTC(2863)  E 08-11 16:20:00  2863  2958 vsock_connection.cpp:222] Failed to connect:NOT_FOUND: StrError(): No such device
+webRTC(2863)  E 08-11 16:20:01  2863  2958 vsock_connection.cpp:222] Failed to connect:UNAVAILABLE: StrError(): Connection reset by peer
+webRTC(2863)  E 08-11 16:20:02  2863  2958 vsock_connection.cpp:222] Failed to connect:UNAVAILABLE: StrError(): Connection reset by peer
+webRTC(2863)  E 08-11 16:20:03  2863  2958 vsock_connection.cpp:222] Failed to connect:UNAVAILABLE: StrError(): Connection reset by peer
+kernel_log_monitor(2884)  I 08-11 16:20:04  2884  2884 kernel_log_server.cc:143] GUEST_BUILD_FINGERPRINT: generic/aosp_cf_x86_64_only_phone/vsoc_x86_64_only:17/CP2A.260605.016/15885347:userdebug/test-keys

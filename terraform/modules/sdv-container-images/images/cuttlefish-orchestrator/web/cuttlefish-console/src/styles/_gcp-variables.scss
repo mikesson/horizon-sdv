@@ -1,0 +1,290 @@
+// Copyright 2026 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     https://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// =============================================================================
+// Google Cloud Platform Color System
+// Based on Google Material Design 3 and Google Cloud Console
+// =============================================================================
+
+// -----------------------------------------------------------------------------
+// Primary Colors (Google Blue)
+// -----------------------------------------------------------------------------
+// The light end of every ramp is deleted, not merely unused: CCO renders on a
+// dark canvas, and each of these had found its way onto a light-on-light pair.
+// An undefined Sass variable fails the build, which is what keeps them gone.
+$gcp-blue-300: #8ab4f8;
+$gcp-blue-600: #1a73e8;  // Primary
+$gcp-blue-700: #1967d2;
+$gcp-blue-900: #174ea6;
+
+// Primary semantic aliases.
+// Dark console: light-blue accent on dark surfaces, dark text on filled accent.
+$gcp-primary: $gcp-blue-300;
+$gcp-primary-on: #202124;  // = $gcp-grey-900 (defined later; literal avoids fwd-ref)
+$gcp-accent-surface: rgba(138, 180, 248, 0.16);  // tinted hover/selected
+
+// -----------------------------------------------------------------------------
+// Semantic Colors
+// -----------------------------------------------------------------------------
+// Success (Green)
+$gcp-green-50: #e6f4ea;
+$gcp-green-100: #ceead6;
+$gcp-green-300: #81c995;
+$gcp-green-500: #34a853;
+$gcp-green-600: #1e8e3e;
+$gcp-green-900: #0d652d;
+
+$gcp-success: $gcp-green-600;
+$gcp-success-light: $gcp-green-100;
+
+// Warning (Yellow/Amber)
+$gcp-yellow-50: #fef7e0;
+$gcp-yellow-100: #feefc3;
+$gcp-yellow-300: #fdd663;
+$gcp-yellow-500: #f9ab00;
+$gcp-yellow-600: #f29900;
+$gcp-yellow-700: #ea8600;
+$gcp-yellow-800: #e37400;
+$gcp-yellow-900: #d56e0c;
+
+$gcp-warning: $gcp-yellow-600;
+$gcp-warning-light: $gcp-yellow-100;
+
+// Error (Red)
+$gcp-red-50: #fce8e6;
+$gcp-red-100: #fad2cf;
+$gcp-red-300: #f28b82;
+$gcp-red-600: #d93025;
+$gcp-red-700: #c5221f;
+$gcp-red-900: #a50e0e;
+
+$gcp-error: $gcp-red-600;
+$gcp-error-light: $gcp-red-100;
+// Ink for any saturated status fill, such as warn buttons and toast severities.
+// Fixed in both themes because the fills are brand colours and do not flip; the
+// accent's ink does flip, which is why the two cannot share a token.
+$gcp-on-status: #ffffff;
+
+// -----------------------------------------------------------------------------
+// Neutral Colors (Grey)
+// -----------------------------------------------------------------------------
+$gcp-grey-400: #bdc1c6;
+$gcp-grey-500: #9aa0a6;
+$gcp-grey-600: #80868b;
+$gcp-grey-700: #5f6368;
+$gcp-grey-800: #3c4043;
+$gcp-grey-900: #202124;
+
+// -----------------------------------------------------------------------------
+// Surface & Background
+// -----------------------------------------------------------------------------
+// Sampled from the live Cloud Console in both themes. Two things these values
+// encode that no table makes obvious:
+//
+//   The page surface and the canvas are different surfaces. The page-header
+//   band and full-bleed form pages sit on the page surface; the scroll area
+//   behind cards sits on the canvas, which is the lighter of the two.
+//
+//   Dark and light are not inversions. In dark the card fill equals the canvas
+//   and a 1px border is the card's only definition; light has a real fill step
+//   and no border. Deriving either ramp from the other inverts that.
+$gcp-page-surface: #131314;        // page-header band, full-bleed form pages
+$gcp-canvas: #1f2123;              // scroll area behind cards
+$gcp-chrome: #282c33;              // top bar and nav rail, one colour
+$gcp-surface: #1e1f20;             // cards / panels
+$gcp-surface-dim: #181819;         // recessed surface
+$gcp-surface-variant: #28282a;     // raised / table header / hover
+$gcp-card-border: #3d4043;         // in dark, the whole of what defines a card
+$gcp-nav-active: #2a405e;          // active nav-rail pill
+
+// Light counterparts. Unused until the appearance switcher lands. They are
+// written now so that becomes a wiring job rather than a second measuring pass.
+$gcp-page-surface-light: #ffffff;
+$gcp-canvas-light: #f9fafb;
+$gcp-chrome-light: #f0f5fe;
+$gcp-surface-light: #ffffff;
+$gcp-surface-variant-light: #f2f3f4;
+// Light has no room below its card surface, because white cannot recess, so the
+// recessed role reuses the variant grey rather than inventing a value with no
+// counterpart in the console. The two themes are not inversions here either.
+$gcp-surface-dim-light: $gcp-surface-variant-light;
+$gcp-card-border-light: #dbdcdf;
+$gcp-nav-active-light: #dcedfd;
+
+
+// -----------------------------------------------------------------------------
+// Text Colors
+// -----------------------------------------------------------------------------
+$gcp-text-primary: #e8eaed;
+$gcp-text-secondary: #bec0c6;          // the console runs its hints far brighter
+$gcp-text-disabled: $gcp-grey-600;     // #80868b
+
+$gcp-text-primary-light: #202124;
+$gcp-text-secondary-light: #606269;
+$gcp-text-field-value-light: #3c4043;  // a value inside a field, darker than a hint
+$gcp-text-disabled-light: #80868b;
+
+// The accent inverts direction between themes: light ink on a dark-theme
+// accent, white ink on a light-theme one.
+$gcp-primary-light-mode: #0e67e0;
+$gcp-primary-on-light-mode: #ffffff;
+$gcp-accent-surface-light: rgba(14, 103, 224, 0.10);
+$gcp-status-error-light: #c5221f;
+// Green-600 and yellow-800 are the dark theme's status colours; on a light
+// surface they read 3.7:1 and 2.8:1, so light mode needs its own darker pair.
+$gcp-status-running-light: #0d652d;
+$gcp-status-stopped-light: #8a5300;
+$gcp-status-running-bg-light: rgba(13, 101, 45, 0.10);
+$gcp-status-stopped-bg-light: rgba(138, 83, 0, 0.10);
+$gcp-status-error-bg-light: rgba(197, 34, 31, 0.10);
+// The dark ramp's light blue reads 1.89:1 as a chip label on a white card,
+// which is the same pairing failure as the deleted light ramp with the themes
+// swapped.
+$gcp-status-creating-light: $gcp-primary-light-mode;
+$gcp-status-creating-bg-light: $gcp-accent-surface-light;
+$gcp-outline-light: rgba(0, 0, 0, 0.16);
+$gcp-divider-light: rgba(0, 0, 0, 0.10);
+$gcp-surface-hover-light: rgba(0, 0, 0, 0.04);
+
+// Emits a CSS light-dark() pair. Which branch applies is decided by the
+// `color-scheme` in force, so one declaration serves both themes and the
+// switcher only has to change `color-scheme`.
+@function ld($light, $dark) {
+  @return #{'light-dark(' + $light + ', ' + $dark + ')'};
+}
+
+// -----------------------------------------------------------------------------
+// Outline & Divider
+// -----------------------------------------------------------------------------
+$gcp-outline: rgba(255, 255, 255, 0.16);
+$gcp-outline-variant: rgba(255, 255, 255, 0.10);
+$gcp-divider: rgba(255, 255, 255, 0.10);
+
+// -----------------------------------------------------------------------------
+// Shadows (Google Cloud style - subtle)
+// -----------------------------------------------------------------------------
+$gcp-shadow-1: 0 1px 2px 0 rgba(0, 0, 0, 0.3), 0 1px 3px 1px rgba(0, 0, 0, 0.15);
+$gcp-shadow-2: 0 1px 2px 0 rgba(0, 0, 0, 0.3), 0 2px 6px 2px rgba(0, 0, 0, 0.15);
+$gcp-shadow-3: 0 1px 3px 0 rgba(0, 0, 0, 0.3), 0 4px 8px 3px rgba(0, 0, 0, 0.15);
+
+// -----------------------------------------------------------------------------
+// Border Radius (Material 3)
+// -----------------------------------------------------------------------------
+$gcp-radius-xs: 4px;
+$gcp-radius-sm: 8px;
+$gcp-radius-md: 12px;
+$gcp-radius-lg: 16px;
+$gcp-radius-full: 9999px;
+
+// -----------------------------------------------------------------------------
+// Spacing (4px base)
+// -----------------------------------------------------------------------------
+// Named by value, not by t-shirt size: for spacing the number *is* the role, and
+// past six steps t-shirt names stop encoding anything. 2px is the one half-step,
+// for dense chip and badge padding where 4px overflows the control.
+$gcp-space-2: 2px;
+$gcp-space-4: 4px;
+$gcp-space-8: 8px;
+$gcp-space-12: 12px;
+$gcp-space-16: 16px;
+$gcp-space-24: 24px;
+$gcp-space-32: 32px;
+$gcp-space-48: 48px;
+$gcp-space-64: 64px;
+
+// -----------------------------------------------------------------------------
+// Typography
+// -----------------------------------------------------------------------------
+$gcp-font-family: 'Google Sans', 'Roboto', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+$gcp-font-family-mono: 'Google Sans Code', 'Roboto Mono', 'JetBrains Mono', monospace;
+
+// Font sizes (Material 3 type scale)
+$gcp-font-size-headline-lg: 32px;
+$gcp-font-size-headline-md: 28px;
+$gcp-font-size-headline-sm: 24px;
+$gcp-font-size-title-lg: 22px;
+$gcp-font-size-title-md: 16px;
+$gcp-font-size-title-sm: 14px;
+$gcp-font-size-body-md: 14px;
+$gcp-font-size-body-sm: 12px;
+$gcp-font-size-label-md: 12px;
+$gcp-font-size-label-sm: 11px;
+
+// Font weights
+$gcp-font-weight-regular: 400;
+$gcp-font-weight-medium: 500;
+
+// -----------------------------------------------------------------------------
+// Icon sizing
+// -----------------------------------------------------------------------------
+// mat-icon sizes itself off font-size, so icon metrics look like type metrics in
+// a grep and get folded into the type scale by mistake. They are a separate axis:
+// 18px is the console's default inline icon, and no text is set at 18px.
+// Eight steps because icons span from inline-with-text to empty-state
+// hero; 18px carries 39 of the inline uses and is the default.
+$gcp-icon-xs: 14px;
+$gcp-icon-sm: 16px;
+$gcp-icon-md: 18px;
+$gcp-icon-lg: 20px;
+$gcp-icon-xl: 24px;
+$gcp-icon-2xl: 32px;
+$gcp-icon-display: 48px;
+$gcp-icon-hero: 64px;
+
+// -----------------------------------------------------------------------------
+// Motion
+// -----------------------------------------------------------------------------
+// Transition durations. Everything already sits in the 100-200ms band; the only
+// real disorder is unit drift (0.15s and 150ms both appear for the same value).
+$gcp-duration-fast: 100ms;
+$gcp-duration-base: 150ms;
+$gcp-duration-slow: 200ms;
+$gcp-easing-standard: cubic-bezier(0.2, 0, 0, 1);
+
+// -----------------------------------------------------------------------------
+// Status Colors (for device states, etc.)
+// -----------------------------------------------------------------------------
+$gcp-status-running: $gcp-green-300;
+$gcp-status-stopped: $gcp-yellow-300;
+$gcp-status-creating: $gcp-blue-300;
+$gcp-status-error: #f6aea8;            // the console's error text, lighter than red-300
+$gcp-status-terminated: $gcp-grey-400;
+
+// Status background (subtle dark tints)
+$gcp-status-running-bg: rgba(129, 201, 149, 0.16);
+$gcp-status-stopped-bg: rgba(250, 179, 64, 0.18);   // clean amber, not olive/mustard
+$gcp-status-creating-bg: rgba(138, 180, 248, 0.16);
+$gcp-status-error-bg: rgba(246, 174, 168, 0.16);
+
+// -----------------------------------------------------------------------------
+// Lifecycle Colors
+// -----------------------------------------------------------------------------
+$gcp-lifecycle-ephemeral: $gcp-green-300;
+$gcp-lifecycle-ephemeral-bg: rgba(129, 201, 149, 0.16);
+$gcp-lifecycle-pinned: $gcp-blue-300;
+$gcp-lifecycle-pinned-bg: rgba(138, 180, 248, 0.16);
+
+// -----------------------------------------------------------------------------
+// Quality Indicators (RTT/Connection)
+// -----------------------------------------------------------------------------
+$gcp-quality-excellent: $gcp-green-600;
+$gcp-quality-good: $gcp-green-500;
+$gcp-quality-fair: $gcp-yellow-600;
+$gcp-quality-poor: $gcp-yellow-800;
+$gcp-quality-bad: $gcp-red-600;
+
+// -----------------------------------------------------------------------------
+// Layout Tokens
+// -----------------------------------------------------------------------------
+$gcp-sidenav-width: 240px;

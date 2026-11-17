@@ -1,0 +1,126 @@
+// Copyright 2026 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     https://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// =============================================================================
+// Runtime design tokens (--cco-*)
+// The dark Google-Cloud-Console palette, exposed as CSS custom properties so
+// components consume them at runtime. Values mirror the SASS semantic aliases
+// in _gcp-variables.scss (single source of truth, so no drift).
+// =============================================================================
+
+@use 'gcp-variables' as gcp;
+
+:root {
+  // Both schemes are declared, so light-dark() below resolves against whichever
+  // is in force. With no stored preference that is the operating system's,
+  // which is what the console defaults to.
+  color-scheme: light dark;
+
+  // Surfaces
+  --cco-page-surface: #{gcp.ld(gcp.$gcp-page-surface-light, gcp.$gcp-page-surface)};
+  --cco-canvas: #{gcp.ld(gcp.$gcp-canvas-light, gcp.$gcp-canvas)};
+  --cco-chrome: #{gcp.ld(gcp.$gcp-chrome-light, gcp.$gcp-chrome)};
+  --cco-surface: #{gcp.ld(gcp.$gcp-surface-light, gcp.$gcp-surface)};
+  --cco-surface-variant: #{gcp.ld(gcp.$gcp-surface-variant-light, gcp.$gcp-surface-variant)};
+  --cco-surface-dim: #{gcp.ld(gcp.$gcp-surface-dim-light, gcp.$gcp-surface-dim)};
+  --cco-surface-hover: #{gcp.ld(gcp.$gcp-surface-hover-light, rgba(255, 255, 255, 0.04))};
+  --cco-nav-active: #{gcp.ld(gcp.$gcp-nav-active-light, gcp.$gcp-nav-active)};
+
+  // Borders
+  --cco-border: #{gcp.ld(gcp.$gcp-outline-light, gcp.$gcp-outline)};
+  --cco-divider: #{gcp.ld(gcp.$gcp-divider-light, gcp.$gcp-divider)};
+  // In dark the card has no fill step against the canvas, so this border is the
+  // whole of what makes it read as a card. Light has a real fill step, so there
+  // it is a supporting edge rather than the definition.
+  --cco-card-border: #{gcp.ld(gcp.$gcp-card-border-light, gcp.$gcp-card-border)};
+
+  // Text
+  --cco-text: #{gcp.ld(gcp.$gcp-text-primary-light, gcp.$gcp-text-primary)};
+  --cco-text-secondary: #{gcp.ld(gcp.$gcp-text-secondary-light, gcp.$gcp-text-secondary)};
+  --cco-text-disabled: #{gcp.ld(gcp.$gcp-text-disabled-light, gcp.$gcp-text-disabled)};
+
+  // Accent
+  --cco-accent: #{gcp.ld(gcp.$gcp-primary-light-mode, gcp.$gcp-primary)};
+  --cco-accent-surface: #{gcp.ld(gcp.$gcp-accent-surface-light, gcp.$gcp-accent-surface)};
+  // Dark ink on the dark theme's light-blue accent; white on the light theme's
+  // deep blue. The pair inverts, which is why it cannot be derived.
+  --cco-on-accent: #{gcp.ld(gcp.$gcp-primary-on-light-mode, gcp.$gcp-primary-on)};
+
+  // Status (text/icon + subtle surface tints)
+  --cco-success: #{gcp.ld(gcp.$gcp-status-running-light, gcp.$gcp-status-running)};
+  --cco-warning: #{gcp.ld(gcp.$gcp-status-stopped-light, gcp.$gcp-status-stopped)};
+  --cco-error: #{gcp.ld(gcp.$gcp-status-error-light, gcp.$gcp-status-error)};
+  --cco-info: #{gcp.ld(gcp.$gcp-status-creating-light, gcp.$gcp-status-creating)};
+  --cco-success-surface: #{gcp.ld(gcp.$gcp-status-running-bg-light, gcp.$gcp-status-running-bg)};
+  --cco-warning-surface: #{gcp.ld(gcp.$gcp-status-stopped-bg-light, gcp.$gcp-status-stopped-bg)};
+  --cco-error-surface: #{gcp.ld(gcp.$gcp-status-error-bg-light, gcp.$gcp-status-error-bg)};
+  --cco-info-surface: #{gcp.ld(gcp.$gcp-status-creating-bg-light, gcp.$gcp-status-creating-bg)};
+
+  // Radii
+  --cco-radius-xs: #{gcp.$gcp-radius-xs};
+  --cco-radius-sm: #{gcp.$gcp-radius-sm};
+  --cco-radius-lg: #{gcp.$gcp-radius-lg};
+  --cco-radius-pill: #{gcp.$gcp-radius-full};
+
+  // Spacing (4px base), named by value; see _gcp-variables.scss
+  --cco-space-2: #{gcp.$gcp-space-2};
+  --cco-space-4: #{gcp.$gcp-space-4};
+  --cco-space-8: #{gcp.$gcp-space-8};
+  --cco-space-12: #{gcp.$gcp-space-12};
+  --cco-space-16: #{gcp.$gcp-space-16};
+  --cco-space-24: #{gcp.$gcp-space-24};
+  --cco-space-32: #{gcp.$gcp-space-32};
+  --cco-space-48: #{gcp.$gcp-space-48};
+
+  // Type: three small-text roles, not four. 13px is drift rather than a role,
+  // because the Material scale this console follows goes 11/12/14 and 13px
+  // carries the same dense-secondary job as 12px. 10px is below the legibility
+  // floor.
+  --cco-text-label: #{gcp.$gcp-font-size-label-sm};      // 11, caps labels, chips
+  --cco-text-sm: #{gcp.$gcp-font-size-body-sm};          // 12, secondary, hints, dense cells
+  --cco-text-body: #{gcp.$gcp-font-size-body-md};        // 14, body, form text
+  --cco-text-title: #{gcp.$gcp-font-size-title-md};      // 16, card titles
+  --cco-text-title-lg: #{gcp.$gcp-font-size-title-lg};   // 22
+
+  --cco-font-mono: #{gcp.$gcp-font-family-mono};
+
+  // Icon sizing, a separate axis from type; mat-icon sizes off font-size
+  --cco-icon-xs: #{gcp.$gcp-icon-xs};
+  --cco-icon-sm: #{gcp.$gcp-icon-sm};
+  --cco-icon-md: #{gcp.$gcp-icon-md};        // default inline icon
+  --cco-icon-lg: #{gcp.$gcp-icon-lg};
+  --cco-icon-2xl: #{gcp.$gcp-icon-2xl};
+  --cco-icon-display: #{gcp.$gcp-icon-display};
+
+  // Motion
+  --cco-duration-fast: #{gcp.$gcp-duration-fast};
+  --cco-duration-base: #{gcp.$gcp-duration-base};
+  --cco-duration-slow: #{gcp.$gcp-duration-slow};
+  --cco-easing-standard: #{gcp.$gcp-easing-standard};
+
+  // Chrome metrics
+  --cco-topbar-height: 56px;
+  --cco-navrail-width: #{gcp.$gcp-sidenav-width};
+}
+
+// An explicit choice pins color-scheme, which is the whole of what light-dark()
+// reads, so there is no second token block and nothing to keep in sync. Absent
+// the attribute the :root rule above leaves it `light dark`, so the OS decides.
+:root[data-cco-theme='light'] {
+  color-scheme: light;
+}
+
+:root[data-cco-theme='dark'] {
+  color-scheme: dark;
+}

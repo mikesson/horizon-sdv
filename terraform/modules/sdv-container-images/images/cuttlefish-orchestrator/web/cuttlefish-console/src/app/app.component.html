@@ -1,0 +1,92 @@
+<!--
+  Copyright 2026 Google LLC
+
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+
+      https://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+-->
+
+<div class="app-shell">
+  <!-- Every page puts the whole nav rail between the topbar and the content;
+       without this a keyboard user tabs through all of it on every page. -->
+  <a class="skip-link" href="#main-content">Skip to main content</a>
+  <header class="topbar">
+    <button class="icon-btn" type="button" (click)="toggleNav()" aria-label="Toggle navigation">
+      <mat-icon>menu</mat-icon>
+    </button>
+    <a class="brand" routerLink="/">
+      <mat-icon class="brand__logo">cloud</mat-icon>
+      <span class="brand__name">Cuttlefish Orchestrator</span>
+    </a>
+
+    <span class="topbar__spacer"></span>
+
+    <button
+      class="icon-btn"
+      type="button"
+      [matMenuTriggerFor]="appearanceMenu"
+      matTooltip="Appearance"
+      aria-label="Appearance">
+      <mat-icon>{{ appearanceIcon() }}</mat-icon>
+    </button>
+    <mat-menu #appearanceMenu="matMenu">
+      @for (option of appearanceOptions; track option.value) {
+        <button
+          type="button"
+          mat-menu-item
+          [attr.aria-current]="appearance() === option.value ? 'true' : null"
+          (click)="setAppearance(option.value)">
+          <mat-icon>{{ option.icon }}</mat-icon>
+          <span>{{ option.label }}</span>
+        </button>
+      }
+    </mat-menu>
+
+    @if (currentUser(); as user) {
+      <a class="user" routerLink="/profile" [title]="user.email">
+        <mat-icon>account_circle</mat-icon>
+        <span class="user__name">{{ user.displayName || user.email }}</span>
+      </a>
+    }
+  </header>
+
+  <div class="body">
+    <!-- inert rather than visibility:hidden, which would kill the width
+         transition. width/opacity/pointer-events leave the links in the tab
+         order, so a collapsed rail is a keyboard trap without this. -->
+    <nav
+      class="navrail"
+      [class.navrail--collapsed]="!navOpen()"
+      [attr.inert]="navOpen() ? null : ''"
+      aria-label="Primary">
+      <div class="navrail__sections">
+        <app-nav-section sectionId="main" label="Main" [items]="mainItems" />
+        <app-nav-section sectionId="resources" label="Resources" [items]="resourceItems" />
+        <app-nav-section
+          sectionId="infrastructure"
+          label="Infrastructure"
+          [items]="infrastructureItems" />
+        <app-nav-section sectionId="administration" label="Administration" [items]="adminItems" />
+        <app-nav-section sectionId="developer" label="Developer" [items]="developerItems" />
+      </div>
+    </nav>
+
+    <!-- tabindex 0 rather than -1, because the tab stop is wanted here. This
+         is the scrolling element for every page, and Chromium does not make an
+         overflow container focusable on its own, so without it a keyboard user
+         cannot scroll the page at all. axe reports that as a serious
+         scrollable-region-focusable violation. It doubles as the skip-link
+         target. -->
+    <main class="content" id="main-content" tabindex="0">
+      <router-outlet />
+    </main>
+  </div>
+</div>

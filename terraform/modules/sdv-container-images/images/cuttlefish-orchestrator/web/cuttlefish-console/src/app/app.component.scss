@@ -1,0 +1,177 @@
+// Copyright 2026 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     https://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// GCC-style dark shell: full-bleed neutral top bar (chrome lives here, outside
+// the frame) over a rounded content frame holding the nav rail + content.
+//
+// The shell takes the chrome colour rather than a darker gutter of its own, so
+// the strip around the rounded frame continues the top bar and rail instead of
+// reading as a third surface. The console has no outer gutter in either theme.
+.app-shell {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--cco-chrome);
+  color: var(--cco-text);
+}
+
+// Off-screen until focused rather than display:none, which would take it out
+// of the tab order and defeat the point.
+.skip-link {
+  position: absolute;
+  left: 8px;
+  top: -100%;
+  z-index: 100;
+  padding: 8px 16px;
+  border-radius: var(--cco-radius-xs);
+  background: var(--cco-accent);
+  color: var(--cco-on-accent);
+  font-weight: 500;
+  text-decoration: none;
+
+  &:focus-visible {
+    top: 8px;
+  }
+}
+
+.content:focus {
+  outline: none;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  height: var(--cco-topbar-height);
+  padding: 0 12px;
+  background: var(--cco-chrome);
+}
+
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border: none;
+  border-radius: var(--cco-radius-pill);
+  background: transparent;
+  color: var(--cco-text-secondary);
+  cursor: pointer;
+  transition: background-color var(--cco-duration-base) ease, color var(--cco-duration-base) ease;
+
+  &:hover {
+    background: var(--cco-surface-hover);
+    color: var(--cco-text);
+  }
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  text-decoration: none;
+  color: var(--cco-text);
+
+  &__logo {
+    color: var(--cco-accent);
+  }
+
+  &__name {
+    font-size: 16px;
+    font-weight: 500;
+    letter-spacing: 0.2px;
+  }
+}
+
+.topbar__spacer {
+  flex: 1;
+}
+
+.user {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: var(--cco-radius-pill);
+  text-decoration: none;
+  color: var(--cco-text-secondary);
+  transition: background-color var(--cco-duration-base) ease, color var(--cco-duration-base) ease;
+
+  &:hover {
+    background: var(--cco-surface-hover);
+    color: var(--cco-text);
+  }
+
+  &__name {
+    font-size: 12px;
+  }
+}
+
+// Row below the top bar: nav rail (chrome, flush left) + the rounded content
+// frame floating on the darker gutter.
+.body {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+}
+
+.navrail {
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  width: var(--cco-navrail-width);
+  background: var(--cco-chrome);
+  overflow-y: auto;
+  transition: width var(--cco-duration-slow) ease, opacity var(--cco-duration-base) ease;
+
+  &--collapsed {
+    width: 0;
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  &__sections {
+    flex: 1;
+    padding: 8px 0;
+  }
+
+  &__footer {
+    padding: 12px 16px;
+    font-size: 11px;
+    // Secondary rather than disabled. The version string is readable content,
+    // and against the chrome the disabled grey lands at 3.8:1.
+    color: var(--cco-text-secondary);
+    border-top: 1px solid var(--cco-divider);
+  }
+}
+
+// The framed content surface: rounded top corners, inset from the gutter so
+// the rounding reads; the hamburger/brand stay up in the top bar, outside it.
+.content {
+  flex: 1;
+  min-width: 0;
+  overflow: auto;
+  margin: 8px 8px 0;
+  border-radius: var(--cco-radius-lg) var(--cco-radius-lg) 0 0;
+  background: var(--cco-canvas);
+  // Named container for every routed page. What a page has to lay out in is
+  // the viewport minus the nav rail and minus an optional detail sidebar, so
+  // viewport width was never the right question. Collapsing the rail gives a
+  // page 240px more room and no media query could see it.
+  container: page / inline-size;
+}
+

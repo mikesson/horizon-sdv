@@ -1,0 +1,10 @@
+{
+  "extends": "./node_modules/gts/",
+  "rules": {
+    "singleQuote": true,
+    "trailingComma": "es5",
+    "bracketSpacing": false,
+    "arrowParens": "avoid",
+    "printWidth": 80
+  }
+}

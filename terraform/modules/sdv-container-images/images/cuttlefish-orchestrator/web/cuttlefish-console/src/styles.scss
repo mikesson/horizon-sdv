@@ -1,0 +1,665 @@
+// Copyright 2026 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     https://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// =============================================================================
+// Global Styles - Google Cloud Platform Theme
+// =============================================================================
+
+// Import Angular Material and our custom theme
+@use '@angular/material' as mat;
+@use 'styles/gcp-variables' as gcp;
+@use 'styles/gcp-theme' as theme;
+@use 'styles/gcp-mixins' as mixins;
+@use 'styles/tokens';
+
+// -----------------------------------------------------------------------------
+// Apply the dark Material theme (M3 API), the only theme CCO ships
+// -----------------------------------------------------------------------------
+
+// mat.theme() emits the --mat-sys-* system variables Material's own injected
+// CSS already reads, and theme-overrides() corrects the ones the generated
+// palette gets wrong. Overriding outside these APIs is unsupported, because
+// component DOM and class names are private and do change, which is exactly
+// how the v19/v20 rename silently voided 47 declarations here.
+//
+// mat.core() is gone: it is literally `@mixin core() {}` in the installed
+// package, and looking necessary was the only thing it did.
+html {
+  @include mat.theme(theme.$gcp-theme-config);
+  @include mat.theme-overrides(theme.$gcp-system-overrides);
+
+  // The one component whose default is not derivable from a system colour: a
+  // tab's active label resolves to on-surface, and the console's is the accent.
+  @include mat.tabs-overrides((
+    active-label-text-color: gcp.ld(gcp.$gcp-primary-light-mode, gcp.$gcp-primary),
+    active-focus-label-text-color: gcp.ld(gcp.$gcp-primary-light-mode, gcp.$gcp-primary),
+    active-hover-label-text-color: gcp.ld(gcp.$gcp-primary-light-mode, gcp.$gcp-primary),
+  ));
+
+  // M3 composites a disabled filled button out of on-surface at 12% and 38%,
+  // which on this canvas reads as a hole punched in the card rather than as a
+  // control. A disabled button is exempt from the contrast minimum, but it
+  // still has to belong to the same surface family as everything around it.
+  @include mat.button-overrides((
+    filled-disabled-container-color: var(--cco-surface-variant),
+    filled-disabled-label-text-color: var(--cco-text-disabled),
+  ));
+}
+
+@include theme.gcp-component-theme;
+
+// -----------------------------------------------------------------------------
+// CSS Reset & Base Styles
+// -----------------------------------------------------------------------------
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  font-family: gcp.$gcp-font-family;
+  font-size: gcp.$gcp-font-size-body-md;
+  font-weight: gcp.$gcp-font-weight-regular;
+  line-height: 1.5;
+  color: var(--cco-text);
+  background-color: var(--cco-canvas);
+}
+
+// -----------------------------------------------------------------------------
+// Typography
+// -----------------------------------------------------------------------------
+h1, h2, h3, h4, h5, h6 {
+  margin: 0;
+  font-weight: gcp.$gcp-font-weight-medium;
+  // The token, not the Sass variable: the latter is the dark value only, and
+  // headings were staying near-white on a light canvas.
+  color: var(--cco-text);
+}
+
+h1 { font-size: gcp.$gcp-font-size-headline-lg; }
+h2 { font-size: gcp.$gcp-font-size-headline-md; }
+h3 { font-size: gcp.$gcp-font-size-headline-sm; }
+h4 { font-size: gcp.$gcp-font-size-title-lg; }
+h5 { font-size: gcp.$gcp-font-size-title-md; }
+h6 { font-size: gcp.$gcp-font-size-title-sm; }
+
+p {
+  margin: 0 0 gcp.$gcp-space-16;
+}
+
+a {
+  @include mixins.gcp-link;
+}
+
+code, pre {
+  font-family: gcp.$gcp-font-family-mono;
+  font-size: gcp.$gcp-font-size-body-sm;
+}
+
+// =============================================================================
+// ANGULAR MATERIAL 3 (M3) OVERRIDES
+// Comprehensive overrides for M3 CSS custom properties to ensure proper colors
+// =============================================================================
+
+// -----------------------------------------------------------------------------
+// Button Overrides (M3)
+// -----------------------------------------------------------------------------
+.mat-mdc-button,
+.mat-mdc-outlined-button,
+.mat-mdc-unelevated-button {
+  border-radius: gcp.$gcp-radius-xs;
+  font-weight: gcp.$gcp-font-weight-medium;
+  letter-spacing: 0.25px;
+}
+
+// There is no primary-filled block here, and that is the fix rather than an
+// omission. The console's primary action is Material's *filled* variant, whose
+// container and label tokens already resolve to the accent pair set at the
+// theme root. What stood here instead repainted the *elevated* variant to look
+// filled, with plain `background-color`/`color` declarations that tie
+// Material's own `.mat-mdc-raised-button:not(:disabled)` on specificity and
+// lose on injection order, so the resting state never applied, while the
+// `:hover` rule below it, one class heavier, did. Every primary button in the
+// console spent its hover state as an accent container under the accent label
+// Material had left in place, at 1.14:1.
+
+// Outlined buttons
+.mat-mdc-outlined-button.mat-primary {
+  @include mixins.gcp-button-secondary;
+
+  &:hover:not(:disabled) {
+    --mat-button-outlined-outline-color: var(--cco-accent);
+  }
+}
+
+// Text buttons
+.mat-mdc-button.mat-primary {
+  @include mixins.gcp-button-text;
+}
+
+// Destructive filled buttons. Tokens rather than declarations: a custom
+// property set on the element is not in the specificity fight at all, because
+// Material's own rule is what reads it, whichever selector won.
+//
+// The state layer is the dark ink and not the white label M3 would pick. At 8%
+// over this red, white lifts the container to 4.33:1 against its own label,
+// a hover that fails AA, where darkening holds it at 5.32:1.
+.mat-mdc-unelevated-button.mat-warn {
+  @include mat.button-overrides((
+    filled-container-color: gcp.$gcp-error,
+    filled-label-text-color: gcp.$gcp-on-status,
+    filled-state-layer-color: gcp.$gcp-grey-900,
+  ));
+
+  mat-icon, .mat-icon {
+    color: gcp.$gcp-on-status;
+  }
+}
+
+// Outlined and text warn buttons carry their colour on the label, against the
+// dark canvas, so they take the lighter red rather than the filled container's.
+.mat-mdc-outlined-button.mat-warn,
+.mat-mdc-button.mat-warn {
+  --mat-button-outlined-label-text-color: var(--cco-error);
+  --mat-button-outlined-state-layer-color: var(--cco-error);
+  --mat-button-text-label-text-color: var(--cco-error);
+  --mat-button-text-state-layer-color: var(--cco-error);
+}
+
+// Icon buttons
+.mat-mdc-icon-button.mat-primary {
+  --mat-icon-button-icon-color: var(--cco-accent);
+  color: var(--cco-accent);
+}
+
+.mat-mdc-icon-button.mat-warn {
+  --mat-icon-button-icon-color: #{gcp.$gcp-error};
+  color: gcp.$gcp-error;
+}
+
+// -----------------------------------------------------------------------------
+// Snackbar Overrides (M3)
+// -----------------------------------------------------------------------------
+// A toast is an inverse surface: dark in both themes, like the console's own.
+// So its ink is a fixed light value rather than a token that flips. Pairing
+// --cco-on-accent with this container gave 1.54:1 in the dark theme, because
+// that token is the ink for the *accent*, which inverts, and this surface does
+// not.
+.mat-mdc-snack-bar-container {
+  --mat-snack-bar-container-color: #{gcp.$gcp-grey-800};
+  --mat-snack-bar-supporting-text-color: #{gcp.$gcp-text-primary};
+  --mat-snack-bar-button-color: #{gcp.$gcp-blue-300};
+}
+
+// -----------------------------------------------------------------------------
+// Select/Option Overrides (M3)
+// -----------------------------------------------------------------------------
+.mat-mdc-select-panel {
+  --mat-option-selected-state-label-text-color: var(--cco-accent);
+  --mat-option-label-text-color: var(--cco-text);
+}
+
+// -----------------------------------------------------------------------------
+// Stepper Overrides (M3)
+// -----------------------------------------------------------------------------
+.mat-stepper-horizontal,
+.mat-stepper-vertical {
+  --mat-stepper-header-selected-state-icon-background-color: var(--cco-accent);
+  --mat-stepper-header-selected-state-icon-foreground-color: var(--cco-on-accent);
+  --mat-stepper-header-edit-state-icon-background-color: var(--cco-accent);
+  --mat-stepper-header-edit-state-icon-foreground-color: var(--cco-on-accent);
+}
+
+// -----------------------------------------------------------------------------
+// Form Field Overrides
+// -----------------------------------------------------------------------------
+.mat-mdc-form-field {
+  @include mixins.gcp-form-field;
+}
+
+// Consistent form field sizing
+.mat-mdc-form-field-infix {
+  min-height: 48px;
+}
+
+// -----------------------------------------------------------------------------
+// Dialog Overrides
+// -----------------------------------------------------------------------------
+.mat-mdc-dialog-container {
+  @include mixins.gcp-dialog;
+}
+
+// -----------------------------------------------------------------------------
+// Table Overrides
+// -----------------------------------------------------------------------------
+.mat-mdc-table {
+  @include mixins.gcp-table;
+
+  .mat-mdc-header-row {
+    background-color: var(--cco-surface-variant);
+  }
+
+  .mat-mdc-row:hover {
+    background-color: var(--cco-surface-hover);
+  }
+}
+
+// -----------------------------------------------------------------------------
+// Material Chip Overrides (M3 uses CSS custom properties)
+// -----------------------------------------------------------------------------
+// Build type chips
+.mat-mdc-chip.official {
+  @include mat.chips-overrides((
+    elevated-container-color: var(--cco-accent),
+    label-text-color: var(--cco-on-accent),
+    selected-trailing-icon-color: var(--cco-on-accent),
+  ));
+}
+
+.mat-mdc-chip.custom {
+  @include mat.chips-overrides((
+    elevated-container-color: gcp.$gcp-yellow-700,
+    label-text-color: var(--cco-text),
+    selected-trailing-icon-color: var(--cco-text),
+  ));
+}
+
+// Default badge chip
+.mat-mdc-chip.default-badge {
+  @include mat.chips-overrides((
+    elevated-container-color: gcp.$gcp-yellow-500,
+    label-text-color: gcp.$gcp-grey-900,
+    selected-trailing-icon-color: gcp.$gcp-grey-900,
+  ));
+}
+
+// -----------------------------------------------------------------------------
+// Scrollbar Styling
+// -----------------------------------------------------------------------------
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+// A white wash is invisible on a light canvas, so the thumb takes the one
+// neutral the palette holds at the same value in both themes, 4.38:1 on the
+// dark canvas and 3.53:1 on the light one, either side of the 3:1 a scrollbar
+// needs as a graphical object.
+::-webkit-scrollbar-thumb {
+  background-color: var(--cco-text-disabled);
+  border-radius: 4px;
+
+  &:hover {
+    background-color: var(--cco-text-secondary);
+  }
+}
+
+// Firefox
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--cco-text-disabled) transparent;
+}
+
+// -----------------------------------------------------------------------------
+// Focus Styles (Accessibility)
+// -----------------------------------------------------------------------------
+:focus-visible {
+  outline: 2px solid var(--cco-accent);
+  outline-offset: 2px;
+}
+
+// Remove default focus ring for non-keyboard users
+:focus:not(:focus-visible) {
+  outline: none;
+}
+
+// -----------------------------------------------------------------------------
+// Selection Styles
+// -----------------------------------------------------------------------------
+// The selector is unscoped, so this reaches every text node in the console.
+// It paired a light-ramp blue with light text and rendered selected text at
+// 1.08:1, which is invisible. The palette's selected-surface value gives 8.59:1.
+::selection {
+  background-color: var(--cco-nav-active);
+  color: var(--cco-text);
+}
+
+// -----------------------------------------------------------------------------
+// Tooltip Overrides
+// -----------------------------------------------------------------------------
+.mat-mdc-tooltip {
+  font-size: gcp.$gcp-font-size-label-md;
+}
+
+// -----------------------------------------------------------------------------
+// Snackbar/Toast Overrides
+// -----------------------------------------------------------------------------
+.mat-mdc-snack-bar-container {
+  @include mat.snack-bar-overrides((container-shape: gcp.$gcp-radius-sm));
+
+  // Each severity carries the ink its own container needs. The containers are
+  // saturated brand colours and do not flip with the theme, so an ink that does
+  // is wrong in whichever theme it is not chosen for: white on the amber was
+  // 2.25:1, and the darker ink on green and red were 3.83:1 and 3.37:1.
+  &.success {
+    --mat-snack-bar-container-color: #{gcp.$gcp-green-900};
+    --mat-snack-bar-supporting-text-color: #{gcp.$gcp-on-status};
+  }
+
+  &.error {
+    --mat-snack-bar-container-color: #{gcp.$gcp-error};
+    --mat-snack-bar-supporting-text-color: #{gcp.$gcp-on-status};
+  }
+
+  &.warning {
+    --mat-snack-bar-container-color: #{gcp.$gcp-warning};
+    --mat-snack-bar-supporting-text-color: #{gcp.$gcp-grey-900};
+  }
+}
+
+// -----------------------------------------------------------------------------
+// Menu Overrides
+// -----------------------------------------------------------------------------
+.mat-mdc-menu-panel {
+  @include mat.menu-overrides((container-shape: gcp.$gcp-radius-sm));
+  box-shadow: gcp.$gcp-shadow-3;
+}
+
+// -----------------------------------------------------------------------------
+// Stepper Overrides
+// -----------------------------------------------------------------------------
+.mat-stepper-horizontal {
+  .mat-step-header {
+    .mat-step-icon-selected {
+      background-color: var(--cco-accent);
+    }
+  }
+}
+
+// -----------------------------------------------------------------------------
+// Divider
+// -----------------------------------------------------------------------------
+.mat-divider {
+  @include mat.divider-overrides((color: var(--cco-divider)));
+}
+
+// -----------------------------------------------------------------------------
+// Print Styles
+// -----------------------------------------------------------------------------
+@media print {
+  body {
+    background: white;
+  }
+}
+
+// -----------------------------------------------------------------------------
+// Component-Specific Overrides (to avoid ::ng-deep)
+// -----------------------------------------------------------------------------
+.device-player-tabs {
+  // Was four rules reaching into MDC internals with three hardcoded hexes, one
+  // of them a second, slightly different blue.
+  @include mat.tabs-overrides((
+    background-color: var(--cco-surface-variant),
+    inactive-label-text-color: var(--cco-text-secondary),
+    active-label-text-color: var(--cco-accent),
+    active-focus-label-text-color: var(--cco-accent),
+    active-hover-label-text-color: var(--cco-accent),
+    active-indicator-color: var(--cco-accent),
+  ));
+
+  .mat-mdc-tab-body-wrapper {
+    flex: 1;
+  }
+
+  .mat-mdc-tab-body-content {
+    height: 100%;
+  }
+}
+
+// Lifecycle timer component - TTL progress bar
+.ttl-bar {
+  @include mat.progress-bar-overrides((active-indicator-color: var(--cco-accent)));
+}
+
+// Logcat viewer toolbar overrides
+.logcat-toolbar {
+  .mat-mdc-form-field-subscript-wrapper {
+    display: none;
+  }
+
+  .mat-mdc-text-field-wrapper {
+    background: var(--cco-surface-variant);
+  }
+
+  .mat-mdc-form-field {
+    margin: 0;
+  }
+
+  .mat-mdc-button,
+  .mat-mdc-icon-button {
+    color: var(--cco-text-secondary);
+  }
+
+  .mat-mdc-select-value,
+  .mat-mdc-select-arrow {
+    color: var(--cco-text-secondary);
+  }
+}
+
+// Device player side panel tab overrides
+.side-panel {
+  .mat-mdc-tab-body-wrapper {
+    flex: 1;
+  }
+
+  .mat-mdc-tab-body-content {
+    height: 100%;
+  }
+}
+
+// -----------------------------------------------------------------------------
+// Device Player Dark Tool Panels
+// Comprehensive dark theme styling for Logcat, Files, Apps, ADB tabs
+// -----------------------------------------------------------------------------
+
+// Dark toolbar form field overrides
+// The device-player tool panels. This was 120 lines of MDC internals and
+// hardcoded hexes behind !important, the largest such cluster in the file, and
+// the one place the cascade note does not explain, because these two-class
+// selectors already outranked Material's one-class rules. The !important was
+// never doing the work; going through the token API removes both.
+//
+// The panels are a darker chrome than the page around them, so they take the
+// recessed surface rather than the card surface.
+.logcat-toolbar,
+.app-manager .toolbar,
+.file-browser .toolbar {
+  @include mat.form-field-overrides((
+    outlined-container-shape: gcp.$gcp-radius-xs,
+    outlined-outline-color: var(--cco-card-border),
+    outlined-hover-outline-color: var(--cco-text-disabled),
+    outlined-focus-outline-color: var(--cco-accent),
+    outlined-label-text-color: var(--cco-text-secondary),
+    outlined-focus-label-text-color: var(--cco-accent),
+    outlined-input-text-color: var(--cco-text),
+    outlined-input-text-placeholder-color: var(--cco-text-disabled),
+    outlined-caret-color: var(--cco-accent),
+  ));
+  @include mat.select-overrides((
+    enabled-trigger-text-color: var(--cco-text),
+    enabled-arrow-color: var(--cco-text-secondary),
+    focused-arrow-color: var(--cco-accent),
+    placeholder-text-color: var(--cco-text-disabled),
+  ));
+
+  // No hint text in a dense toolbar, so the subscript row is dead space.
+  .mat-mdc-form-field-subscript-wrapper {
+    display: none;
+  }
+
+  .mat-mdc-icon-button {
+    color: var(--cco-text-secondary);
+
+    &:hover:not(:disabled) {
+      color: var(--cco-text);
+      background: var(--cco-divider);
+    }
+
+    &:disabled {
+      color: var(--cco-text-disabled);
+    }
+
+    &.active {
+      color: var(--cco-accent);
+      background: var(--cco-accent-surface);
+    }
+  }
+
+  .mat-mdc-outlined-button {
+    color: var(--cco-text-secondary);
+    border-color: var(--cco-card-border);
+
+    &:hover:not(:disabled) {
+      background: var(--cco-divider);
+    }
+
+    &.active {
+      color: var(--cco-accent);
+      border-color: var(--cco-accent);
+      background: var(--cco-accent-surface);
+    }
+  }
+}
+
+// Dark dropdown panel for mat-select.
+// Apply via panelClass="dark-select-panel" on mat-select.
+.dark-select-panel {
+  @include mat.select-overrides((panel-background-color: var(--cco-surface-dim)));
+  @include mat.option-overrides((
+    label-text-color: var(--cco-text),
+    hover-state-layer-color: var(--cco-divider),
+    focus-state-layer-color: var(--cco-divider),
+    selected-state-label-text-color: var(--cco-accent),
+    selected-state-layer-color: var(--cco-accent-surface),
+  ));
+}
+
+// Dark menu panel (for more options menus)
+.dark-menu-panel {
+  @include mat.menu-overrides((
+    container-color: var(--cco-surface-dim),
+    item-label-text-color: var(--cco-text),
+    item-icon-color: var(--cco-text-secondary),
+  ));
+}
+
+// Connection status badge styling
+.connection-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  background: var(--cco-surface-variant);
+  color: var(--cco-text-secondary);
+
+  .status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--cco-text-disabled);
+    flex-shrink: 0;
+  }
+
+  // State-specific colors
+  &.streaming,
+  &.connected {
+    color: var(--cco-success);
+
+    .status-dot {
+      background: var(--cco-success);
+    }
+  }
+
+  &.connecting,
+  &.waiting_adb {
+    color: var(--cco-warning);
+
+    .status-dot {
+      background: var(--cco-warning);
+      animation: statusPulse 1.5s ease-in-out infinite;
+    }
+  }
+
+  &.paused {
+    color: var(--cco-accent);
+
+    .status-dot {
+      background: var(--cco-accent);
+    }
+  }
+
+  &.error,
+  &.disconnected {
+    color: var(--cco-error);
+
+    .status-dot {
+      background: var(--cco-error);
+    }
+  }
+}
+
+@keyframes statusPulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
+}
+
+// -----------------------------------------------------------------------------
+// Reduced Motion
+// -----------------------------------------------------------------------------
+// One global guard rather than 24 per-component ones: it covers every existing
+// animation and every future one, which a per-site sweep cannot.
+//
+// A near-zero duration, not `none`. Setting animation-duration to none never
+// fires animationend, and code that waits for that event would hang instead of
+// completing instantly.
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

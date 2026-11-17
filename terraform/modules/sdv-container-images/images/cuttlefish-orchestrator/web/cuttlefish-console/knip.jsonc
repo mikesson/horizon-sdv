@@ -1,0 +1,27 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+
+  // Entry points knip cannot infer. src/main.ts and eslint.config.js are NOT
+  // listed, because knip resolves both on its own. main.ts comes through the
+  // Angular plugin reading angular.json, and eslint.config.js is a known config
+  // file. Repeating either here makes knip report a redundant-pattern hint.
+  //
+  // Spec files are absent too, on purpose. Knip's defaults already treat
+  // them as roots in the default run, and listing them here would also make
+  // them roots in the production run, which is the one place they must not
+  // be. Test-reachable is not reachable.
+  "entry": ["scripts/**/*.{ts,mjs}", "e2e/**/*.spec.ts"],
+
+  // The `!` suffix marks a pattern as production. Without it, `--production`
+  // sees an empty project, traverses nothing, and reports every runtime
+  // dependency as unused, a failure that reads exactly like a real finding.
+  "project": ["src/**/*.ts!", "e2e/**/*.ts", "scripts/**/*.{ts,mjs}"],
+
+  "ignore": ["src/environments/environment.prod.ts"],
+  "ignoreDependencies": ["@codemirror/autocomplete", "@codemirror/lang-json"]
+
+  // NOT set on purpose: ignoreExportsUsedInFile. It suppresses every
+  // "exported but no other file imports it" finding, which is most of what
+  // this tool is for. With it on, knip reported a clean 0 against 74 real
+  // findings.
+}

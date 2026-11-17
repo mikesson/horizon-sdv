@@ -1,0 +1,10 @@
+/* Dev-tooling scripts (schema-drift gate) run under tsx with Node types;
+   this project exists so type-aware lint resolves them. */
+{
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "outDir": "../out-tsc/scripts",
+    "types": ["node"]
+  },
+  "include": ["**/*.ts"]
+}

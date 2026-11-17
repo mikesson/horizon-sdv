@@ -1,0 +1,82 @@
+{
+  "overrides": [
+    {
+      "files": [
+        "src/**/*.scss"
+      ],
+      "extends": [
+        "stylelint-config-standard-scss"
+      ]
+    },
+    {
+      "files": [
+        "src/**/*.ts"
+      ],
+      "customSyntax": "./scripts/gates/postcss-angular-inline-styles.mjs",
+      "extends": [
+        "stylelint-config-standard-scss"
+      ],
+      "rules": {
+        "no-empty-source": null,
+        "scss/comment-no-empty": null,
+        "color-no-hex": true
+      }
+    }
+  ],
+  "rules": {
+    "declaration-property-value-disallowed-list": {
+      "/^(background|background-color|color|border-color|fill)$/": [
+        "/#(e8f0fe|d2e3fc|f1f3f4|dadce0)\\b/i"
+      ]
+    },
+    "custom-property-pattern": null,
+    "selector-class-pattern": null,
+    "scss/dollar-variable-pattern": null,
+    "scss/at-mixin-pattern": null,
+    "no-descending-specificity": null,
+    "declaration-empty-line-before": null,
+    "comment-empty-line-before": null,
+    "rule-empty-line-before": null,
+    "scss/double-slash-comment-empty-line-before": null,
+    "value-keyword-case": null,
+    "alpha-value-notation": null,
+    "color-function-notation": null,
+    "shorthand-property-no-redundant-values": null,
+    "number-max-precision": null,
+    "media-feature-range-notation": null,
+    "property-no-vendor-prefix": null,
+    "selector-not-notation": null,
+    "scss/no-global-function-names": null,
+    "keyframes-name-pattern": null,
+    "font-family-name-quotes": null,
+    "color-function-alias-notation": null,
+    "color-hex-length": null,
+    "custom-property-empty-line-before": null,
+    "scss/operator-no-newline-after": null,
+    "scss/comment-no-empty": null,
+    "scss/dollar-variable-empty-line-before": null,
+    "scss/at-mixin-argumentless-call-parentheses": null,
+    "property-disallowed-list": [
+      "/^--mdc-/"
+    ],
+    "selector-pseudo-element-no-unknown": [
+      true,
+      {
+        "ignorePseudoElements": [
+          "ng-deep"
+        ]
+      }
+    ],
+    "declaration-property-value-no-unknown": true,
+    "declaration-block-single-line-max-declarations": null,
+    "selector-pseudo-class-no-unknown": [
+      true,
+      {
+        "ignorePseudoClasses": [
+          "global"
+        ]
+      }
+    ],
+    "declaration-block-no-redundant-longhand-properties": null
+  }
+}

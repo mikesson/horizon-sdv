@@ -1,0 +1,108 @@
+# Cloud Build ignore file
+# Per Google best practices: https://cloud.google.com/build/docs/speeding-up-builds
+# Reduces upload size from 1.3GB to ~50MB
+
+# =============================================================================
+# Version Control
+# =============================================================================
+.git
+.gitignore
+.gitmodules
+.gitattributes
+
+# =============================================================================
+# Dependencies (will be installed fresh during build)
+# =============================================================================
+# Node.js
+node_modules
+web/cuttlefish-console/node_modules
+
+# Go vendor (optional - go mod downloads during build)
+vendor
+
+# =============================================================================
+# Build Artifacts and Compiled Files
+# =============================================================================
+# Web build output
+web/cuttlefish-console/dist
+dist
+
+# Compiled binaries
+*.exe
+*.dll
+*.so
+*.dylib
+*.jar
+*.class
+*.o
+*.a
+
+# =============================================================================
+# IDE and Editor Files
+# =============================================================================
+.idea
+.vscode
+*.swp
+*.swo
+*~
+.project
+.classpath
+.settings
+
+# =============================================================================
+# Documentation and Samples (not needed for runtime)
+# =============================================================================
+docs
+*.md
+CONTRIBUTING.md
+CHANGELOG.md
+
+# =============================================================================
+# Development and Testing
+# =============================================================================
+# Test files
+*_test.go
+testdata
+coverage
+.coverage
+.pytest_cache
+__pycache__
+*.py[cod]
+
+# Development configs
+.env
+.env.local
+.env.*.local
+*.log
+
+# =============================================================================
+# Infrastructure and Deployment Scripts
+# =============================================================================
+# Terraform (sensitive state files)
+.terraform
+*.tfstate
+*.tfstate.*
+*.tfvars
+scripts/gcp/*/terraform.tfvars
+
+# Packer
+deployment/packer/*.pkrvars.hcl
+*.box
+
+# Deployment scripts (not needed in container)
+deployment
+scripts/gcp
+
+# =============================================================================
+# Upstream/External Code
+# =============================================================================
+UPSTREAM
+
+# =============================================================================
+# Miscellaneous
+# =============================================================================
+.DS_Store
+Thumbs.db
+*.bak
+*.tmp
+*.temp

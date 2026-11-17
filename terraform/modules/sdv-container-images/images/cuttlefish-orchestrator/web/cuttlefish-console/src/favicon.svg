@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48">
+  <!-- Background circle with Google Blue -->
+  <circle cx="24" cy="24" r="22" fill="#1a73e8"/>
+
+  <!-- Android robot head - simplified white icon -->
+  <g fill="#ffffff">
+    <!-- Head -->
+    <rect x="14" y="18" width="20" height="14" rx="7" ry="7"/>
+
+    <!-- Eyes -->
+    <circle cx="18" cy="23" r="1.5" fill="#1a73e8"/>
+    <circle cx="30" cy="23" r="1.5" fill="#1a73e8"/>
+
+    <!-- Antennas -->
+    <line x1="17" y1="13" x2="19" y2="17" stroke="#ffffff" stroke-width="2" stroke-linecap="round"/>
+    <line x1="31" y1="13" x2="29" y2="17" stroke="#ffffff" stroke-width="2" stroke-linecap="round"/>
+
+    <!-- Body -->
+    <rect x="14" y="33" width="20" height="2" rx="1"/>
+  </g>
+</svg>

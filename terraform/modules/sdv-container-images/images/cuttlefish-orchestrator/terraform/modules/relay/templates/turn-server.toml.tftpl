@@ -1,0 +1,68 @@
+# Copyright 2026 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# turn-rs configuration, rendered by terraform/modules/relay.
+#
+# This config has no [auth] static-auth-secret and no static credentials, by
+# design. turn-rs checks those first and returns early, so setting either would
+# mean the hook is never called and credential expiry would go unenforced.
+# turn-rs does not verify the TURN REST expiry itself. Authorization belongs to
+# the orchestrator, reached through the agent on loopback.
+
+[server]
+realm = "${realm}"
+
+# Relay ports are virtual in turn-rs. It binds one socket per interface and
+# resolves peers by port lookup within an authenticated session. The range is
+# an allocation-count ceiling, not a set of listening ports, and nothing in the
+# firewall has to open for it.
+port-range = "49152..65535"
+
+[[server.interfaces]]
+transport = "udp"
+listen = "0.0.0.0:3478"
+external = "${external_address}:3478"
+
+[[server.interfaces]]
+transport = "tcp"
+listen = "0.0.0.0:3478"
+external = "${external_address}:3478"
+
+# TURNS on 443. Enterprise egress filtering routinely blocks UDP and 3478 while
+# leaving 443 open, so for the clients relay mode exists to serve this is the
+# primary transport and not a fallback. It is TCP, so loss stalls media instead
+# of degrading it. Size for that.
+#
+# The listener always exists. A placeholder certificate is written at first
+# boot, so a certificate problem costs TURNS and not the whole relay.
+[[server.interfaces]]
+transport = "tcp"
+listen = "0.0.0.0:443"
+external = "${turns_external}:443"
+
+[server.interfaces.ssl]
+certificate-chain = "/etc/turn-server/tls/certificate.crt"
+private-key = "/etc/turn-server/tls/private.key"
+
+[log]
+level = "info"
+stdout = true
+
+[hooks]
+# Loopback. The agent authenticates to the orchestrator on this VM's behalf,
+# because this client cannot attach a bearer token of its own.
+endpoint = "${hook_endpoint}"
+
+[auth]
+enable-hooks-auth = true

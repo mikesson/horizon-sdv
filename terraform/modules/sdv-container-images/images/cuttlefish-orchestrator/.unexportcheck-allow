@@ -1,0 +1,6 @@
+# Exported types, constants and variables that tools/unexportcheck reports as
+# unreferenced but that are meant to stay. One "pkg.Name" per line.
+#
+# Prefer deleting over listing. An entry here says the declaration earns its
+# place with no reader, which is true for a wire contract mirrored from
+# upstream, and rarely true otherwise.

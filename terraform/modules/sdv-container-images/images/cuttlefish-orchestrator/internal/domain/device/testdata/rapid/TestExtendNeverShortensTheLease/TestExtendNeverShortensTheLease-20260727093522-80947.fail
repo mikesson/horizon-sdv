@@ -1,0 +1,15 @@
+# 2026/07/27 09:35:22.879546 [TestExtendNeverShortensTheLease] [rapid] draw ttl: 865
+# 2026/07/27 09:35:22.879578 [TestExtendNeverShortensTheLease] [rapid] draw action: "extend"
+# 2026/07/27 09:35:22.879581 [TestExtendNeverShortensTheLease] [rapid] draw seconds: 2
+# 2026/07/27 09:35:22.879583 [TestExtendNeverShortensTheLease] Extend moved expiry backwards: 2026-07-27 09:49:47.87957446 +0000 UTC m=+865.005699001 -> 2026-07-27 09:35:24.87958303 +0000 UTC m=+2.005707561 (lease cut by 14m22.99999144s)
+# 
+v0.4.8#14412414737758085081
+0xf38b9938170b1
+0x143fb494327ab8
+0x360
+0x20e3edd00eee7
+0x1da53497bc022e
+0x0
+0xdff425b930a6f
+0x4f7360427b5f3
+0x2

@@ -1,0 +1,907 @@
+# Copyright 2026 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# golangci-lint v2 configuration for Cloud Cuttlefish Orchestrator
+# Tested with golangci-lint v2.8.0
+#
+# This configuration includes additional linters to:
+# - Enforce modern Go 1.25/1.26 idioms
+
+version: "2"
+
+run:
+  timeout: 5m
+  modules-download-mode: readonly
+  go: '1.26'
+  # Files behind a goexperiment tag are invisible to the default build config,
+  # so the goroutine-leak assertions would go unlinted. Naming the tag here
+  # analyses them without needing GOEXPERIMENT. The tag decides which files load,
+  # and the code they contain type-checks either way. Setting GOEXPERIMENT
+  # instead does NOT work. go/packages validates it against the base toolchain
+  # (1.25.4 here), which has never heard of the experiment, and the run dies.
+  build-tags:
+    - goexperiment.goroutineleakprofile
+
+output:
+  formats:
+    text:
+      print-linter-name: true
+      print-issued-lines: true
+      colors: true
+  sort-order:
+    - linter
+    - file
+
+# Formatters (separate from linters in v2)
+formatters:
+  enable:
+    - gofmt
+    - gci            # Import grouping: unlike goimports, gci REWRITES group order
+    - gofumpt        # Stricter formatting, Google-style compatible
+  settings:
+    gci:
+      # Google Style: Standard lib → Third party → Local
+      sections:
+        - standard
+        - default
+        - prefix(cloud-cuttlefish-orchestrator)
+    gofmt:
+      simplify: true
+    gofumpt:
+      extra-rules: true
+      # The adapter does not read go.mod (unlike standalone gofumpt); without
+      # this it misclassifies local imports and flags every grouped file.
+      module-path: cloud-cuttlefish-orchestrator
+
+linters:
+  # Start from clean slate for explicit control
+  default: none
+
+  enable:
+    # =========================================================================
+    # TIER 1: Core Google Style & Correctness (MUST HAVE)
+    # =========================================================================
+    - errcheck       # Errors are values; every one has to be handled
+    - govet          # Standard Go vet checks
+    - staticcheck    # Catch bugs, deprecated code, simplifications
+    - unused         # Remove dead code
+    - ineffassign    # Detect useless assignments
+
+    # =========================================================================
+    # TIER 2: Google Style Enforcement
+    # =========================================================================
+    - revive         # Primary Google Style linter (naming, structure)
+    - nakedret       # No naked returns (Google: clarity)
+    - errorlint      # Proper error wrapping with %w, errors.Is/As
+    - misspell       # Correct spelling in comments/strings
+    - predeclared    # Don't shadow predeclared identifiers (new, make, len, etc.)
+    - nonamedreturns # Avoid named returns (Google style: clarity over brevity)
+
+    # =========================================================================
+    # TIER 3: Modern Go 1.25/1.26 Patterns
+    # =========================================================================
+    - modernize      # WaitGroup.Go, slices.Contains, min/max, any, stringscut
+    - intrange       # Use range over integers (Go 1.22+): for i := range n
+    - copyloopvar    # Detect loop variable copy issues
+    - usestdlibvars  # Use stdlib constants (http.MethodGet, time.Monday, etc.)
+
+    # =========================================================================
+    # TIER 4: Bug Detection & Safety
+    # =========================================================================
+    - bodyclose      # HTTP response body must be closed
+    - contextcheck   # Context propagation in goroutines
+    - nilerr         # Returning nil after checking err != nil
+    - nilnesserr     # Checked one err, returned a different nil one
+    - errchkjson     # JSON encoding/decoding error checks
+    - noctx          # HTTP requests without context
+    - nilnil         # Don't return nil value AND nil error together
+    - fatcontext     # Detect context.Context stored in structs (fat contexts)
+    - spancheck      # OpenTelemetry span lifecycle checks
+    - reassign       # Don't reassign package-level variables
+    - exhaustive     # Switches over status enums must handle every value
+    - durationcheck  # Suspicious duration multiplication (TTL/lease math)
+    - makezero       # make([]T, n) followed by append
+    - asasalint      # Passing []any as ...any
+    - bidichk        # Dangerous bidirectional unicode
+    - recvcheck      # Mixed pointer/value receivers on one type
+    - errname        # Error types named XxxError, sentinels ErrXxx
+    - mirror         # Wrong []byte/string variant of stdlib call
+    - unparam        # Parameters whose value is always the same
+    - usetesting     # t.Context()/t.Setenv over raw context/os in tests
+    - iface          # Identical or unused interfaces
+
+    # =========================================================================
+    # TIER 5: Code Quality & Anti-Verbosity
+    # =========================================================================
+    - gocritic       # Opinionated style and performance checks
+    - unconvert      # Remove unnecessary type conversions
+    - prealloc       # Suggest slice preallocation
+    - thelper        # Test helpers should call t.Helper()
+    - wrapcheck      # Errors from external packages should be wrapped
+    - goconst        # Find repeated strings that could be constants
+    - perfsprint     # Prefer string concatenation over fmt.Sprintf when simpler
+    - dupword        # Detect duplicate words in comments
+    - wastedassign   # Detect assignments that are never used
+    - testifylint    # Better testify assertions
+
+    # =========================================================================
+    # TIER 6: Complexity Control
+    # =========================================================================
+    - gocognit       # Cognitive complexity (catches deeply nested code)
+    - gocyclo        # Cyclomatic complexity (independent code paths)
+    - nestif         # Deeply nested if statements
+    - funlen         # Function length limits
+    - dupl           # Copy-paste detection (e.g. duplicated tree-walks)
+
+    # =========================================================================
+    # TIER 7: Architecture Enforcement
+    # =========================================================================
+    - depguard       # Enforce internal/domain, features, platform layering
+    - goheader       # License header enforcement
+
+    # =========================================================================
+    # TIER 8: Security (with exclusions for intentional patterns)
+    # =========================================================================
+    - gosec          # Security issue detection
+
+    # =========================================================================
+    # TIER 9: Logging & Documentation Consistency
+    # =========================================================================
+    - sloglint       # Consistent slog usage
+    - nolintlint     # Ensure nolint directives are well-formed
+
+  settings:
+    # -------------------------------------------------------------------------
+    # REVIVE: Google Style Guide enforcement
+    # -------------------------------------------------------------------------
+    revive:
+      severity: warning
+      enable-all-rules: false
+      rules:
+        # Naming: Initialisms must be consistent case
+        - name: var-naming
+          severity: error
+          arguments:
+            - ["ID", "URL", "HTTP", "API", "JSON", "XML", "URI", "RPC", "TCP", "UDP", "IP", "VM", "GCE", "GCS", "IAP", "JWT", "RBAC", "UUID", "TTL", "SLA", "CVD", "HO", "WS", "WSS"]
+
+        # Context should be the first argument
+        - name: context-as-argument
+          severity: error
+          arguments:
+            - allowTypesBefore: "*testing.T,*testing.B,*testing.F"
+
+        # Don't use dot imports
+        - name: dot-imports
+          severity: error
+
+        # Error should be the last return value
+        - name: error-return
+          severity: error
+
+        # Error types should be named XxxError
+        - name: error-naming
+          severity: error
+
+        # Error strings should not be capitalized
+        - name: error-strings
+          severity: warning
+
+        # Package comments recommended
+        - name: package-comments
+          severity: warning
+
+        # Exported functions should have comments
+        - name: exported
+          severity: warning
+          arguments:
+            - "checkPrivateReceivers"
+            - "sayRepetitiveInsteadOfStutters"
+
+        # Blank imports should have a comment
+        - name: blank-imports
+          severity: warning
+
+        # Context keys should use custom types
+        - name: context-keys-type
+          severity: error
+
+        # Unexported types in exported functions
+        - name: unexported-return
+          severity: warning
+
+        # Keep code linear (reduce nesting)
+        - name: indent-error-flow
+          severity: warning
+        - name: early-return
+          severity: warning
+        - name: superfluous-else
+          severity: warning
+
+        # Avoid Get prefix on getters
+        - name: get-return
+          severity: warning
+
+        # Limit function arguments
+        - name: argument-limit
+          severity: warning
+          arguments: [6]
+
+        # Limit function return values
+        - name: function-result-limit
+          severity: warning
+          arguments: [3]
+
+        # Avoid unnecessary else after return/break/continue
+        - name: if-return
+          severity: warning
+
+        # Use consistent receiver names
+        - name: receiver-naming
+          severity: warning
+
+        # Don't use empty blocks
+        - name: empty-block
+          severity: warning
+
+        # Import aliases. camelCase is permitted because the codebase
+        # disambiguates a domain package from the feature slice of the same
+        # name (deviceDomain, hostDomain, buildDomain); a lowercase-only
+        # pattern outlaws the convention instead of the mistake.
+        - name: import-alias-naming
+          severity: warning
+          arguments:
+            - "^[a-z][a-zA-Z0-9]*$"
+
+        # Range scope issue (pre-Go 1.22 pattern, still good to check)
+        - name: range-val-address
+          severity: error
+
+        # Don't defer in loops
+        - name: defer
+          severity: warning
+          arguments:
+            - ["loop", "method-call", "recover", "immediate-recover"]
+
+        # Optimize string format calls
+        - name: optimize-operands-order
+          severity: warning
+
+        # Avoid redundant control flow
+        - name: redundant-import-alias
+          severity: warning
+
+        # Modifying control variable
+        - name: modifies-value-receiver
+          severity: warning
+
+        # Unnecessary statements
+        - name: unnecessary-stmt
+          severity: warning
+
+        # Use any instead of interface{}
+        - name: use-any
+          severity: warning
+
+    # -------------------------------------------------------------------------
+    # NAKEDRET: Disallow naked returns for clarity
+    # -------------------------------------------------------------------------
+    nakedret:
+      max-func-lines: 0
+
+    # -------------------------------------------------------------------------
+    # NONAMEDRETURNS: Disallow named returns (with exceptions)
+    # Google style prefers explicit returns for clarity
+    # -------------------------------------------------------------------------
+    nonamedreturns:
+      report-error-in-defer: true
+
+    # -------------------------------------------------------------------------
+    # ERRORLINT: Proper error handling with Go 1.13+ patterns
+    # -------------------------------------------------------------------------
+    errorlint:
+      errorf: true
+      errorf-multi: true
+      asserts: true
+      comparison: true
+
+    # -------------------------------------------------------------------------
+    # WRAPCHECK: Error wrapping at package boundaries
+    # -------------------------------------------------------------------------
+    wrapcheck:
+      ignore-sigs:
+        - .Errorf(
+        - errors.New(
+        - errors.Unwrap(
+        - errors.Join(
+        - web.MapError(
+        - status.Error(
+        - status.Errorf(
+        - huma.Error
+        # The platform query helpers wrap internally with their desc argument;
+        # wrapping again at call sites would double-wrap every message.
+        # QueryAll and QueryRow are generic, so their signatures carry a type
+        # parameter list and a trailing "(" would not match.
+        - spanner.QueryAll
+        - spanner.QueryRow
+        - spanner.QueryCount(
+        # A slog.Handler decorator forwards its delegate's error verbatim;
+        # there is nothing the decorator knows that the delegate did not.
+        - (log/slog.Handler).Handle(
+        # Partial marks an error the caller has already wrapped.
+        - telemetry.Partial(
+      ignore-interface-regexps:
+        # The atomic repository ports are declared consumer-side in the feature
+        # rather than in domain/, but they front the same Spanner repositories
+        # and their errors arrive already wrapped and already typed.
+        - ^(device|host)feature\.Atomic[A-Za-z]*Repository$
+      ignore-package-globs:
+        - encoding/json
+        - encoding/xml
+        - io
+        - net/http
+        - cloud.google.com/go/spanner # Spanner errors have good context
+        - google.golang.org/api/*     # Google API errors have good context
+        # Domain packages are this module's own error vocabulary, not an
+        # external boundary. Repositories already wrap with their own context
+        # and return the typed errors the transport layer matches with
+        # errors.As; wrapping a service-layer pass-through a second time yields
+        # "get build abc: failed to get build: <cause>" and buries nothing new.
+        - cloud-cuttlefish-orchestrator/internal/domain/*
+        # Placement names the spec, build and host it failed on in its own
+        # errors, so the device service's calls into it are pass-throughs.
+        - cloud-cuttlefish-orchestrator/internal/features/device/placement
+
+    # -------------------------------------------------------------------------
+    # GOCRITIC: Balanced code quality checks
+    # -------------------------------------------------------------------------
+    gocritic:
+      enabled-tags:
+        - diagnostic
+        - style
+        - performance
+        - opinionated  # Enable opinionated checks for stricter review
+      disabled-checks:
+        - hugeParam           # Too noisy for large structs (common in CCO)
+        - rangeValCopy        # Covered by govet
+        - commentedOutCode    # Too many false positives
+        - whyNoLint           # We use nolintlint instead
+        - paramTypeCombine    # Style preference, not strictly better
+        - unnamedResult       # Conflicts with nonamedreturns in some cases
+
+    # -------------------------------------------------------------------------
+    # GOCOGNIT: Cognitive complexity limits
+    # 30 is the upstream default. (Was 50, which, combined with the blanket
+    # per-layer exclusions below, hid every complex function in the codebase.)
+    # Functions over 30 that are intentionally kept complex carry a per-function
+    # //nolint:gocognit with a reason, instead of a whole-layer opt-out.
+    # -------------------------------------------------------------------------
+    gocognit:
+      min-complexity: 30
+
+    # -------------------------------------------------------------------------
+    # GOCYCLO: Cyclomatic complexity (independent paths through a function)
+    # Complements gocognit; 15 is the conventional "needs a second look" line.
+    # -------------------------------------------------------------------------
+    gocyclo:
+      min-complexity: 15
+
+    # -------------------------------------------------------------------------
+    # NESTIF: Nested if statement limits
+    # -------------------------------------------------------------------------
+    nestif:
+      min-complexity: 5   # Flag deeply nested if blocks
+
+    # -------------------------------------------------------------------------
+    # FUNLEN: Function length limits
+    # Prevents excessively long functions
+    # Note: 100 lines is generous but catches truly problematic functions
+    # -------------------------------------------------------------------------
+    funlen:
+      lines: 100          # Max lines per function
+      statements: 60      # Max statements per function
+
+    # -------------------------------------------------------------------------
+    # DUPL: Copy-paste detection (token-based). Would have flagged the
+    # check/filter blocked-path tree-walks that were near-identical.
+    # -------------------------------------------------------------------------
+    dupl:
+      threshold: 150
+
+    # -------------------------------------------------------------------------
+    # GOCONST: Repeated strings should be constants
+    # -------------------------------------------------------------------------
+    goconst:
+      min-len: 3          # Minimum length of string to consider
+      min-occurrences: 3  # Must appear 3+ times
+      ignore-tests: true  # Don't enforce in tests
+      match-constant: true
+      numbers: true       # Also check for repeated numbers
+      min: 3              # Minimum number value to check
+      max: 3              # Max occurrences before requiring constant
+
+    # -------------------------------------------------------------------------
+    # PERFSPRINT: Prefer efficient string operations
+    # Extended with new options for better coverage
+    # -------------------------------------------------------------------------
+    perfsprint:
+      int-conversion: true      # Prefer strconv.Itoa over fmt.Sprintf
+      err-error: true           # Prefer err.Error() over fmt.Sprintf("%s", err)
+      errorf: true              # Prefer fmt.Errorf over errors.New(fmt.Sprintf())
+      sprintf1: true            # Prefer direct string over fmt.Sprintf("%s", s)
+      strconcat: true           # Prefer s1 + s2 over fmt.Sprintf("%s%s", s1, s2)
+      integer-format: true      # Prefer strconv for integer formatting
+      error-format: true        # Prefer err.Error() for error formatting
+      string-format: true       # Prefer string() for string formatting
+      bool-format: true         # Prefer strconv.FormatBool for bool formatting
+      hex-format: true          # Prefer strconv for hex formatting
+
+    # -------------------------------------------------------------------------
+    # DUPWORD: Detect duplicate words
+    # -------------------------------------------------------------------------
+    dupword:
+      keywords:
+        - "the"
+        - "and"
+        - "a"
+        - "to"
+        - "is"
+        - "in"
+        - "for"
+        - "of"
+        - "that"
+        - "this"
+      ignore: []
+
+    # -------------------------------------------------------------------------
+    # USESTDLIBVARS: Use stdlib constants instead of magic strings
+    # -------------------------------------------------------------------------
+    usestdlibvars:
+      http-method: true         # http.MethodGet instead of "GET"
+      http-status-code: true    # http.StatusOK instead of 200
+      time-weekday: true        # time.Monday instead of "Monday"
+      time-month: true          # time.January instead of "January"
+      time-layout: true         # time.RFC3339 instead of layout string
+      crypto-hash: true         # crypto.SHA256 instead of magic numbers
+      default-rpc-path: true    # rpc.DefaultRPCPath
+      sql-isolation-level: true # sql.LevelDefault
+      tls-signature-scheme: true
+      constant-kind: true
+
+    # -------------------------------------------------------------------------
+    # COPYLOOPVAR: Loop variable issues
+    # -------------------------------------------------------------------------
+    copyloopvar:
+      check-alias: true   # Check all loop variable aliases
+
+    # -------------------------------------------------------------------------
+    # FATCONTEXT: Detect fat context issues
+    # -------------------------------------------------------------------------
+    fatcontext:
+      check-struct-pointers: false  # Reduce false positives
+
+    # -------------------------------------------------------------------------
+    # EXHAUSTIVE: Status-enum switches handle every value. A `default:` arm
+    # counts as handling the rest, so the check bites only on bare switches.
+    # -------------------------------------------------------------------------
+    exhaustive:
+      default-signifies-exhaustive: true
+
+    # -------------------------------------------------------------------------
+    # USETESTING: Prefer testing-package facilities in tests. The non-default
+    # context-background check migrates context.Background() → t.Context().
+    # -------------------------------------------------------------------------
+    usetesting:
+      context-background: true
+
+    # -------------------------------------------------------------------------
+    # IFACE: Only the duplicate-definition check. NEVER enable `opaque` (flags
+    # domain constructors that intentionally return interfaces) or `unused`
+    # (per-package analysis flags every domain port, because Repository and
+    # Service interfaces are declared in domain/ and implemented in platform/
+    # by design).
+    # -------------------------------------------------------------------------
+    iface:
+      enable:
+        - identical
+
+    # -------------------------------------------------------------------------
+    # UNUSED: staticcheck's U1000. It cannot see unused *exported* identifiers.
+    # Whole-program mode was removed from staticcheck in 2020.2 and never
+    # returned, so every exported name is assumed used. That gap is covered
+    # outside golangci-lint by `deadcode ./cmd/...` (functions and methods) and
+    # tools/unexportcheck (types, constants, variables).
+    #
+    # What is tunable here is how strictly package-local code is judged.
+    # field-writes-are-uses is the one that earns its keep: by default a field
+    # that is only ever assigned still counts as used, which hides dead state.
+    # The other three find nothing today and are set as guards against
+    # regressions. Beware one false-positive class: fields of a comparable
+    # struct used as a map key are never read but carry the key's identity
+    # (cmd/relayhook's cacheKey).
+    # -------------------------------------------------------------------------
+    unused:
+      field-writes-are-uses: false
+      exported-fields-are-used: false
+      local-variables-are-used: false
+      post-statements-are-reads: true
+
+    # -------------------------------------------------------------------------
+    # UNPARAM: check-exported is safe here because nothing outside this module
+    # imports it. Every package lives under internal/, cmd/, or tests/.
+    # The upstream warning about false positives applies to editors
+    # running the linter on a single subdirectory, not to a CI run over ./...
+    # -------------------------------------------------------------------------
+    unparam:
+      check-exported: true
+
+    # -------------------------------------------------------------------------
+    # GOVET: Defaults plus the two high-value non-default analyzers.
+    # fieldalignment/shadow stay off (noise).
+    # -------------------------------------------------------------------------
+    govet:
+      enable:
+        - nilness
+        - unusedwrite
+
+    # -------------------------------------------------------------------------
+    # NILNIL: Don't return nil value and nil error together
+    # -------------------------------------------------------------------------
+    nilnil:
+      checked-types:
+        - ptr
+        - func
+        - iface
+        - map
+        - chan
+
+    # -------------------------------------------------------------------------
+    # TESTIFYLINT: Better testify assertions
+    # -------------------------------------------------------------------------
+    testifylint:
+      enable-all: true
+      disable:
+        - require-error  # Sometimes we intentionally don't require errors
+
+    # -------------------------------------------------------------------------
+    # NOLINTLINT: Ensure nolint directives are proper
+    # -------------------------------------------------------------------------
+    nolintlint:
+      allow-unused: false         # Report unused nolint directives
+      require-explanation: true   # Every suppression states why it is correct
+      require-specific: true      # Require specific linter name in nolint
+
+    # -------------------------------------------------------------------------
+    # DEPGUARD: Architecture layer enforcement
+    # -------------------------------------------------------------------------
+    depguard:
+      rules:
+        # Domain layer must be pure (no infrastructure dependencies)
+        domain-purity:
+          list-mode: lax
+          files:
+            - "**/internal/domain/**/*.go"
+          deny:
+            - pkg: "cloud-cuttlefish-orchestrator/internal/features"
+              desc: "Domain layer cannot import features (dependency inversion)"
+            - pkg: "cloud-cuttlefish-orchestrator/internal/platform"
+              desc: "Domain layer cannot import platform adapters"
+            - pkg: "cloud-cuttlefish-orchestrator/internal/jobs"
+              desc: "Domain layer cannot import jobs"
+            - pkg: "cloud.google.com/go/compute"
+              desc: "Domain layer cannot import GCP Compute SDK"
+            - pkg: "cloud.google.com/go/spanner"
+              desc: "Domain layer cannot import Spanner SDK"
+            - pkg: "cloud.google.com/go/storage"
+              desc: "Domain layer cannot import Storage SDK"
+            - pkg: "github.com/danielgtaylor/huma"
+              desc: "Domain layer cannot import HTTP framework"
+
+        # Features cannot import other features (vertical slices)
+        feature-isolation:
+          list-mode: lax
+          files:
+            - "**/internal/features/**/*.go"
+          deny:
+            - pkg: "cloud-cuttlefish-orchestrator/internal/jobs"
+              desc: "Features cannot import jobs (use domain interfaces)"
+
+        # The rule above carried the vertical-slice comment for months while
+        # denying only jobs, so the firewall's central rule, that a slice never
+        # reaches into a sibling, was enforced by nothing. The two rules below
+        # are that rule. Test files are excluded from both, because an external
+        # test package (package device_test) imports the very feature it
+        # covers, which a prefix deny cannot tell from a sibling.
+        #
+        # Slices without sub-packages need no allow entry, so this one covers
+        # every slice added later without being edited. A slice that grows a
+        # sub-package fails here until it is given a rule of its own, which is
+        # the loud direction to fail in.
+        features-no-sibling-features:
+          list-mode: lax
+          files:
+            - "**/internal/features/**/*.go"
+            - "!**/internal/features/device/**"
+            - "!$test"
+          deny:
+            - pkg: "cloud-cuttlefish-orchestrator/internal/features"
+              desc: "Features cannot import other features; declare a consumer-side interface and let internal/app wire the concrete in"
+
+        # The device slice is the one with sub-packages (cvd, placement,
+        # validation). Longest-prefix wins, so its own children resolve
+        # against the allow entry while every sibling slice hits the deny.
+        device-no-sibling-features:
+          list-mode: lax
+          files:
+            - "**/internal/features/device/**"
+            - "!$test"
+          allow:
+            - "cloud-cuttlefish-orchestrator/internal/features/device"
+          deny:
+            - pkg: "cloud-cuttlefish-orchestrator/internal/features"
+              desc: "Features cannot import other features; declare a consumer-side interface and let internal/app wire the concrete in"
+
+        # Jobs consume features only through domain ports or consumer-side
+        # interfaces, with main wiring the concretes in
+        jobs-no-features:
+          list-mode: lax
+          files:
+            - "**/internal/jobs/**/*.go"
+          deny:
+            - pkg: "cloud-cuttlefish-orchestrator/internal/features"
+              desc: "Jobs cannot import features (use domain interfaces)"
+
+        # Platform layer cannot import features (but CAN import domain for entities)
+        platform-no-features:
+          list-mode: lax
+          files:
+            - "**/internal/platform/**/*.go"
+          deny:
+            - pkg: "cloud-cuttlefish-orchestrator/internal/features"
+              desc: "Platform layer cannot import features"
+
+        # The transport bridge sits beside the features and must not reach
+        # into them (it kept this guard from its platform/ days)
+        web-no-features:
+          list-mode: lax
+          files:
+            - "**/internal/web/**/*.go"
+          deny:
+            - pkg: "cloud-cuttlefish-orchestrator/internal/features"
+              desc: "Transport helpers cannot import features"
+
+        # Production code cannot depend on test infrastructure. tests/ holds
+        # harness binaries and fake boundary services; only _test files (e.g.
+        # a reconciler test driving a real client against tests/harness/fakegce)
+        # and the harness tree itself may import it.
+        production-no-test-infra:
+          list-mode: lax
+          files:
+            - "**/internal/**/*.go"
+            - "**/cmd/**/*.go"
+            - "!$test"
+          deny:
+            - pkg: "cloud-cuttlefish-orchestrator/tests"
+              desc: "Production code cannot import test infrastructure (tests/)"
+
+    # -------------------------------------------------------------------------
+    # GOHEADER: License header enforcement
+    # Uses YEAR-RANGE to match "2024", "2025", "2026", or "2024-2026" formats
+    # -------------------------------------------------------------------------
+    goheader:
+      values:
+        regexp:
+          YEAR-RANGE: "20[0-9]{2}(-20[0-9]{2})?"
+      template: |-
+        Copyright {{ YEAR-RANGE }} Google LLC
+
+        Licensed under the Apache License, Version 2.0 (the "License");
+        you may not use this file except in compliance with the License.
+        You may obtain a copy of the License at
+
+            https://www.apache.org/licenses/LICENSE-2.0
+
+        Unless required by applicable law or agreed to in writing, software
+        distributed under the License is distributed on an "AS IS" BASIS,
+        WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+        See the License for the specific language governing permissions and
+        limitations under the License.
+
+    # -------------------------------------------------------------------------
+    # GOSEC: Security with reasonable exclusions
+    # -------------------------------------------------------------------------
+    gosec:
+      excludes:
+        - G101  # Hardcoded credentials (too many false positives on constants)
+        - G304  # File path from variable (necessary for CLI tools)
+      config:
+        global:
+          audit: false
+
+    # -------------------------------------------------------------------------
+    # SLOGLINT: Consistent slog usage
+    # Note: context: "scope" requires *Context variants (InfoContext, etc.)
+    # This is ideal but may be too disruptive for existing code.
+    # Start with no context requirement and enable "scope" after migration.
+    # -------------------------------------------------------------------------
+    sloglint:
+      kv-only: false          # Allow both key-value and Attr styles
+      attr-only: false
+      no-raw-keys: false      # Allow raw string keys (Attr style preferred but not required)
+      args-on-sep-lines: false
+
+    # -------------------------------------------------------------------------
+    # MISSPELL: American English spelling
+    # -------------------------------------------------------------------------
+    misspell:
+      locale: US
+
+    # -------------------------------------------------------------------------
+    # THELPER: Test helper enforcement
+    # -------------------------------------------------------------------------
+    thelper:
+      test:
+        first: true
+        begin: true
+      benchmark:
+        first: true
+        begin: true
+
+    # -------------------------------------------------------------------------
+    # SPANCHECK: OpenTelemetry span checks
+    # -------------------------------------------------------------------------
+    spancheck:
+      checks:
+        - end               # Span.End() is called
+        - record-error      # Span.RecordError() for errors
+        - set-status        # Span.SetStatus() for errors
+      # telemetry.RecordError is the codebase's span-error recorder: it calls
+      # both span.RecordError and span.SetStatus (spancheck cannot see through
+      # the helper).
+      ignore-check-signatures:
+        - telemetry\.RecordError
+
+  # ---------------------------------------------------------------------------
+  # EXCLUSIONS: Reduce noise from known patterns
+  # ---------------------------------------------------------------------------
+  exclusions:
+    # Use built-in presets
+    presets:
+      - std-error-handling
+      - common-false-positives
+
+    rules:
+      # Test files have relaxed requirements
+      - path: _test\.go
+        linters:
+          - wrapcheck     # Tests don't need error wrapping
+          - errcheck      # Some test errors are intentionally ignored
+          - gosec         # Test code has different security model
+          - gocritic      # Less strict in tests
+          - contextcheck  # Test goroutines often don't need context
+          - funlen        # Test functions can be longer (table-driven tests)
+          - gocognit      # Test functions can be more complex
+          - dupword       # Tests may have intentional repeated patterns
+          - nonamedreturns # Named returns acceptable in test helpers
+          # check-exported makes unparam read test doubles too, where an
+          # unused ctx or an always-nil error is the point: the signature is
+          # dictated by the interface being faked, not by the body.
+          - unparam
+          # A test's own request has no caller to inherit a deadline from, and
+          # the test binary's timeout already bounds it.
+          - noctx
+          # (nil, nil) is a legitimate stub return: a fake reporting "no result,
+          # no error" is exactly what the case under test needs to exercise.
+          - nilnil
+
+      # Generated code should not be linted
+      - path: \.pb\.go$
+        linters:
+          - all
+
+      # CLI commands may need to read files from user paths, named on the
+      # command line or in the Android build environment ($ANDROID_PRODUCT_OUT)
+      - path: cmd/cfctl/
+        linters:
+          - gosec
+        text: "G304|G703"
+
+      # Kong binds subcommands by method signature: every Run takes the same
+      # arguments whether or not a given command reads them.
+      - path: cmd/cfctl/internal/cli/
+        linters:
+          - unparam
+
+      # Intentional InsecureSkipVerify for internal host communication
+      - path: internal/features/device/
+        linters:
+          - gosec
+        text: "G402"
+
+      # The SPA fallback serves from a fixed root, and http.ServeFile rejects
+      # any r.URL.Path containing "..", so the flagged taint is stdlib-guarded.
+      - path: internal/app/server\.go
+        linters:
+          - gosec
+        text: "G703"
+
+      # Spanner iterator.Done is an expected sentinel
+      - path: internal/platform/spanner/
+        linters:
+          - errorlint
+        text: "comparing with == will fail on wrapped errors"
+
+      # gocognit / gocyclo are intentionally NOT excluded for any layer:
+      # cognitive/cyclomatic complexity should be visible everywhere, and a
+      # complex function carries a per-function //nolint with a reason
+      # instead of a whole-layer opt-out. funlen stays relaxed below only where
+      # length is dominated by declarations (route tables, SQL column lists,
+      # metric setup) and not by branching.
+
+      # HTTP handlers register many routes / map many fields.
+      - path: handler.*\.go$
+        linters:
+          - funlen
+
+      # Service-layer orchestration can be long.
+      - path: service\.go$
+        linters:
+          - funlen
+
+      # Repositories have long column lists; txn closures use named returns.
+      - path: repository\.go$
+        linters:
+          - funlen
+          - nonamedreturns
+
+      # Platform adapters have verbose integration glue.
+      - path: internal/platform/
+        linters:
+          - funlen
+
+      # Jobs have long processing loops.
+      - path: internal/jobs/
+        linters:
+          - funlen
+
+      # Middleware setup can be long.
+      - path: middleware/
+        linters:
+          - funlen
+
+      # Domain constructors/builders set many fields.
+      - path: internal/domain/
+        linters:
+          - funlen
+
+      # Telemetry setup has many metric definitions
+      - path: internal/telemetry/
+        linters:
+          - funlen
+
+      # Router setup is configuration-heavy
+      - path: internal/router/
+        linters:
+          - funlen
+
+      # Composition-root wiring is declaration-dominated (client construction,
+      # Wire calls, job option lists).
+      - path: internal/app/
+        linters:
+          - funlen
+
+# Issue reporting configuration. Auto-fix is an explicit `golangci-lint run
+# --fix`, never a run default: a fix-by-default run mutates the working tree.
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0

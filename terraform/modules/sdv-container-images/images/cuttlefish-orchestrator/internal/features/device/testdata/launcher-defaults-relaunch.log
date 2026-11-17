@@ -1,0 +1,282 @@
+assemble_cvd I 08-11 16:20:25  3365  3365 fetcher_config.cpp:146] Adjusting cvd_file paths to directory: /var/tmp/cvd/104/1786464889230835/artifacts/0
+assemble_cvd D 08-11 16:20:25  3365  3365 fetcher_config.cpp:240] Could not find file ending in kernel
+assemble_cvd D 08-11 16:20:25  3365  3365 fetcher_config.cpp:240] Could not find file ending in initramfs.img
+assemble_cvd I 08-11 16:20:25  3365  3365 config_flag.cpp:215] Reading --config option from: /var/tmp/cvd/104/1786464889230835/artifacts/0/android-info.txt
+assemble_cvd I 08-11 16:20:25  3365  3365 config_flag.cpp:166] Launching CVD using --config='phone'.
+assemble_cvd D 08-11 16:20:25  3365  3365 subprocess.cpp:472] Started (pid: 3366): /var/tmp/cvd/104/1786464889230835/artifacts/host_tools/bin/avbtool
+assemble_cvd D 08-11 16:20:25  3365  3365 subprocess.cpp:474] info_image
+assemble_cvd D 08-11 16:20:25  3365  3365 subprocess.cpp:474] --image
+assemble_cvd D 08-11 16:20:25  3365  3365 subprocess.cpp:474] /var/tmp/cvd/104/1786464889230835/artifacts/0/boot.img
+assemble_cvd D 08-11 16:20:25  3365  3365 subprocess.cpp:472] Started (pid: 3367): /var/tmp/cvd/104/1786464889230835/artifacts/host_tools/bin/extract-ikconfig
+assemble_cvd D 08-11 16:20:25  3365  3365 subprocess.cpp:474] /var/tmp/cvd/104/1786464889230835/artifacts/0/boot.img
+assemble_cvd I 08-11 16:20:27  3365  3365 flags.cc:947] Defaulting to `android-info.txt` because guest protobuf config is missing.
+assemble_cvd D 08-11 16:20:27  3365  3365 subprocess.cpp:472] Started (pid: 3448): /usr/lib/cuttlefish-common/bin/capability_query.py
+assemble_cvd D 08-11 16:20:27  3365  3365 subprocess.cpp:474] qemu_cli
+assemble_cvd D 08-11 16:20:27  3365  3365 flags.cc:1652] rootcanal_instance_num: 0
+assemble_cvd D 08-11 16:20:27  3365  3365 flags.cc:1653] launch rootcanal: 1
+assemble_cvd D 08-11 16:20:27  3365  3365 flags.cc:1662] casimir_instance_num: 0
+assemble_cvd D 08-11 16:20:27  3365  3365 flags.cc:1663] launch casimir: 1
+assemble_cvd D 08-11 16:20:27  3365  3365 flags.cc:1667] netsim_instance_num: 0
+assemble_cvd D 08-11 16:20:27  3365  3365 flags.cc:1686] launch pica: 1
+assemble_cvd D 08-11 16:20:27  3365  3365 subprocess.cpp:472] Started (pid: 3450): /var/tmp/cvd/104/1786464889230835/artifacts/host_tools/bin/graphics_detector
+assemble_cvd D 08-11 16:20:27  3365  3365 subprocess.cpp:474] /tmp/TemporaryFile-huQeyh
+assemble_cvd D 08-11 16:20:28  3365  3365 network_flags.cpp:51] dns = 8.8.8.8
+assemble_cvd D 08-11 16:20:28  3365  3365 network_flags.cpp:52] broadcast = 192.168.97.3
+assemble_cvd D 08-11 16:20:28  3365  3365 network_flags.cpp:53] prefix length = 30
+assemble_cvd D 08-11 16:20:28  3365  3365 graphics_flags.cc:387] GPU mode candidates not provided by guest config. Assuming the historically accepted modes.
+assemble_cvd D 08-11 16:20:28  3365  3365 graphics_flags.cc:466] Initial GPU mode candidates:
+assemble_cvd D 08-11 16:20:28  3365  3365 graphics_flags.cc:468]   1: gfxstream
+assemble_cvd D 08-11 16:20:28  3365  3365 graphics_flags.cc:468]   2: guest_swiftshader
+assemble_cvd D 08-11 16:20:28  3365  3365 graphics_flags.cc:468]   3: gfxstream_guest_angle
+assemble_cvd D 08-11 16:20:28  3365  3365 graphics_flags.cc:468]   4: gfxstream_guest_angle_host_lavapipe
+assemble_cvd D 08-11 16:20:28  3365  3365 graphics_flags.cc:468]   5: gfxstream_guest_angle_host_swiftshader
+assemble_cvd D 08-11 16:20:28  3365  3365 graphics_flags.cc:468]   6: none
+assemble_cvd D 08-11 16:20:28  3365  3365 graphics_flags.cc:471] 
+assemble_cvd D 08-11 16:20:28  3365  3365 graphics_flags.cc:411] Checking requirements for --gpu_mode=gfxstream
+assemble_cvd D 08-11 16:20:28  3365  3365 graphics_flags.cc:417]   1. PASSED: The guest supports Gfxstream.
+assemble_cvd D 08-11 16:20:28  3365  3365 graphics_flags.cc:417]   2. FAILED: The host does not have GLES support. Please ensure the GLES userspace drivers are installed and available.
+assemble_cvd D 08-11 16:20:28  3365  3365 graphics_flags.cc:417]   3. PASSED: The host GLES driver is not a software implementation.
+assemble_cvd D 08-11 16:20:28  3365  3365 graphics_flags.cc:417]   4. PASSED: The host is not ARM64.
+assemble_cvd D 08-11 16:20:28  3365  3365 graphics_flags.cc:417]   5. PASSED: The host has Vulkan support.
+assemble_cvd D 08-11 16:20:28  3365  3365 graphics_flags.cc:417]   6. FAILED: The host does not have a non-software implementation Vulkan driver. Consider enabling --gpu_mode=gfxstream_guest_angle_host_swiftshader for host software rendering which has a vetted software renderer.
+assemble_cvd D 08-11 16:20:28  3365  3365 graphics_flags.cc:435]   All requirements not met. Removing mode from candidate modes.
+assemble_cvd D 08-11 16:20:28  3365  3365 graphics_flags.cc:438] 
+assemble_cvd D 08-11 16:20:28  3365  3365 graphics_flags.cc:411] Checking requirements for --gpu_mode=guest_swiftshader
+assemble_cvd D 08-11 16:20:28  3365  3365 graphics_flags.cc:432]   All requirements met.
+assemble_cvd D 08-11 16:20:28  3365  3365 graphics_flags.cc:438] 
+assemble_cvd D 08-11 16:20:28  3365  3365 graphics_flags.cc:411] Checking requirements for --gpu_mode=gfxstream_guest_angle
+assemble_cvd D 08-11 16:20:28  3365  3365 graphics_flags.cc:417]   1. PASSED: The guest supports Gfxstream.
+assemble_cvd D 08-11 16:20:28  3365  3365 graphics_flags.cc:417]   2. PASSED: The host is not ARM64.
+assemble_cvd D 08-11 16:20:28  3365  3365 graphics_flags.cc:417]   3. PASSED: The host has Vulkan support.
+assemble_cvd D 08-11 16:20:28  3365  3365 graphics_flags.cc:417]   4. FAILED: The host does not have a non-software implementation Vulkan driver. Consider enabling --gpu_mode=gfxstream_guest_angle_host_swiftshader for host software rendering which has a vetted software renderer.
+assemble_cvd D 08-11 16:20:28  3365  3365 graphics_flags.cc:417]   5. PASSED: The instance is not using the system QEMU.
+assemble_cvd D 08-11 16:20:28  3365  3365 graphics_flags.cc:435]   All requirements not met. Removing mode from candidate modes.
+assemble_cvd D 08-11 16:20:28  3365  3365 graphics_flags.cc:438] 
+assemble_cvd D 08-11 16:20:28  3365  3365 graphics_flags.cc:411] Checking requirements for --gpu_mode=gfxstream_guest_angle_host_lavapipe
+assemble_cvd D 08-11 16:20:28  3365  3365 graphics_flags.cc:417]   1. PASSED: The guest supports Gfxstream.
+assemble_cvd D 08-11 16:20:28  3365  3365 graphics_flags.cc:417]   2. PASSED: The host is not ARM64.
+assemble_cvd D 08-11 16:20:28  3365  3365 graphics_flags.cc:417]   3. PASSED: The host has Vulkan support.
+assemble_cvd D 08-11 16:20:28  3365  3365 graphics_flags.cc:417]   4. PASSED: The instance is not using the system QEMU.
+assemble_cvd D 08-11 16:20:28  3365  3365 graphics_flags.cc:432]   All requirements met.
+assemble_cvd D 08-11 16:20:28  3365  3365 graphics_flags.cc:438] 
+assemble_cvd D 08-11 16:20:28  3365  3365 graphics_flags.cc:411] Checking requirements for --gpu_mode=gfxstream_guest_angle_host_swiftshader
+assemble_cvd D 08-11 16:20:28  3365  3365 graphics_flags.cc:417]   1. PASSED: The guest supports Gfxstream.
+assemble_cvd D 08-11 16:20:28  3365  3365 graphics_flags.cc:417]   2. PASSED: The host is not ARM64.
+assemble_cvd D 08-11 16:20:28  3365  3365 graphics_flags.cc:417]   3. PASSED: The host has Vulkan support.
+assemble_cvd D 08-11 16:20:28  3365  3365 graphics_flags.cc:417]   4. PASSED: The instance is not using the system QEMU.
+assemble_cvd D 08-11 16:20:28  3365  3365 graphics_flags.cc:432]   All requirements met.
+assemble_cvd D 08-11 16:20:28  3365  3365 graphics_flags.cc:438] 
+assemble_cvd D 08-11 16:20:28  3365  3365 graphics_flags.cc:411] Checking requirements for --gpu_mode=none
+assemble_cvd D 08-11 16:20:28  3365  3365 graphics_flags.cc:432]   All requirements met.
+assemble_cvd D 08-11 16:20:28  3365  3365 graphics_flags.cc:438] 
+assemble_cvd D 08-11 16:20:28  3365  3365 graphics_flags.cc:481] GPU mode candidates with satisfied requirements:
+assemble_cvd D 08-11 16:20:28  3365  3365 graphics_flags.cc:483]   1: guest_swiftshader
+assemble_cvd D 08-11 16:20:28  3365  3365 graphics_flags.cc:483]   2: gfxstream_guest_angle_host_lavapipe
+assemble_cvd D 08-11 16:20:28  3365  3365 graphics_flags.cc:483]   3: gfxstream_guest_angle_host_swiftshader
+assemble_cvd D 08-11 16:20:28  3365  3365 graphics_flags.cc:483]   4: none
+assemble_cvd D 08-11 16:20:28  3365  3365 graphics_flags.cc:486] 
+assemble_cvd I 08-11 16:20:28  3365  3365 graphics_flags.cc:489] GPU auto mode: selecting --gpu_mode=guest_swiftshader
+assemble_cvd I 08-11 16:20:28  3365  3365 graphics_flags.cc:502] GPU vhost user auto mode: not needed for --gpu_mode=guest_swiftshader. Not enabling vhost user gpu.
+assemble_cvd D 08-11 16:20:28  3365  3365 graphics_flags.cc:301] ANGLE features: 
+assemble_cvd D 08-11 16:20:28  3365  3365 graphics_flags.cc:301]  - prefer_linear_filtering_for_yuv: false
+assemble_cvd D 08-11 16:20:28  3365  3365 graphics_flags.cc:301]  - map_unspecified_color_space_to_pass_through: true
+assemble_cvd D 08-11 16:20:28  3365  3365 graphics_flags.cc:301]  - ignore_precision_qualifiers: false
+assemble_cvd D 08-11 16:20:28  3365  3365 graphics_flags.cc:301] 
+assemble_cvd D 08-11 16:20:28  3365  3365 clean.cc:99] Prior dirs: /var/tmp/cvd/104/1786464889230835/home/cuttlefish/assembly, /var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1, /tmp/cf_avd_104/cvd-1, /var/tmp/cvd/104/1786464889230835/home/cuttlefish/environments/env-1, /tmp/cf_env_104/env-1
+assemble_cvd D 08-11 16:20:28  3365  3365 clean.cc:100] Prior files: /var/tmp/cvd/104/1786464889230835/home/.cuttlefish_config.json
+assemble_cvd D 08-11 16:20:28  3365  3365 subprocess.cpp:472] Started (pid: 3701): lsof
+assemble_cvd D 08-11 16:20:28  3365  3365 subprocess.cpp:474] -t
+assemble_cvd D 08-11 16:20:28  3365  3365 subprocess.cpp:474] +D
+log_tee(3746)  D 08-11 16:20:29  3746  3746 log_tee.cpp:179] Server listening on unix:/tmp/cf_avd_104/cvd-1/grpc_socket/WmediumdServer.sock
+run_cvd D 08-11 16:20:29  3731  3731 subprocess.cpp:472] Started (pid: 3857): /var/tmp/cvd/104/1786464889230835/artifacts/host_tools/bin/process_restarter
+run_cvd D 08-11 16:20:29  3731  3731 subprocess.cpp:474] -when_exited_with_code=32
+run_cvd D 08-11 16:20:29  3731  3731 subprocess.cpp:474] -ignore_sigtstp
+run_cvd D 08-11 16:20:29  3731  3731 subprocess.cpp:474] --
+run_cvd D 08-11 16:20:29  3731  3731 subprocess.cpp:474] /var/tmp/cvd/104/1786464889230835/artifacts/host_tools/bin/crosvm
+run_cvd D 08-11 16:20:29  3731  3731 subprocess.cpp:474] --extended-status
+run_cvd D 08-11 16:20:29  3731  3731 subprocess.cpp:474] run
+run_cvd D 08-11 16:20:29  3731  3731 subprocess.cpp:474] --socket=/tmp/cf_avd_104/cvd-1/internal/ap_control.sock
+run_cvd D 08-11 16:20:29  3731  3731 subprocess.cpp:474] --no-usb
+run_cvd D 08-11 16:20:29  3731  3731 subprocess.cpp:474] --core-scheduling=false
+run_cvd D 08-11 16:20:29  3731  3731 subprocess.cpp:474] --vhost-user=mac80211-hwsim,socket=/tmp/cf_env_104/env-1/vhost_user_mac80211
+run_cvd D 08-11 16:20:29  3731  3731 subprocess.cpp:474] --net=tap-name=cvd-wifiap-01
+run_cvd D 08-11 16:20:29  3731  3731 subprocess.cpp:474] --seccomp-policy-dir=/var/tmp/cvd/104/1786464889230835/artifacts/host_tools/usr/share/crosvm/x86_64-linux-gnu/seccomp
+run_cvd D 08-11 16:20:29  3731  3731 subprocess.cpp:474] --block=path=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/ap_overlay.img
+run_cvd D 08-11 16:20:29  3731  3731 subprocess.cpp:474] --serial=hardware=serial,num=1,type=file,path=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/logs/crosvm_openwrt_boot.log,earlycon=true
+run_cvd D 08-11 16:20:29  3731  3731 subprocess.cpp:474] --serial=hardware=virtio-console,num=1,type=file,path=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/logs/crosvm_openwrt.log
+run_cvd D 08-11 16:20:29  3731  3731 subprocess.cpp:474] --params="root=/dev/vda1"
+run_cvd D 08-11 16:20:29  3731  3731 subprocess.cpp:474] --params=wan_broadcast=192.168.94.3
+run_cvd D 08-11 16:20:29  3731  3731 subprocess.cpp:474] --params=wan_gateway=192.168.94.1
+run_cvd D 08-11 16:20:29  3731  3731 subprocess.cpp:474] --params=wan_ipaddr=192.168.94.2
+run_cvd D 08-11 16:20:29  3731  3731 subprocess.cpp:474] --params=bridged_wifi_tap=false
+run_cvd D 08-11 16:20:29  3731  3731 subprocess.cpp:474] --params=webrtc_device_id=cvddc4f503f-diag-simple-1
+run_cvd D 08-11 16:20:29  3731  3731 subprocess.cpp:474] /var/tmp/cvd/104/1786464889230835/artifacts/host_tools/etc/openwrt/images/openwrt_kernel_x86_64
+run_cvd I 08-11 16:20:29  3731  3731 process_monitor.cc:261] /var/tmp/cvd/104/1786464889230835/artifacts/host_tools/bin/log_tee
+socket_vsock_proxy(3808)  W 08-11 16:20:29  3808  3808 socket_vsock_proxy.cpp:244] Log tags unsupported with abseil logging: socket_vsock_proxy
+socket_vsock_proxy(3808)  D 08-11 16:20:29  3808  3808 socket_vsock_proxy.cpp:226] Starting proxy
+socket_vsock_proxy(3800)  W 08-11 16:20:29  3800  3800 socket_vsock_proxy.cpp:244] Log tags unsupported with abseil logging: socket_vsock_proxy
+socket_vsock_proxy(3800)  D 08-11 16:20:29  3800  3800 socket_vsock_proxy.cpp:226] Starting proxy
+run_cvd D 08-11 16:20:29  3731  3731 subprocess.cpp:472] Started (pid: 3860): /var/tmp/cvd/104/1786464889230835/artifacts/host_tools/bin/log_tee
+run_cvd D 08-11 16:20:29  3731  3731 subprocess.cpp:474] --process_name=crosvm
+run_cvd D 08-11 16:20:29  3731  3731 subprocess.cpp:474] --log_fd_in=164
+run_cvd I 08-11 16:20:29  3731  3731 process_monitor.cc:261] /var/tmp/cvd/104/1786464889230835/artifacts/host_tools/bin/process_restarter
+(adm_helpers.cc:48): Unable to access speaker.
+log_tee(3822)  W 08-11 16:20:29  3822  3822 log_tee.cpp:82] Log tags unsupported with abseil logging: openwrt
+log_tee(3822)  D 08-11 16:20:29  3822  3822 log_tee.cpp:114] Starting to read from process openwrt
+run_cvd D 08-11 16:20:29  3731  3731 subprocess.cpp:472] Started (pid: 3862): /var/tmp/cvd/104/1786464889230835/artifacts/host_tools/bin/process_restarter
+run_cvd D 08-11 16:20:29  3731  3731 subprocess.cpp:474] -when_exited_with_code=32
+run_cvd D 08-11 16:20:29  3731  3731 subprocess.cpp:474] -ignore_sigtstp
+run_cvd D 08-11 16:20:29  3731  3731 subprocess.cpp:474] --
+run_cvd D 08-11 16:20:29  3731  3731 subprocess.cpp:474] /var/tmp/cvd/104/1786464889230835/artifacts/host_tools/bin/crosvm
+run_cvd D 08-11 16:20:29  3731  3731 subprocess.cpp:474] --extended-status
+run_cvd D 08-11 16:20:29  3731  3731 subprocess.cpp:474] run
+run_cvd D 08-11 16:20:29  3731  3731 subprocess.cpp:474] --socket=/tmp/cf_avd_104/cvd-1/internal/crosvm_control.sock
+run_cvd D 08-11 16:20:29  3731  3731 subprocess.cpp:474] --no-smt
+run_cvd D 08-11 16:20:29  3731  3731 subprocess.cpp:474] --no-usb
+run_cvd D 08-11 16:20:29  3731  3731 subprocess.cpp:474] --core-scheduling=false
+run_cvd D 08-11 16:20:29  3731  3731 subprocess.cpp:474] --vhost-user-connect-timeout-ms=30000
+run_cvd D 08-11 16:20:29  3731  3731 subprocess.cpp:474] --vhost-user=mac80211-hwsim,socket=/tmp/cf_env_104/env-1/vhost_user_mac80211
+run_cvd D 08-11 16:20:29  3731  3731 subprocess.cpp:474] --wayland-sock=/tmp/cf_avd_104/cvd-1/internal/frames.sock
+run_cvd D 08-11 16:20:29  3731  3731 subprocess.cpp:474] --gpu=displays=[[mode=windowed[720,1280],dpi=[320,320],refresh-rate=60]],backend=2D,pci-address=00:02.0
+run_cvd D 08-11 16:20:29  3731  3731 subprocess.cpp:474] --pmem=path=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/hwcomposer-pmem
+run_cvd D 08-11 16:20:29  3731  3731 subprocess.cpp:474] --mem=4096
+run_cvd D 08-11 16:20:29  3731  3731 subprocess.cpp:474] --cpus=4
+run_cvd D 08-11 16:20:29  3731  3731 subprocess.cpp:474] --block=path=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/overlay.img
+run_cvd D 08-11 16:20:29  3731  3731 subprocess.cpp:474] --block=path=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/persistent_composite.img
+run_cvd D 08-11 16:20:29  3731  3731 subprocess.cpp:474] --block=path=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/sdcard.img
+run_cvd D 08-11 16:20:29  3731  3731 subprocess.cpp:474] --vhost-user=type=input,socket=/tmp/cf_avd_104/cvd-1/internal/touch_0.sock,max-queue-size=256
+run_cvd D 08-11 16:20:29  3731  3731 subprocess.cpp:474] --vhost-user=type=input,socket=/tmp/cf_avd_104/cvd-1/internal/rotary.sock,max-queue-size=256
+run_cvd D 08-11 16:20:29  3731  3731 subprocess.cpp:474] --vhost-user=type=input,socket=/tmp/cf_avd_104/cvd-1/internal/keyboard.sock,max-queue-size=256
+run_cvd D 08-11 16:20:29  3731  3731 subprocess.cpp:474] --vhost-user=type=input,socket=/tmp/cf_avd_104/cvd-1/internal/switches.sock,max-queue-size=256
+run_cvd D 08-11 16:20:29  3731  3731 subprocess.cpp:474] --net=tap-name=cvd-mtap-01,mac=00:1a:11:e0:cf:00,pci-address=00:01.1
+run_cvd D 08-11 16:20:29  3731  3731 subprocess.cpp:474] --net=tap-name=cvd-etap-01,mac=00:1a:11:e1:cf:00,pci-address=00:01.2
+run_cvd D 08-11 16:20:29  3731  3731 subprocess.cpp:474] --pmem=path=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/access-kregistry
+run_cvd D 08-11 16:20:29  3731  3731 subprocess.cpp:474] --pstore=path=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/pstore,size=2097152
+run_cvd D 08-11 16:20:29  3731  3731 subprocess.cpp:474] --seccomp-policy-dir=/var/tmp/cvd/104/1786464889230835/artifacts/host_tools/usr/share/crosvm/x86_64-linux-gnu/seccomp
+run_cvd D 08-11 16:20:29  3731  3731 subprocess.cpp:474] --vsock=cid=3
+run_cvd D 08-11 16:20:29  3731  3731 subprocess.cpp:474] --serial=hardware=virtio-console,num=1,type=file,path=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/kernel-log-pipe,console=true
+run_cvd D 08-11 16:20:29  3731  3731 subprocess.cpp:474] --serial=hardware=serial,num=1,type=file,path=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/kernel-log-pipe,earlycon=true
+run_cvd D 08-11 16:20:29  3731  3731 subprocess.cpp:474] --serial=hardware=virtio-console,num=2,type=sink
+run_cvd D 08-11 16:20:29  3731  3731 subprocess.cpp:474] --serial=hardware=virtio-console,num=3,type=file,path=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/logcat-pipe
+run_cvd D 08-11 16:20:29  3731  3731 subprocess.cpp:474] --serial=hardware=virtio-console,num=4,type=file,path=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/keymaster_fifo_vm.out,input=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/keymaster_fifo_vm.in
+run_cvd D 08-11 16:20:29  3731  3731 subprocess.cpp:474] --serial=hardware=virtio-console,num=5,type=file,path=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/gatekeeper_fifo_vm.out,input=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/gatekeeper_fifo_vm.in
+run_cvd D 08-11 16:20:29  3731  3731 subprocess.cpp:474] --serial=hardware=virtio-console,num=6,type=file,path=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/bt_fifo_vm.out,input=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/bt_fifo_vm.in
+run_cvd D 08-11 16:20:29  3731  3731 subprocess.cpp:474] --serial=hardware=virtio-console,num=7,type=file,path=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/gnsshvc_fifo_vm.out,input=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/gnsshvc_fifo_vm.in
+run_cvd D 08-11 16:20:29  3731  3731 subprocess.cpp:474] --serial=hardware=virtio-console,num=8,type=file,path=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/locationhvc_fifo_vm.out,input=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/locationhvc_fifo_vm.in
+run_cvd D 08-11 16:20:29  3731  3731 subprocess.cpp:474] --serial=hardware=virtio-console,num=9,type=file,path=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/confui_fifo_vm.out,input=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/confui_fifo_vm.in
+run_cvd D 08-11 16:20:29  3731  3731 subprocess.cpp:474] --serial=hardware=virtio-console,num=10,type=file,path=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/uwb_fifo_vm.out,input=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/uwb_fifo_vm.in
+run_cvd D 08-11 16:20:29  3731  3731 subprocess.cpp:474] --serial=hardware=virtio-console,num=11,type=file,path=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/oemlock_fifo_vm.out,input=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/oemlock_fifo_vm.in
+run_cvd D 08-11 16:20:29  3731  3731 subprocess.cpp:474] --serial=hardware=virtio-console,num=12,type=file,path=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/keymint_fifo_vm.out,input=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/keymint_fifo_vm.in
+run_cvd D 08-11 16:20:29  3731  3731 subprocess.cpp:474] --serial=hardware=virtio-console,num=13,type=file,path=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/nfc_fifo_vm.out,input=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/nfc_fifo_vm.in
+run_cvd D 08-11 16:20:29  3731  3731 subprocess.cpp:474] --serial=hardware=virtio-console,num=14,type=sink
+run_cvd D 08-11 16:20:29  3731  3731 subprocess.cpp:474] --serial=hardware=virtio-console,num=15,type=sink
+run_cvd D 08-11 16:20:29  3731  3731 subprocess.cpp:474] --serial=hardware=virtio-console,num=16,type=sink
+run_cvd D 08-11 16:20:29  3731  3731 subprocess.cpp:474] --serial=hardware=virtio-console,num=17,type=sink
+run_cvd D 08-11 16:20:29  3731  3731 subprocess.cpp:474] --serial=hardware=virtio-console,num=18,type=sink
+run_cvd D 08-11 16:20:29  3731  3731 subprocess.cpp:474] --serial=hardware=virtio-console,num=19,type=file,path=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/sensors_control_fifo_vm.out,input=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/sensors_control_fifo_vm.in
+run_cvd D 08-11 16:20:29  3731  3731 subprocess.cpp:474] --serial=hardware=virtio-console,num=20,type=file,path=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/sensors_data_fifo_vm.out,input=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/sensors_data_fifo_vm.in
+run_cvd D 08-11 16:20:29  3731  3731 subprocess.cpp:474] --sound=/tmp/cf_avd_104/cvd-1/internal/audio_server.sock
+run_cvd D 08-11 16:20:29  3731  3731 subprocess.cpp:474] --shared-dir=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/shared:shared:type=fs:security_ctx=false
+run_cvd D 08-11 16:20:29  3731  3731 subprocess.cpp:474] --pflash=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/pflash.img
+run_cvd D 08-11 16:20:29  3731  3731 subprocess.cpp:474] --bios=/var/tmp/cvd/104/1786464889230835/artifacts/host_tools/etc/bootloader_x86_64/bootloader.crosvm
+run_cvd D 08-11 16:20:29  3731  3871 process_monitor.cc:279] Waiting for a `stop` message from the parent
+log_tee(3791)  D 08-11 16:20:29  3791  3791 log_tee.cpp:146] [INFO  casimir] Listening for NCI connections on fd 58
+log_tee(3791)  D 08-11 16:20:29  3791  3791 log_tee.cpp:146] [INFO  casimir] Listening for RF connections on fd 59
+log_tee(3791)  D 08-11 16:20:29  3791  3791 log_tee.cpp:146] [INFO  casimir] Incoming NCI connection from (unnamed)
+log_tee(3791)  D 08-11 16:20:29  3791  3791 log_tee.cpp:146] [INFO  casimir] Accepted NCI connection from (unnamed) in slot 0
+process_restarter(3862)  D 08-11 16:20:29  3862  3862 subprocess.cpp:512] Started (pid: 3874): /var/tmp/cvd/104/1786464889230835/artifacts/host_tools/bin/crosvm
+process_restarter(3862)  D 08-11 16:20:29  3862  3862 subprocess.cpp:514] --extended-status
+process_restarter(3862)  D 08-11 16:20:29  3862  3862 subprocess.cpp:514] run
+process_restarter(3862)  D 08-11 16:20:29  3862  3862 subprocess.cpp:514] --socket=/tmp/cf_avd_104/cvd-1/internal/crosvm_control.sock
+process_restarter(3862)  D 08-11 16:20:29  3862  3862 subprocess.cpp:514] --no-smt
+process_restarter(3862)  D 08-11 16:20:29  3862  3862 subprocess.cpp:514] --no-usb
+process_restarter(3862)  D 08-11 16:20:29  3862  3862 subprocess.cpp:514] --core-scheduling=false
+process_restarter(3862)  D 08-11 16:20:29  3862  3862 subprocess.cpp:514] --vhost-user-connect-timeout-ms=30000
+process_restarter(3862)  D 08-11 16:20:29  3862  3862 subprocess.cpp:514] --vhost-user=mac80211-hwsim,socket=/tmp/cf_env_104/env-1/vhost_user_mac80211
+process_restarter(3862)  D 08-11 16:20:29  3862  3862 subprocess.cpp:514] --wayland-sock=/tmp/cf_avd_104/cvd-1/internal/frames.sock
+process_restarter(3862)  D 08-11 16:20:29  3862  3862 subprocess.cpp:514] --gpu=displays=[[mode=windowed[720,1280],dpi=[320,320],refresh-rate=60]],backend=2D,pci-address=00:02.0
+process_restarter(3862)  D 08-11 16:20:29  3862  3862 subprocess.cpp:514] --pmem=path=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/hwcomposer-pmem
+process_restarter(3862)  D 08-11 16:20:29  3862  3862 subprocess.cpp:514] --mem=4096
+process_restarter(3862)  D 08-11 16:20:29  3862  3862 subprocess.cpp:514] --cpus=4
+process_restarter(3862)  D 08-11 16:20:29  3862  3862 subprocess.cpp:514] --block=path=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/overlay.img
+process_restarter(3862)  D 08-11 16:20:29  3862  3862 subprocess.cpp:514] --block=path=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/persistent_composite.img
+process_restarter(3862)  D 08-11 16:20:29  3862  3862 subprocess.cpp:514] --block=path=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/sdcard.img
+process_restarter(3862)  D 08-11 16:20:29  3862  3862 subprocess.cpp:514] --vhost-user=type=input,socket=/tmp/cf_avd_104/cvd-1/internal/touch_0.sock,max-queue-size=256
+process_restarter(3862)  D 08-11 16:20:29  3862  3862 subprocess.cpp:514] --vhost-user=type=input,socket=/tmp/cf_avd_104/cvd-1/internal/rotary.sock,max-queue-size=256
+process_restarter(3862)  D 08-11 16:20:29  3862  3862 subprocess.cpp:514] --vhost-user=type=input,socket=/tmp/cf_avd_104/cvd-1/internal/keyboard.sock,max-queue-size=256
+process_restarter(3862)  D 08-11 16:20:29  3862  3862 subprocess.cpp:514] --vhost-user=type=input,socket=/tmp/cf_avd_104/cvd-1/internal/switches.sock,max-queue-size=256
+process_restarter(3862)  D 08-11 16:20:29  3862  3862 subprocess.cpp:514] --net=tap-name=cvd-mtap-01,mac=00:1a:11:e0:cf:00,pci-address=00:01.1
+process_restarter(3862)  D 08-11 16:20:29  3862  3862 subprocess.cpp:514] --net=tap-name=cvd-etap-01,mac=00:1a:11:e1:cf:00,pci-address=00:01.2
+process_restarter(3862)  D 08-11 16:20:29  3862  3862 subprocess.cpp:514] --pmem=path=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/access-kregistry
+process_restarter(3862)  D 08-11 16:20:29  3862  3862 subprocess.cpp:514] --pstore=path=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/pstore,size=2097152
+process_restarter(3862)  D 08-11 16:20:29  3862  3862 subprocess.cpp:514] --seccomp-policy-dir=/var/tmp/cvd/104/1786464889230835/artifacts/host_tools/usr/share/crosvm/x86_64-linux-gnu/seccomp
+process_restarter(3862)  D 08-11 16:20:29  3862  3862 subprocess.cpp:514] --vsock=cid=3
+process_restarter(3862)  D 08-11 16:20:29  3862  3862 subprocess.cpp:514] --serial=hardware=virtio-console,num=1,type=file,path=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/kernel-log-pipe,console=true
+process_restarter(3862)  D 08-11 16:20:29  3862  3862 subprocess.cpp:514] --serial=hardware=serial,num=1,type=file,path=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/kernel-log-pipe,earlycon=true
+process_restarter(3862)  D 08-11 16:20:29  3862  3862 subprocess.cpp:514] --serial=hardware=virtio-console,num=2,type=sink
+process_restarter(3862)  D 08-11 16:20:29  3862  3862 subprocess.cpp:514] --serial=hardware=virtio-console,num=3,type=file,path=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/logcat-pipe
+process_restarter(3862)  D 08-11 16:20:29  3862  3862 subprocess.cpp:514] --serial=hardware=virtio-console,num=4,type=file,path=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/keymaster_fifo_vm.out,input=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/keymaster_fifo_vm.in
+process_restarter(3862)  D 08-11 16:20:29  3862  3862 subprocess.cpp:514] --serial=hardware=virtio-console,num=5,type=file,path=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/gatekeeper_fifo_vm.out,input=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/gatekeeper_fifo_vm.in
+process_restarter(3862)  D 08-11 16:20:29  3862  3862 subprocess.cpp:514] --serial=hardware=virtio-console,num=6,type=file,path=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/bt_fifo_vm.out,input=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/bt_fifo_vm.in
+process_restarter(3862)  D 08-11 16:20:29  3862  3862 subprocess.cpp:514] --serial=hardware=virtio-console,num=7,type=file,path=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/gnsshvc_fifo_vm.out,input=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/gnsshvc_fifo_vm.in
+process_restarter(3862)  D 08-11 16:20:29  3862  3862 subprocess.cpp:514] --serial=hardware=virtio-console,num=8,type=file,path=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/locationhvc_fifo_vm.out,input=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/locationhvc_fifo_vm.in
+process_restarter(3862)  D 08-11 16:20:29  3862  3862 subprocess.cpp:514] --serial=hardware=virtio-console,num=9,type=file,path=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/confui_fifo_vm.out,input=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/confui_fifo_vm.in
+process_restarter(3862)  D 08-11 16:20:29  3862  3862 subprocess.cpp:514] --serial=hardware=virtio-console,num=10,type=file,path=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/uwb_fifo_vm.out,input=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/uwb_fifo_vm.in
+process_restarter(3862)  D 08-11 16:20:29  3862  3862 subprocess.cpp:514] --serial=hardware=virtio-console,num=11,type=file,path=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/oemlock_fifo_vm.out,input=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/oemlock_fifo_vm.in
+process_restarter(3862)  D 08-11 16:20:29  3862  3862 subprocess.cpp:514] --serial=hardware=virtio-console,num=12,type=file,path=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/keymint_fifo_vm.out,input=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/keymint_fifo_vm.in
+process_restarter(3862)  D 08-11 16:20:29  3862  3862 subprocess.cpp:514] --serial=hardware=virtio-console,num=13,type=file,path=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/nfc_fifo_vm.out,input=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/nfc_fifo_vm.in
+process_restarter(3862)  D 08-11 16:20:29  3862  3862 subprocess.cpp:514] --serial=hardware=virtio-console,num=14,type=sink
+process_restarter(3862)  D 08-11 16:20:29  3862  3862 subprocess.cpp:514] --serial=hardware=virtio-console,num=15,type=sink
+process_restarter(3862)  D 08-11 16:20:29  3862  3862 subprocess.cpp:514] --serial=hardware=virtio-console,num=16,type=sink
+process_restarter(3862)  D 08-11 16:20:29  3862  3862 subprocess.cpp:514] --serial=hardware=virtio-console,num=17,type=sink
+process_restarter(3862)  D 08-11 16:20:29  3862  3862 subprocess.cpp:514] --serial=hardware=virtio-console,num=18,type=sink
+process_restarter(3862)  D 08-11 16:20:29  3862  3862 subprocess.cpp:514] --serial=hardware=virtio-console,num=19,type=file,path=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/sensors_control_fifo_vm.out,input=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/sensors_control_fifo_vm.in
+process_restarter(3862)  D 08-11 16:20:29  3862  3862 subprocess.cpp:514] --serial=hardware=virtio-console,num=20,type=file,path=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/sensors_data_fifo_vm.out,input=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/internal/sensors_data_fifo_vm.in
+process_restarter(3862)  D 08-11 16:20:29  3862  3862 subprocess.cpp:514] --sound=/tmp/cf_avd_104/cvd-1/internal/audio_server.sock
+process_restarter(3862)  D 08-11 16:20:29  3862  3862 subprocess.cpp:514] --shared-dir=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/shared:shared:type=fs:security_ctx=false
+process_restarter(3862)  D 08-11 16:20:29  3862  3862 subprocess.cpp:514] --pflash=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/pflash.img
+process_restarter(3862)  D 08-11 16:20:29  3862  3862 subprocess.cpp:514] --bios=/var/tmp/cvd/104/1786464889230835/artifacts/host_tools/etc/bootloader_x86_64/bootloader.crosvm
+log_tee(3860)  W 08-11 16:20:29  3860  3860 log_tee.cpp:82] Log tags unsupported with abseil logging: crosvm
+log_tee(3860)  D 08-11 16:20:29  3860  3860 log_tee.cpp:114] Starting to read from process crosvm
+process_restarter(3857)  D 08-11 16:20:29  3857  3857 subprocess.cpp:512] Started (pid: 3868): /var/tmp/cvd/104/1786464889230835/artifacts/host_tools/bin/crosvm
+process_restarter(3857)  D 08-11 16:20:29  3857  3857 subprocess.cpp:514] --extended-status
+process_restarter(3857)  D 08-11 16:20:29  3857  3857 subprocess.cpp:514] run
+process_restarter(3857)  D 08-11 16:20:29  3857  3857 subprocess.cpp:514] --socket=/tmp/cf_avd_104/cvd-1/internal/ap_control.sock
+process_restarter(3857)  D 08-11 16:20:29  3857  3857 subprocess.cpp:514] --no-usb
+process_restarter(3857)  D 08-11 16:20:29  3857  3857 subprocess.cpp:514] --core-scheduling=false
+process_restarter(3857)  D 08-11 16:20:29  3857  3857 subprocess.cpp:514] --vhost-user=mac80211-hwsim,socket=/tmp/cf_env_104/env-1/vhost_user_mac80211
+process_restarter(3857)  D 08-11 16:20:29  3857  3857 subprocess.cpp:514] --net=tap-name=cvd-wifiap-01
+process_restarter(3857)  D 08-11 16:20:29  3857  3857 subprocess.cpp:514] --seccomp-policy-dir=/var/tmp/cvd/104/1786464889230835/artifacts/host_tools/usr/share/crosvm/x86_64-linux-gnu/seccomp
+process_restarter(3857)  D 08-11 16:20:29  3857  3857 subprocess.cpp:514] --block=path=/var/tmp/cvd/104/1786464889230835/home/cuttlefish/instances/cvd-1/ap_overlay.img
+log_tee(3791)  D 08-11 16:20:54  3791  3791 log_tee.cpp:146] [INFO  casimir::controller]          TechMode: NfcFPassivePollMode
+log_tee(3791)  D 08-11 16:20:54  3791  3791 log_tee.cpp:146] [INFO  casimir::controller]          TechMode: NfcAPassiveListenMode
+log_tee(3791)  D 08-11 16:20:54  3791  3791 log_tee.cpp:146] [INFO  casimir::controller]          TechMode: NfcVPassivePollMode
+sensors_simulator D 08-11 16:20:55  3821  3892 channel_sharedfd.cpp:44] Received message with id: 0
+log_tee(3791)  D 08-11 16:20:55  3791  3791 log_tee.cpp:146] [INFO  casimir::controller] [0] RF_DEACTIVATE_CMD
+log_tee(3791)  D 08-11 16:20:55  3791  3791 log_tee.cpp:146] [INFO  casimir::controller]          Type: IdleMode
+log_tee(3791)  D 08-11 16:20:56  3791  3791 log_tee.cpp:146] [INFO  casimir::controller] [0] ANDROID_SET_PASSIVE_OBSERVER_EXIT_FRAMES_CMD
+log_tee(3791)  D 08-11 16:20:56  3791  3791 log_tee.cpp:146] [INFO  casimir::controller] number of exit frames 0
+log_tee(3791)  D 08-11 16:20:56  3791  3791 log_tee.cpp:146] [INFO  casimir::controller] [0] RF_DISCOVER_CMD
+log_tee(3791)  D 08-11 16:20:56  3791  3791 log_tee.cpp:146] [INFO  casimir::controller]          TechMode: NfcAPassivePollMode
+log_tee(3791)  D 08-11 16:20:56  3791  3791 log_tee.cpp:146] [INFO  casimir::controller]          TechMode: NfcBPassivePollMode
+log_tee(3791)  D 08-11 16:20:56  3791  3791 log_tee.cpp:146] [INFO  casimir::controller]          TechMode: NfcFPassivePollMode
+log_tee(3791)  D 08-11 16:20:56  3791  3791 log_tee.cpp:146] [INFO  casimir::controller]          TechMode: NfcAPassiveListenMode
+log_tee(3791)  D 08-11 16:20:56  3791  3791 log_tee.cpp:146] [INFO  casimir::controller]          TechMode: NfcVPassivePollMode
+sensors_simulator D 08-11 16:20:56  3821  3892 channel_sharedfd.cpp:44] Received message with id: 0
+sensors_simulator D 08-11 16:20:56  3821  3892 channel_sharedfd.cpp:44] Received message with id: 0
+log_tee(3791)  D 08-11 16:20:56  3791  3791 log_tee.cpp:146] [INFO  casimir::controller] [0] RF_DEACTIVATE_CMD
+log_tee(3791)  D 08-11 16:20:56  3791  3791 log_tee.cpp:146] [INFO  casimir::controller]          Type: IdleMode
+log_tee(3791)  D 08-11 16:20:56  3791  3791 log_tee.cpp:146] [INFO  casimir::controller] [0] ANDROID_SET_PASSIVE_OBSERVER_EXIT_FRAMES_CMD
+log_tee(3791)  D 08-11 16:20:56  3791  3791 log_tee.cpp:146] [INFO  casimir::controller] number of exit frames 0
+log_tee(3791)  D 08-11 16:20:56  3791  3791 log_tee.cpp:146] [INFO  casimir::controller] [0] RF_DISCOVER_CMD
+log_tee(3791)  D 08-11 16:20:56  3791  3791 log_tee.cpp:146] [INFO  casimir::controller]          TechMode: NfcAPassivePollMode
+log_tee(3791)  D 08-11 16:20:56  3791  3791 log_tee.cpp:146] [INFO  casimir::controller]          TechMode: NfcBPassivePollMode
+log_tee(3791)  D 08-11 16:20:56  3791  3791 log_tee.cpp:146] [INFO  casimir::controller]          TechMode: NfcFPassivePollMode
+log_tee(3791)  D 08-11 16:20:56  3791  3791 log_tee.cpp:146] [INFO  casimir::controller]          TechMode: NfcAPassiveListenMode
+log_tee(3791)  D 08-11 16:20:56  3791  3791 log_tee.cpp:146] [INFO  casimir::controller]          TechMode: NfcVPassivePollMode
+kernel_log_monitor(3789)  I 08-11 16:20:58  3789  3789 kernel_log_server.cc:153] VIRTUAL_DEVICE_BOOT_STARTED
+kernel_log_monitor(3789)  I 08-11 16:20:59  3789  3789 kernel_log_server.cc:153] VIRTUAL_DEVICE_BOOT_COMPLETED
+run_cvd I 08-11 16:20:59  3728  3729 boot_state_machine.cc:574] Virtual device booted successfully
+run_cvd I 08-11 16:20:59  3722  3722 boot_state_machine.cc:154] Virtual device booted successfully
+run_cvd I 08-11 16:20:59  3722  3722 boot_state_machine.cc:173] VIRTUAL_DEVICE_BOOT_COMPLETED
+kernel_log_monitor(3789)  I 08-11 16:21:01  3789  3789 kernel_log_server.cc:153] VIRTUAL_DEVICE_NETWORK_MOBILE_CONNECTED

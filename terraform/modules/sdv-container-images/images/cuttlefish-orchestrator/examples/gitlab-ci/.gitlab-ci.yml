@@ -1,0 +1,172 @@
+# Copyright 2026 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# Example GitLab CI/CD pipeline using Workload Identity Federation
+#
+# This pipeline demonstrates how to authenticate to Cloud Cuttlefish Orchestrator
+# using Workload Identity Federation (WIF) for keyless, secure CI/CD access.
+#
+# Prerequisites:
+# 1. Set up WIF using Terraform (enable_gitlab_provider = true)
+# 2. Put the CI service account on the IAP access list (the iap_members
+#    Terraform variable) and grant it roles/iam.serviceAccountTokenCreator on
+#    itself, so cfctl can sign the IAP JWT as that account
+# 3. Configure the following CI/CD variables in GitLab Settings:
+#    - CCO_WIF_PROVIDER: Workload Identity Provider resource name
+#    - CCO_SERVICE_ACCOUNT: Service account email
+#    - CCO_SERVER_URL: CCO server URL (e.g., https://cco.example.com)
+#
+# For detailed setup instructions, see: docs/guides/cicd-integration.md
+
+variables:
+  # Configure these in GitLab CI/CD Settings > Variables
+  # CCO_WIF_PROVIDER: projects/PROJECT_NUMBER/locations/global/workloadIdentityPools/POOL_ID/providers/gitlab
+  # CCO_SERVICE_ACCOUNT: cco-cicd-sa@PROJECT_ID.iam.gserviceaccount.com
+  # CCO_SERVER_URL: https://cco.example.com
+
+stages:
+  - test
+  - deploy
+
+# Template for authenticating to GCP via WIF
+.gcp_auth:
+  image: google/cloud-sdk:slim
+  variables:
+    # cfctl reads these directly, so a CI runner needs no config file. With
+    # no audience set, cfctl signs a self-signed JWT as CFCTL_IMPERSONATE for
+    # the built-in Cloud Run IAP. A deployment behind a custom IAP OAuth
+    # client sets CFCTL_AUDIENCE to that client ID instead.
+    CFCTL_SERVER: $CCO_SERVER_URL
+    CFCTL_IMPERSONATE: $CCO_SERVICE_ACCOUNT
+  # Request an OIDC token from GitLab
+  # See: https://docs.gitlab.com/ee/ci/cloud_services/google_cloud/
+  id_tokens:
+    GITLAB_OIDC_TOKEN:
+      # The audience must match the WIF provider
+      aud: https://iam.googleapis.com/$CCO_WIF_PROVIDER
+  before_script:
+    - |
+      # Create credentials config file for WIF
+      echo "Configuring Workload Identity Federation..."
+      gcloud iam workload-identity-pools create-cred-config \
+        "$CCO_WIF_PROVIDER" \
+        --service-account="$CCO_SERVICE_ACCOUNT" \
+        --output-file=/tmp/gcp-credentials.json \
+        --credential-source-file=/tmp/gitlab-token \
+        --credential-source-type=text
+
+    - |
+      # Write the OIDC token to a file (required by gcloud)
+      echo "$GITLAB_OIDC_TOKEN" > /tmp/gitlab-token
+
+    - |
+      # Configure gcloud to use the WIF credentials
+      export GOOGLE_APPLICATION_CREDENTIALS=/tmp/gcp-credentials.json
+      gcloud auth login --cred-file=/tmp/gcp-credentials.json
+
+    - |
+      # Install cfctl (replace with actual download URL or use pre-built image)
+      echo "Installing cfctl..."
+      # Option 1: Download from releases
+      # curl -sSL https://github.com/YOUR_ORG/cloud-cuttlefish-orchestrator/releases/latest/download/cfctl-linux-amd64 -o /usr/local/bin/cfctl
+      # chmod +x /usr/local/bin/cfctl
+
+      # Option 2: Build from source (requires Go)
+      # go install ./cmd/cfctl
+
+      # For this example, assume cfctl is available
+      which cfctl || echo "cfctl not found - install it first"
+
+# Verify authentication works
+test:auth:
+  extends: .gcp_auth
+  stage: test
+  script:
+    - |
+      echo "Verifying CCO authentication..."
+      cfctl auth whoami
+      cfctl device list --json | head -20
+
+# Example: Run tests with CCO devices
+test:devices:
+  extends: .gcp_auth
+  stage: test
+  script:
+    - |
+      echo "Listing available devices..."
+      cfctl device list
+
+    - |
+      echo "Creating test device..."
+      DEVICE_ID=$(cfctl device create \
+        --host="$CCO_HOST_ID" \
+        --name="gitlab-ci-$CI_PIPELINE_ID" \
+        --json | jq -r '.id')
+      echo "Created device: $DEVICE_ID"
+      echo "DEVICE_ID=$DEVICE_ID" >> test.env
+
+    - |
+      echo "Running tests..."
+      # Your test commands here
+
+  after_script:
+    - |
+      # Cleanup: delete test device
+      if [ -f test.env ]; then
+        source test.env
+        cfctl device delete "$DEVICE_ID" || true
+      fi
+  artifacts:
+    reports:
+      dotenv: test.env
+
+# Example: Deploy to CCO
+deploy:
+  extends: .gcp_auth
+  stage: deploy
+  script:
+    - |
+      echo "Deploying to CCO..."
+      # Your deployment commands here
+      cfctl device list
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      when: manual
+
+---
+# Minimal example for quick start
+# Copy this to your .gitlab-ci.yml and customize
+
+# variables:
+#   CCO_WIF_PROVIDER: projects/123456789/locations/global/workloadIdentityPools/cco-cicd-pool/providers/gitlab
+#   CCO_SERVICE_ACCOUNT: cco-cicd-sa@my-project.iam.gserviceaccount.com
+#   CFCTL_SERVER: https://cco.example.com
+#   CFCTL_IMPERSONATE: cco-cicd-sa@my-project.iam.gserviceaccount.com
+#
+# deploy:
+#   image: google/cloud-sdk:slim
+#   id_tokens:
+#     GITLAB_OIDC_TOKEN:
+#       aud: https://iam.googleapis.com/$CCO_WIF_PROVIDER
+#   script:
+#     - |
+#       gcloud iam workload-identity-pools create-cred-config \
+#         "$CCO_WIF_PROVIDER" \
+#         --service-account="$CCO_SERVICE_ACCOUNT" \
+#         --output-file=/tmp/creds.json \
+#         --credential-source-file=/tmp/token \
+#         --credential-source-type=text
+#     - echo "$GITLAB_OIDC_TOKEN" > /tmp/token
+#     - export GOOGLE_APPLICATION_CREDENTIALS=/tmp/creds.json
+#     - cfctl device list

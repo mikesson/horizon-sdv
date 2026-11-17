@@ -1,0 +1,137 @@
+// Copyright 2026 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     https://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// =============================================================================
+// Angular Material 3 Theme for Google Cloud
+// Uses the new @angular/material M3 theming system
+// =============================================================================
+
+@use '@angular/material' as mat;
+@use 'sass:map';
+
+// Import GCP variables
+@use 'gcp-variables' as gcp;
+
+// -----------------------------------------------------------------------------
+// Define M3 Theme using the new API
+// -----------------------------------------------------------------------------
+
+// Theme config for mat.theme(), which emits --mat-sys-* system variables that
+// Material's own injected CSS reads.
+//
+// The palette here only seeds the generated ramp; the colours are corrected by
+// gcp-system-overrides below, because the generated blue lands on M3's
+// periwinkle rather than the console's blue. mat.theme() emits 165 --mat-sys-*
+// and the map corrects 26, so the rest keep generated values. Check what is
+// left before adding to it: nearly all of the remainder are typography,
+// shape, opacity and elevation, which do not vary by theme, and of the colours
+// only the ones Material actually reads are worth setting. A declaration for a
+// name nothing reads looks identical to a correct one.
+$gcp-theme-config: (
+  color: (
+    theme-type: dark,
+    primary: mat.$blue-palette,
+    tertiary: mat.$cyan-palette,
+  ),
+  typography: (
+    brand-family: gcp.$gcp-font-family,
+    plain-family: gcp.$gcp-font-family,
+  ),
+  density: (
+    scale: 0,
+  ),
+);
+
+// The system variables Material resolves every component token against. Setting
+// them here is what makes the per-component override block unnecessary: there
+// is nothing left to outrank, because these are the values its own rules read.
+$gcp-system-overrides: (
+  primary: gcp.ld(gcp.$gcp-primary-light-mode, gcp.$gcp-primary),
+  on-primary: gcp.ld(gcp.$gcp-primary-on-light-mode, gcp.$gcp-primary-on),
+  primary-container: gcp.ld(gcp.$gcp-nav-active-light, gcp.$gcp-nav-active),
+  on-primary-container: gcp.ld(gcp.$gcp-text-primary-light, gcp.$gcp-text-primary),
+  secondary: gcp.ld(gcp.$gcp-primary-light-mode, gcp.$gcp-primary),
+  secondary-container: gcp.ld(gcp.$gcp-nav-active-light, gcp.$gcp-nav-active),
+  on-secondary-container: gcp.ld(gcp.$gcp-text-primary-light, gcp.$gcp-text-primary),
+  tertiary-container: gcp.ld(gcp.$gcp-surface-variant-light, gcp.$gcp-surface-variant),
+  error: gcp.ld(gcp.$gcp-status-error-light, gcp.$gcp-status-error),
+  on-error: gcp.ld(gcp.$gcp-primary-on-light-mode, gcp.$gcp-primary-on),
+  // Every rule that reads this one is a *foreground* on the page surface (the
+  // hovered error state of a form field's outline, label and trailing icon), so
+  // it takes the error text colour rather than M3's ink-on-an-error-container.
+  // Left generated it is #ffdad6, which vanishes on a white field.
+  on-error-container: gcp.ld(gcp.$gcp-status-error-light, gcp.$gcp-status-error),
+  background: gcp.ld(gcp.$gcp-canvas-light, gcp.$gcp-canvas),
+  on-background: gcp.ld(gcp.$gcp-text-primary-light, gcp.$gcp-text-primary),
+  surface: gcp.ld(gcp.$gcp-surface-light, gcp.$gcp-surface),
+  on-surface: gcp.ld(gcp.$gcp-text-primary-light, gcp.$gcp-text-primary),
+  surface-variant: gcp.ld(gcp.$gcp-surface-variant-light, gcp.$gcp-surface-variant),
+  on-surface-variant: gcp.ld(gcp.$gcp-text-secondary-light, gcp.$gcp-text-secondary),
+  surface-container: gcp.ld(gcp.$gcp-surface-light, gcp.$gcp-surface),
+  surface-container-low: gcp.ld(gcp.$gcp-canvas-light, gcp.$gcp-surface-dim),
+  surface-container-high: gcp.ld(gcp.$gcp-surface-variant-light, gcp.$gcp-surface-variant),
+  surface-container-highest: gcp.ld(gcp.$gcp-surface-variant-light, gcp.$gcp-surface-variant),
+  outline: gcp.ld(gcp.$gcp-card-border-light, gcp.$gcp-card-border),
+  outline-variant: gcp.ld(gcp.$gcp-card-border-light, gcp.$gcp-card-border),
+  inverse-surface: gcp.ld(gcp.$gcp-text-primary-light, gcp.$gcp-text-primary),
+  inverse-on-surface: gcp.ld(gcp.$gcp-page-surface-light, gcp.$gcp-page-surface),
+  inverse-primary: gcp.$gcp-blue-700,
+);
+
+// -----------------------------------------------------------------------------
+// Theme Mixin for Component Styles
+// -----------------------------------------------------------------------------
+@mixin gcp-component-theme {
+  // There was a .status-indicator ramp here. It never rendered: all seven
+  // components that draw one carry their own scoped copy, and a component rule
+  // ties this one on specificity and is injected later, so it won every state.
+  // Nothing in the toolchain could see that, because the class is mentioned by
+  // seven templates, which is all a usage check asks.
+
+  // Status chips
+  .mat-mdc-chip {
+    &.running {
+      background-color: var(--cco-success-surface) !important;
+      color: var(--cco-success) !important;
+    }
+    &.stopped {
+      background-color: var(--cco-warning-surface) !important;
+      color: var(--cco-warning) !important;
+    }
+    &.creating {
+      background-color: var(--cco-info-surface) !important;
+      color: var(--cco-info) !important;
+    }
+    &.error {
+      background-color: var(--cco-error-surface) !important;
+      color: var(--cco-error) !important;
+    }
+  }
+
+  // GPU mode badges
+  .gpu-mode {
+    &.gfxstream {
+      background-color: gcp.$gcp-green-600;
+      color: #ffffff;
+    }
+    &.drm_virgl {
+      background-color: gcp.$gcp-blue-600;
+      color: #ffffff;
+    }
+    &.swiftshader {
+      background-color: gcp.$gcp-yellow-600;
+      color: gcp.$gcp-grey-900;
+    }
+  }
+}

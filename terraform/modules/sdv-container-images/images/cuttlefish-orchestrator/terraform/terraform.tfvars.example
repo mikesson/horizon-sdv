@@ -1,0 +1,117 @@
+# Copyright 2026 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Example configuration for the Cloud Cuttlefish Orchestrator
+# (single-tenant, built-in Cloud Run IAP).
+#
+# Copy this file to terraform.tfvars and fill in your values.
+
+# =============================================================================
+# Required Configuration
+# =============================================================================
+
+# GCP project ID
+project_id = "your-project-id"
+
+# Primary region
+region = "us-central1"
+
+# Short name of this install, unique within the project (at most 10
+# characters). It labels the host VMs and names the host and CLI service
+# accounts and the artifacts bucket. Change it for a second install in the
+# same project, along with network_name, firewall_rule_names,
+# artifact_repository_id, service_name and spanner_instance_name.
+# deployment = "cco"
+
+# =============================================================================
+# Deployment topology (three atomic knobs)
+# =============================================================================
+#
+# ingress:        CCO reachability, "public" | "private".
+# auth:           front door,       "iap" | "network".
+# device_ingress: WebRTC media,     "public" | "private" | "relay".
+#
+# Named scenarios (ingress / auth / device_ingress):
+#   Public   public  / iap     / public:   default; validated reference.
+#   Private  private / iap     / private:  internal-only, clients over VPN;
+#                                          set client_cidrs to the VPN ranges.
+#   Relay    public  / iap     / relay:    media via a TURN relay; set
+#                                          relay_image + turns_domain.
+#   Lab      private / network / private:  no authentication, VPC-only; for
+#                                          credential-less legacy clients
+#                                          (OmniLab ATS).
+#
+# Constraints: auth = "network" => ingress = "private";
+#              device_ingress = "public" => ingress = "public";
+#              device_ingress = "private" => client_cidrs non-empty.
+
+ingress        = "public"
+auth           = "iap"
+device_ingress = "public"
+
+# CIDR ranges allowed to reach device media directly. Required (non-empty) for
+# device_ingress = "private"; optional tightening for "public" (empty =
+# 0.0.0.0/0); unused for "relay".
+# client_cidrs = ["10.8.0.0/24"]
+
+# Who can reach the app (auth = "iap"). Users, groups, and service accounts.
+iap_members = [
+  "user:you@example.com",
+  # "group:team@example.com",
+  # "serviceAccount:ci@your-project-id.iam.gserviceaccount.com",
+]
+
+# Users who run cfctl through the managed <deployment>-cli identity they
+# impersonate.
+# cli_users = ["user:you@example.com"]
+
+# Custom IAP OAuth client ID for cfctl/CI access in iap mode (browser-only if
+# omitted). The managed client can't be used programmatically and the IAP OAuth
+# Admin API is shut down, so create the client by hand first. See
+# docs/concepts/authentication.md. Then cfctl uses `terraform output cfctl_audience`.
+# iap_oauth_client_id = "1234567890-abcdef.apps.googleusercontent.com"
+
+# =============================================================================
+# Infrastructure
+# =============================================================================
+
+# Network (created by default)
+create_network = true
+network_name   = "cuttlefish-network"
+subnet_cidr    = "10.0.0.0/16"
+
+# Spanner (created and seeded from complete_schema.sql by default)
+create_spanner        = true
+spanner_instance_name = "cuttlefish-orchestrator"
+spanner_database_name = "orchestrator"
+seed_database         = true
+
+# Cloud Run
+service_name            = "cuttlefish-orchestrator"
+cloud_run_min_instances = 1
+cloud_run_max_instances = 10
+cloud_run_cpu           = 4
+cloud_run_memory        = "8Gi"
+
+# Project the host image families are read from (empty = project_id).
+# host_image_project = "your-image-project"
+
+# Service account host VMs run as, so cvd fetches builds as that identity.
+# host_service_account = "cco-host@your-project-id.iam.gserviceaccount.com"
+
+labels = {
+  app         = "cuttlefish-orchestrator"
+  component   = "orchestrator"
+  environment = "dev"
+}

@@ -1,0 +1,100 @@
+{
+  "auto": {
+    "memory_mb": 4096,
+    "use_sdcard": true,
+    "displays": [
+      {
+        "width": 1080,
+        "height": 600,
+        "dpi": 120
+      },
+      {
+        "width": 400,
+        "height": 600,
+        "dpi": 120
+      }
+    ]
+  },
+  "foldable": {
+    "memory_mb": 4096,
+    "use_sdcard": true,
+    "displays": [
+      {
+        "width": 1768,
+        "height": 2208,
+        "dpi": 374
+      },
+      {
+        "width": 832,
+        "height": 2268,
+        "dpi": 387
+      }
+    ]
+  },
+  "go": {
+    "memory_mb": 2048,
+    "use_sdcard": true,
+    "displays": [
+      {
+        "width": 720,
+        "height": 1280,
+        "dpi": 320
+      }
+    ]
+  },
+  "phone": {
+    "memory_mb": 4096,
+    "use_sdcard": true,
+    "displays": [
+      {
+        "width": 720,
+        "height": 1280,
+        "dpi": 320
+      }
+    ]
+  },
+  "slim": {
+    "memory_mb": 2048,
+    "use_sdcard": false,
+    "displays": [
+      {
+        "width": 720,
+        "height": 1280,
+        "dpi": 320
+      }
+    ]
+  },
+  "tablet": {
+    "memory_mb": 4096,
+    "use_sdcard": true,
+    "displays": [
+      {
+        "width": 2560,
+        "height": 1800,
+        "dpi": 320
+      }
+    ]
+  },
+  "tv": {
+    "memory_mb": 2048,
+    "use_sdcard": true,
+    "displays": [
+      {
+        "width": 1920,
+        "height": 1080,
+        "dpi": 213
+      }
+    ]
+  },
+  "wearable": {
+    "memory_mb": 1536,
+    "use_sdcard": false,
+    "displays": [
+      {
+        "width": 450,
+        "height": 450,
+        "dpi": 320
+      }
+    ]
+  }
+}

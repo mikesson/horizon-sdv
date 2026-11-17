@@ -1,0 +1,20 @@
+{
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "types": ["node"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "noEmit": true,
+    "skipLibCheck": true,
+    // The inherited outDir makes TypeScript infer a common source directory,
+    // which lands on e2e/ and puts ../playwright.config.ts outside it, raising
+    // TS6059 before a single file is checked. Naming the root fixes that and
+    // keeps the config file in the program.
+    "rootDir": "..",
+    // Inert here: the fixtures are Record<string, any>, so every access is an
+    // index hit and bracket notation returns any either way. The rule draws no
+    // distinction it could enforce, and leaving it on costs 52 findings.
+    "noPropertyAccessFromIndexSignature": false
+  },
+  "include": ["**/*.ts", "../playwright.config.ts"]
+}
