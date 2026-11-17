@@ -34,6 +34,7 @@ All applications are hosted under the base domain `https://<SUB_DOMAIN>.<HORIZON
 | **Headlamp** | `/headlamp/` | Keycloak SSO | Extensible web UI for inspecting and managing Kubernetes cluster resources. |
 | **Grafana** | `/grafana` | Keycloak SSO | Metrics, dashboards, and cluster observability. |
 | **Argo Workflows** | `/workflows` | Keycloak SSO | Workflow engine UI for Horizon pipelines (Argo Workflows server). |
+| **Cuttlefish Orchestrator** *(optional module)* | `/cuttlefish-orchestrator/` | Keycloak SSO (`oauth2-proxy`: `administrators`, `developers`) | WebRTC Cuttlefish device fleet console and REST API (enabled via `cuttlefish-orchestrator` module). |
 | **Horizon API** | `/horizon-api/` | Keycloak token (OIDC) | REST API used by the Developer Portal, the horizon CLI and CI clients. |
 | **MCP Gateway Registry** | `https://mcp.<SUB_DOMAIN>.<HORIZON_DOMAIN>` | Keycloak SSO | Centralized registry for discovering and executing Model Context Protocol (MCP) servers and AI agents. |
 

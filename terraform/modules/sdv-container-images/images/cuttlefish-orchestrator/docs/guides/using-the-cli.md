@@ -1,3 +1,17 @@
+<!-- Copyright 2026 Google LLC
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License. -->
+
 # Using the CLI
 
 `cfctl` is the command-line client for the Cloud Cuttlefish Orchestrator
@@ -433,6 +447,22 @@ You still need network reachability, which usually means a VPN into the VPC
 or a workstation inside it. Every request is attributed to one synthetic
 identity, so `--mine` means everything and `created_by` is the same on every
 resource.
+
+### Horizon SDV in-cluster Workflows (proxy mode)
+
+Inside Horizon SDV GKE clusters (`cuttlefish-orchestrator` module), `cuttlefish-workflow`
+Argo pods (`cco-host-image-build`, `cco-cvd-run`, `cco-cts-run`) connect directly
+to the cluster-internal API service in `CCO_AUTH_MODE=proxy` with `NetworkPolicy`
+egress isolation:
+
+```bash
+export CFCTL_SERVER="http://cuttlefish-orchestrator-api.cuttlefish-orchestrator.svc.cluster.local:8080"
+export CFCTL_AUTH_NONE=true
+export CFCTL_PROXY_EMAIL="argo-workflow@horizon-sdv.local"
+cfctl device list
+```
+
+For Horizon SDV sub-environments, use the prefixed namespace `<prefix>cuttlefish-orchestrator` instead (for example `http://cuttlefish-orchestrator-api.<prefix>cuttlefish-orchestrator.svc.cluster.local:8080`, injected automatically into `cco-*` Argo WorkflowTemplates).
 
 ### CI pipelines
 

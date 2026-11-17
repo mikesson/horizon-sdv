@@ -1,3 +1,17 @@
+<!-- Copyright 2026 Google LLC
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License. -->
+
 # Deployment Modes
 
 CCO's deployment shape is set by **three independent Terraform variables**. Each
@@ -253,6 +267,14 @@ clients, OmniLab ATS in particular, must use that URL and not run.app.
 Their empty POSTs carry no `Content-Length` header, and Google's front end
 rejects those with 411 before the service sees them. The load balancer
 accepts them; cfctl and cvdr work against either URL.
+
+## Horizon SDV GKE Module (`CCO_AUTH_MODE=proxy`)
+
+When deployed inside Horizon SDV via `gitops/modules/cuttlefish-orchestrator`, CCO runs as two Kubernetes Deployments in `<prefix>cuttlefish-orchestrator` (`cuttlefish-orchestrator-api` and `cuttlefish-console`) backed by Cloud Config Connector Spanner (`100` processing units):
+
+- **Front-door auth (`CCO_AUTH_MODE=proxy`)**: GKE Gateway terminates TLS and routes `/cuttlefish-orchestrator/` through `oauth2-proxy` (`8.3.0`, Keycloak OIDC for `administrators` and `developers`). `cuttlefish-console` forwards `X-Forwarded-Email` / `X-Forwarded-User` to `X-Auth-Request-*`, and `NetworkPolicy/allow-cuttlefish-orchestrator-api` enforces `CCO_TRUSTED_PROXIES` so only `cuttlefish-console`, `<prefix>workflows`, and kubelet probes reach API `:8080`.
+- **Device media (`CCO_DEVICE_INGRESS=private`)**: Host VMs have internal IPs only (`cco_webrtc_client_cidrs` + cluster pod/subnet CIDRs reach WebRTC ports `15550-15599`).
+- **Argo Workflows (`argo-workflows/` subchart)**: Exposes `cco-host-image-build` (Debian 13 + `cuttlefish-* >= 1.58.0` over IAP, `cco-host` / `cco-host-arm64`), `cco-cvd-run`, and `cco-cts-run` using `cuttlefish-workflow` (`cfctl`, `gcloud`, `packer`, `adb`, Java 17 JRE).
 
 ## Local development
 

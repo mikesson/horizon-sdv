@@ -56,6 +56,7 @@ Horizon SDV is designed to simplify the deployment and management of Android wor
   - Section #4h - Grafana [link](#section-4h---grafana)
   - Section #4i - MCP Gateway Registry [link](#section-4i---mcp-gateway-registry)
   - Section #4j - Argo Workflows [link](#section-4j---argo-workflows)
+  - Section #4k - Cuttlefish Orchestrator [link](#section-4k---cuttlefish-orchestrator)
 - Section #5 - Optional - GitHub Setup [link](#section-5---optional---github-setup)
   - Section #5a - GitHub Prerequisites [link](#section-5a---github-prerequisites)
   - Section #5b - Create GitHub Organization [link](#section-5b---create-github-organization)
@@ -318,6 +319,7 @@ git clone <REPOSITORY_URL>
     - `sdv_keycloak_horizon_admin_password`: Plain text value following the required password rules mentioned above.
   - Optional
     - `enable_arm64_dedicated_subnet`: Create dedicated ARM64 subnet/NAT (`true`) or use primary `sdv-subnet` for ARM64 Cuttlefish (`false`; ARM jobs still enabled but using primary subnet).
+    - `cco_webrtc_client_cidrs`: Optional list of additional private CIDR ranges allowed to reach Cuttlefish Orchestrator host VM WebRTC media ports (TCP/UDP `15550-15599`). Default: `[]` (GKE cluster pod, primary subnet, and ARM64 subnet CIDRs are included automatically).
     - `sdv_enable_network_policies`: Enable or disable network policies for all workloads. Set to `false` to disable all NetworkPolicy resources (useful for debugging connectivity issues). Default: `true`.
     - `sdv_dns_dnssec_enabled`: Enable DNSSEC for the Cloud DNS zone. Requires domain ownership verification at [Google Search Console](https://search.google.com/search-console). Set to `false` to disable DNSSEC. Default: `true`.
     - `sdv_enable_kms_encryption`: Enable KMS encryption for Kubernetes secrets at rest using customer-managed encryption keys. Set to `false` (default) to skip KMS encryption and allow clean Terraform destroy. Set to `true` to enable application-layer secrets encryption. **Warning:** Once enabled and applied, KMS keyrings cannot be deleted from GCP; the only way to remove them is to delete the entire project.
@@ -330,6 +332,8 @@ git clone <REPOSITORY_URL>
       | `s12` | Grafana Admin |
       | `s14` | PostgreSQL Admin |
       | `s17` | MCP Gateway Registry Admin |
+      | `s20` | Cuttlefish Orchestrator OIDC Client Secret |
+      | `s21` | Cuttlefish Orchestrator OAuth2 Cookie Secret Seed |
 
       Example: `manual_secrets = { s6 = "MyJenkins@2026", s9 = "MyGerrit@2026" }`. If a key is omitted, that secret is auto-generated. See the `manual_secrets` block in `terraform/env/terraform.tfvars.sample` for a full commented example.
 
@@ -771,6 +775,7 @@ Where Android workloads are required, enable modules in the **Horizon Developer 
 1. Open **Administration → Modules** at
    `https://<SUB_DOMAIN>.<HORIZON_DOMAIN>/developer-portal/admin/modules`
 2. Under **Administration**, enable **`workloads-common`**, then **`workloads-android`**, in that order.
+3. (Optional) To also enable Cloud Cuttlefish Orchestrator (managed GCE host fleet, `/cuttlefish-orchestrator/` WebRTC console, and Argo Workflows `cco-host-image-build`, `cco-cvd-run`, and `cco-cts-run`), enable **`cuttlefish-orchestrator`**. Users accessing the console or workflows must belong to the Keycloak `administrators` or `developers` group and have an `email` attribute populated so `oauth2-proxy` can forward `X-Auth-Request-Email`. See [Section #4k - Cuttlefish Orchestrator](#section-4k---cuttlefish-orchestrator) for prerequisites, post-enable usage, and host-image baking.
 
 Skip or adjust modules if your environment intentionally does not use Android workloads.
 
@@ -912,6 +917,20 @@ Argo Workflows is the workflow orchestration tool used to define and execute aut
 1. To Access Argo Workflows UI, go to the Horizon Landing page here: `https://<SUB_DOMAIN>.<HORIZON_DOMAIN>` and click on the Open button within the Argo Workflows app card as below.   
    <img src="images/argo_workflows_open.png" width="325" />
 2. Log-in to Argo Workflows by clicking on the "Login" with SSO button. (Your user must be assigned to `administrators` on Keycloak for SSO access)   
+
+### Section #4k - Cuttlefish Orchestrator
+Cloud Cuttlefish Orchestrator (CCO) is an optional Horizon SDV module (`cuttlefish-orchestrator`) that manages an on-demand fleet of Cuttlefish GCE host VMs via Spanner, exposes an Angular WebRTC streaming and ADB console at `/cuttlefish-orchestrator/`, and provides three additive Argo Workflows (`cco-host-image-build`, `cco-cvd-run`, `cco-cts-run`) alongside existing `workloads-android` pipelines.
+
+> [!NOTE]
+> **Keycloak & Network Prerequisites:**
+> - Users signing in to `/cuttlefish-orchestrator/` or submitting workflows must be assigned to the Keycloak `administrators` or `developers` group **and** have a non-empty `email` attribute/claim configured in Keycloak (used by `oauth2-proxy` to forward `X-Auth-Request-Email` to `cuttlefish-orchestrator-api`).
+> - `<prefix>cuttlefish-orchestrator-oidc-client-secret-b64` (`s20`) and `<prefix>cuttlefish-orchestrator-oauth2-cookie-secret-b64` (`s21`) are provisioned and auto-populated by `terraform apply` (unless overridden via `manual_secrets` in [Section #2c](#section-2c---configure-terraform-variables)); verify both secrets are populated in Secret Manager before syncing, and ensure `cco_webrtc_client_cidrs` in `terraform.tfvars` permits client WebRTC media (`TCP/UDP 15550-15599`).
+> - `cco-host-image-build` runs Packer under `gke-<prefix>argo-workflows-elevated-sa` (with `roles/compute.instanceAdmin.v1`, `roles/iap.tunnelResourceAccessor`, and `roles/iam.serviceAccountUser`) and launches the ephemeral builder VM under the GCE default Compute Engine SA (`var.sdv_gcp_compute_sa_email`), which receives IAP SSH TCP/22 ingress from `cuttlefish-allow-tcp-22`; runtime CCO host VMs run as `gke-<prefix>cco-host-vm-sa` (`cco-allow-iap-ssh-to-hosts`, `cco-allow-api-to-hosts`, and `cco-allow-webrtc-private-media`).
+
+1. Enable **`cuttlefish-orchestrator`** in Developer Portal under **Administration → Modules** (`https://<SUB_DOMAIN>.<HORIZON_DOMAIN>/developer-portal/admin/modules`). Module Manager installs the parent chart (`gitops/modules/cuttlefish-orchestrator`), creates the KCC Spanner instance (`cco-spanner`, or `<prefix>cco-spanner` / normalized `cco-<slug>-<hash4>` when >30 chars) and `cco` database, wires Keycloak OIDC integration (`cuttlefish-orchestrator` client via `s20`/`s21`), and registers the `/cuttlefish-orchestrator/` route.
+2. Before launching devices, bake at least one CCO host image by running **`cco-host-image-build`** from the Developer Portal **Cuttlefish Orchestrator** module tab (or `horizon workflow submit --module cuttlefish-orchestrator --template cco-host-image-build`) for `x86_64` (`cco-host` family) or `arm64` (`cco-host-arm64` family). The workflow builds a Debian 13 GCE image with upstream `cuttlefish-* >= 1.58.0` over IAP.
+3. Open the Cuttlefish Console from the Developer Portal **Cuttlefish Orchestrator** application card or directly at `https://<SUB_DOMAIN>.<HORIZON_DOMAIN>/cuttlefish-orchestrator/` (accessible to Keycloak `administrators` and `developers` groups with an `email` claim).
+4. Submit **`cco-cvd-run`** (interactive/smoke device launch) or **`cco-cts-run`** (sharded CTS execution across 1-8 virtual instances) from Developer Portal or Horizon CLI, or inspect [`gitops/modules/cuttlefish-orchestrator/README.md`](../gitops/modules/cuttlefish-orchestrator/README.md) for architecture and teardown details.
 
 ## Section #5 - Optional - GitHub Setup
 

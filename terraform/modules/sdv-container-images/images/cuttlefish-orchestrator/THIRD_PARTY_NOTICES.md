@@ -1,19 +1,38 @@
+<!-- Copyright 2026 Google LLC
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    https://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License. -->
+
 # Third-Party Notices
 
-Cloud Cuttlefish Orchestrator includes third-party open source software. This
-file lists the components that ship in the product, with the license each one
-carries.
+Cloud Cuttlefish Orchestrator includes third-party open source and source-available
+software. This file lists the components that ship in the product containers
+(`cuttlefish-orchestrator-api`, `cuttlefish-console`, and `cuttlefish-workflow`),
+runtime browser assets served by the API, and the license each one carries.
 
-The Go list covers every module reachable from the three shipped binaries
+The Go list covers every module reachable from the shipped binaries
 (`./cmd/orchestrator`, `./cmd/cfctl`, `./cmd/relayhook`). The separate modules
-under `tools/` and the packages imported only by tests are developer tooling,
+under `tools/` and packages imported only by tests are developer tooling,
 they are not linked into a shipped binary, and they are excluded here.
 
-The npm list covers the production dependency tree of the Angular console.
-Development dependencies (build, lint and test tooling) do not reach the
-browser bundle and are excluded.
+The npm list covers the production dependency tree of the Angular console from
+`web/cuttlefish-console/package-lock.json` (excluding `"dev": true` and
+`"devOptional": true` entries). Build-only dependencies such as `typescript@6.0.3`
+(`Apache-2.0`, marked `"devOptional": true` in `package-lock.json`) do not ship in
+the compiled browser bundle and are excluded from the runtime count. The API
+documentation endpoint (`/docs`) additionally loads `@scalar/api-reference@1.44.20`
+(`MIT`) from unpkg with Subresource Integrity (`sha384-...`) in `internal/router/scalar.go`.
 
-Regenerated 2026-09-02. The commands are in
+Regenerated 2026-11-17. The verification commands are in
 [Generating Updated Notices](#generating-updated-notices).
 
 ## License Summary
@@ -22,21 +41,23 @@ Regenerated 2026-09-02. The commands are in
 
 | License | Count |
 |---|---|
-| Apache-2.0 | 42 |
+| Apache-2.0 | 43 |
 | BSD-3-Clause | 13 |
 | MIT | 7 |
 | ISC | 1 |
 
-62 modules, 63 entries. `github.com/go-jose/go-jose/v4` appears twice because
-its vendored `json` package carries its own BSD-3-Clause license.
+62 unique Go modules, 64 license entries. `github.com/go-jose/go-jose/v4` appears
+twice (`Apache-2.0`, plus `BSD-3-Clause` for its vendored `json` package), and
+`go.yaml.in/yaml/v3` appears twice (libyaml C ports under `MIT`, plus remaining
+Go files under `Apache-2.0`).
 
 ### Frontend (npm packages)
 
 | License | Count |
 |---|---|
-| MIT | 162 |
-| ISC | 12 |
-| Apache-2.0 | 4 |
+| MIT | 161 |
+| ISC | 9 |
+| Apache-2.0 | 3 |
 | BSD-2-Clause | 3 |
 | 0BSD | 1 |
 | BSD-3-Clause | 1 |
@@ -45,13 +66,30 @@ its vendored `json` package carries its own BSD-3-Clause license.
 | Python-2.0 | 1 |
 | AFL-2.1 or BSD-3-Clause | 1 |
 
-187 packages. Two entries need a word of explanation:
+182 unique production `name@version` tuples (**179** unique package names;
+`convert-source-map`, `string-width`, and `entities` each appear under two
+versions). `typescript@6.0.3` (`Apache-2.0`, marked `"devOptional": true` in
+`package-lock.json`) is build-time compilation tooling and is excluded from the
+runtime production table. Two runtime entries need a word of explanation:
 
 - `json-schema` offers a choice of AFL-2.1 or BSD-3-Clause. The BSD-3-Clause
   option applies here.
 - `valid-url` declares no `license` field in its `package.json`, so
-  license-checker reported `MIT*` and read the text from the package's LICENSE
+  `license-checker` reported `MIT*` and read the text from the package's LICENSE
   file. That text is the MIT license, and the package is listed as MIT below.
+
+### Container Images, Workflow Tooling, and Bundled / Runtime Assets
+
+| Component | Version | License | Container / Location | Purpose |
+|---|---|---|---|---|
+| Distroless Base (`gcr.io/distroless/base-debian12:nonroot`) | Debian 12 (bookworm) | Apache-2.0 / Debian DFSG | `Dockerfile` (`cuttlefish-orchestrator-api`) | Minimal non-root runtime base image |
+| Scalar API Reference (`@scalar/api-reference`) | 1.44.20 | MIT | `internal/router/scalar.go` (`cuttlefish-orchestrator-api` `/docs` CDN w/ SRI) | Interactive OpenAPI reference UI (`sha384-tMz7GAo6dMy55x9tLFtH+sHtogji6Scmb+feBR31TAHmvSPRUTboK9H3M5NFaP4R`) |
+| Nginx (`nginx`) | 1.31.2-alpine3.23 | 2-clause BSD (Alpine packages vary) | `web/cuttlefish-console/Dockerfile` (`cuttlefish-console`) | Serves compiled Angular SPA and reverse proxies API requests |
+| Debian 12 Slim (`debian:12-slim`) + APT tools (`android-tools-adb`, `openjdk-17-jre-headless`, `openssh-client`, `python3`, `jq`, `unzip`, `curl`, `ca-certificates`, `gnupg`) | Debian 12 (bookworm) | Debian DFSG-compliant OSS licenses (`GPL-2.0-with-classpath-exception` for OpenJDK 17) | `Dockerfile.workflow` (`cuttlefish-workflow`) | Argo Workflow runner base image and CLI/CTS dependencies |
+| Google Cloud CLI (`google-cloud-cli`) | APT (`cloud-sdk-bookworm`) | Apache-2.0 | `Dockerfile.workflow` (`cuttlefish-workflow`) | GCE/GCS/OS Login automation in CCO workflows |
+| HashiCorp Packer (`packer`) | 1.15.0 | BSL-1.1 | `Dockerfile.workflow` (`cuttlefish-workflow`) | Builds `cco-host` / `cco-host-arm64` Debian 13 GCE host images |
+| Packer Google Compute Plugin (`hashicorp/googlecompute`) | v1.2.4 | MPL-2.0 | `Dockerfile.workflow` (`cuttlefish-workflow`) | Packer GCE builder plugin (`use_iap = true`) |
+| Self-hosted Google Fonts (`google-sans*.woff2`, `google-sans-code*.woff2`, `material-symbols-outlined.woff2`) | Bundled static assets | SIL OFL-1.1 / Apache-2.0 | `web/cuttlefish-console/src/assets/fonts/` | Local typography and Material Symbols icons bundled without CDN calls |
 
 ## Dependencies
 
@@ -65,44 +103,45 @@ its vendored `json` package carries its own BSD-3-Clause license.
 | `cloud.google.com/go` | v0.123.0 | https://github.com/googleapis/google-cloud-go |
 | `cloud.google.com/go/auth` | v0.22.0 | https://github.com/googleapis/google-cloud-go |
 | `cloud.google.com/go/auth/oauth2adapt` | v0.2.8 | https://github.com/googleapis/google-cloud-go |
-| `cloud.google.com/go/compute/apiv1` | v1.64.0 | https://github.com/googleapis/google-cloud-go |
+| `cloud.google.com/go/compute` | v1.64.0 | https://github.com/googleapis/google-cloud-go |
 | `cloud.google.com/go/compute/metadata` | v0.9.0 | https://github.com/googleapis/google-cloud-go |
 | `cloud.google.com/go/iam` | v1.11.0 | https://github.com/googleapis/google-cloud-go |
 | `cloud.google.com/go/monitoring` | v1.29.0 | https://github.com/googleapis/google-cloud-go |
 | `cloud.google.com/go/spanner` | v1.92.0 | https://github.com/googleapis/google-cloud-go |
 | `cloud.google.com/go/storage` | v1.63.0 | https://github.com/googleapis/google-cloud-go |
 | `github.com/GoogleCloudPlatform/grpc-gcp-go/grpcgcp` | v1.6.0 | https://github.com/GoogleCloudPlatform/grpc-gcp-go |
-| `github.com/GoogleCloudPlatform/opentelemetry-operations-go/detectors/gcp` | v1.34.0 | https://github.com/GoogleCloudPlatform/opentelemetry-operations-go |
+| `github.com/GoogleCloudPlatform/opentelemetry-operations-go/detectors/gcp` | v1.35.0 | https://github.com/GoogleCloudPlatform/opentelemetry-operations-go |
 | `github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/metric` | v0.58.0 | https://github.com/GoogleCloudPlatform/opentelemetry-operations-go |
 | `github.com/GoogleCloudPlatform/opentelemetry-operations-go/internal/resourcemapping` | v0.58.0 | https://github.com/GoogleCloudPlatform/opentelemetry-operations-go |
 | `github.com/cncf/xds/go` | v0.0.0-20260202195803-dba9d589def2 | https://github.com/cncf/xds |
 | `github.com/envoyproxy/go-control-plane/envoy` | v1.37.0 | https://github.com/envoyproxy/go-control-plane |
-| `github.com/envoyproxy/protoc-gen-validate/validate` | v1.3.3 | https://github.com/envoyproxy/protoc-gen-validate |
+| `github.com/envoyproxy/protoc-gen-validate` | v1.3.3 | https://github.com/envoyproxy/protoc-gen-validate |
 | `github.com/go-jose/go-jose/v4` | v4.1.4 | https://github.com/go-jose/go-jose |
-| `github.com/go-logr/logr` | v1.4.3 | https://github.com/go-logr/logr |
+| `github.com/go-logr/logr` | v1.4.4 | https://github.com/go-logr/logr |
 | `github.com/go-logr/stdr` | v1.2.2 | https://github.com/go-logr/stdr |
 | `github.com/google/s2a-go` | v0.1.9 | https://github.com/google/s2a-go |
-| `github.com/googleapis/enterprise-certificate-proxy/client` | v0.3.19 | https://github.com/googleapis/enterprise-certificate-proxy |
-| `github.com/oapi-codegen/runtime/types` | v1.6.0 | https://github.com/oapi-codegen/runtime |
+| `github.com/googleapis/enterprise-certificate-proxy` | v0.3.19 | https://github.com/googleapis/enterprise-certificate-proxy |
+| `github.com/oapi-codegen/runtime` | v1.6.0 | https://github.com/oapi-codegen/runtime |
 | `github.com/spiffe/go-spiffe/v2` | v2.8.1 | https://github.com/spiffe/go-spiffe |
 | `go.opencensus.io` | v0.24.0 | https://github.com/census-instrumentation/opencensus-go |
 | `go.opentelemetry.io/auto/sdk` | v1.2.1 | https://github.com/open-telemetry/opentelemetry-go-instrumentation |
-| `go.opentelemetry.io/contrib/detectors/gcp` | v1.44.0 | https://github.com/open-telemetry/opentelemetry-go-contrib |
-| `go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc` | v0.69.0 | https://github.com/open-telemetry/opentelemetry-go-contrib |
-| `go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp` | v0.69.0 | https://github.com/open-telemetry/opentelemetry-go-contrib |
-| `go.opentelemetry.io/otel` | v1.44.0 | https://github.com/open-telemetry/opentelemetry-go |
-| `go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc` | v1.44.0 | https://github.com/open-telemetry/opentelemetry-go |
-| `go.opentelemetry.io/otel/exporters/otlp/otlptrace` | v1.44.0 | https://github.com/open-telemetry/opentelemetry-go |
-| `go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc` | v1.44.0 | https://github.com/open-telemetry/opentelemetry-go |
-| `go.opentelemetry.io/otel/metric` | v1.44.0 | https://github.com/open-telemetry/opentelemetry-go |
-| `go.opentelemetry.io/otel/sdk` | v1.44.0 | https://github.com/open-telemetry/opentelemetry-go |
-| `go.opentelemetry.io/otel/sdk/metric` | v1.44.0 | https://github.com/open-telemetry/opentelemetry-go |
-| `go.opentelemetry.io/otel/trace` | v1.44.0 | https://github.com/open-telemetry/opentelemetry-go |
-| `go.opentelemetry.io/proto/otlp` | v1.10.0 | https://github.com/open-telemetry/opentelemetry-proto-go |
-| `google.golang.org/genproto/googleapis` | v0.0.0-20260706201446-f0a921348800 | https://github.com/googleapis/go-genproto |
-| `google.golang.org/genproto/googleapis/api` | v0.0.0-20260706201446-f0a921348800 | https://github.com/googleapis/go-genproto |
-| `google.golang.org/genproto/googleapis/rpc` | v0.0.0-20260724162435-b2f20204f0df | https://github.com/googleapis/go-genproto |
-| `google.golang.org/grpc` | v1.83.0 | https://github.com/grpc/grpc-go |
+| `go.opentelemetry.io/contrib/detectors/gcp` | v1.45.0 | https://github.com/open-telemetry/opentelemetry-go-contrib |
+| `go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc` | v0.70.0 | https://github.com/open-telemetry/opentelemetry-go-contrib |
+| `go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp` | v0.70.0 | https://github.com/open-telemetry/opentelemetry-go-contrib |
+| `go.opentelemetry.io/otel` | v1.45.0 | https://github.com/open-telemetry/opentelemetry-go |
+| `go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc` | v1.45.0 | https://github.com/open-telemetry/opentelemetry-go |
+| `go.opentelemetry.io/otel/exporters/otlp/otlptrace` | v1.45.0 | https://github.com/open-telemetry/opentelemetry-go |
+| `go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc` | v1.45.0 | https://github.com/open-telemetry/opentelemetry-go |
+| `go.opentelemetry.io/otel/metric` | v1.45.0 | https://github.com/open-telemetry/opentelemetry-go |
+| `go.opentelemetry.io/otel/sdk` | v1.45.0 | https://github.com/open-telemetry/opentelemetry-go |
+| `go.opentelemetry.io/otel/sdk/metric` | v1.45.0 | https://github.com/open-telemetry/opentelemetry-go |
+| `go.opentelemetry.io/otel/trace` | v1.45.0 | https://github.com/open-telemetry/opentelemetry-go |
+| `go.opentelemetry.io/proto/otlp` | v1.11.0 | https://github.com/open-telemetry/opentelemetry-proto-go |
+| `go.yaml.in/yaml/v3` | v3.0.5 | https://github.com/yaml/go-yaml |
+| `google.golang.org/genproto` | v0.0.0-20260706201446-f0a921348800 | https://github.com/googleapis/go-genproto |
+| `google.golang.org/genproto/googleapis/api` | v0.0.0-20260803160001-6ac0973c030d | https://github.com/googleapis/go-genproto |
+| `google.golang.org/genproto/googleapis/rpc` | v0.0.0-20260803160001-6ac0973c030d | https://github.com/googleapis/go-genproto |
+| `google.golang.org/grpc` | v1.83.2 | https://github.com/grpc/grpc-go |
 
 #### BSD-3-Clause
 
@@ -112,13 +151,13 @@ its vendored `json` package carries its own BSD-3-Clause license.
 | `github.com/google/uuid` | v1.6.0 | https://github.com/google/uuid |
 | `github.com/googleapis/gax-go/v2` | v2.23.0 | https://github.com/googleapis/gax-go |
 | `github.com/grpc-ecosystem/grpc-gateway/v2` | v2.29.0 | https://github.com/grpc-ecosystem/grpc-gateway |
-| `golang.org/x/crypto` | v0.54.0 | https://cs.opensource.google/go/x/crypto |
-| `golang.org/x/net` | v0.57.0 | https://cs.opensource.google/go/x/net |
+| `golang.org/x/crypto` | v0.57.0 | https://cs.opensource.google/go/x/crypto |
+| `golang.org/x/net` | v0.60.0 | https://cs.opensource.google/go/x/net |
 | `golang.org/x/oauth2` | v0.36.0 | https://cs.opensource.google/go/x/oauth2 |
-| `golang.org/x/sync` | v0.22.0 | https://cs.opensource.google/go/x/sync |
-| `golang.org/x/sys` | v0.47.0 | https://cs.opensource.google/go/x/sys |
-| `golang.org/x/text` | v0.40.0 | https://cs.opensource.google/go/x/text |
-| `golang.org/x/time/rate` | v0.15.0 | https://cs.opensource.google/go/x/time |
+| `golang.org/x/sync` | v0.23.0 | https://cs.opensource.google/go/x/sync |
+| `golang.org/x/sys` | v0.48.0 | https://cs.opensource.google/go/x/sys |
+| `golang.org/x/text` | v0.42.0 | https://cs.opensource.google/go/x/text |
+| `golang.org/x/time` | v0.15.0 | https://cs.opensource.google/go/x/time |
 | `google.golang.org/api` | v0.291.0 | https://github.com/googleapis/google-api-go-client |
 | `google.golang.org/protobuf` | v1.36.11 | https://github.com/protocolbuffers/protobuf-go |
 
@@ -146,32 +185,30 @@ its vendored `json` package carries its own BSD-3-Clause license.
 
 | Package | Version | Repository |
 |---|---|---|
-| `@angular/cdk` | 22.0.6 | https://github.com/angular/components |
-| `@angular/common` | 22.0.8 | https://github.com/angular/angular |
-| `@angular/compiler` | 22.0.8 | https://github.com/angular/angular |
-| `@angular/compiler-cli` | 22.0.8 | https://github.com/angular/angular |
-| `@angular/core` | 22.0.8 | https://github.com/angular/angular |
-| `@angular/forms` | 22.0.8 | https://github.com/angular/angular |
-| `@angular/localize` | 22.0.8 | https://github.com/angular/angular |
-| `@angular/material` | 22.0.6 | https://github.com/angular/components |
-| `@angular/platform-browser` | 22.0.8 | https://github.com/angular/angular |
-| `@angular/router` | 22.0.8 | https://github.com/angular/angular |
-| `@babel/code-frame` | 7.29.7 | https://github.com/babel/babel |
-| `@babel/compat-data` | 7.29.7 | https://github.com/babel/babel |
-| `@babel/core` | 7.29.7 | https://github.com/babel/babel |
-| `@babel/generator` | 7.29.7 | https://github.com/babel/babel |
-| `@babel/helper-compilation-targets` | 7.29.7 | https://github.com/babel/babel |
-| `@babel/helper-globals` | 7.29.7 | https://github.com/babel/babel |
-| `@babel/helper-module-imports` | 7.29.7 | https://github.com/babel/babel |
-| `@babel/helper-module-transforms` | 7.29.7 | https://github.com/babel/babel |
-| `@babel/helper-string-parser` | 7.29.7 | https://github.com/babel/babel |
-| `@babel/helper-validator-identifier` | 7.29.7 | https://github.com/babel/babel |
-| `@babel/helper-validator-option` | 7.29.7 | https://github.com/babel/babel |
-| `@babel/helpers` | 7.29.7 | https://github.com/babel/babel |
-| `@babel/parser` | 7.29.7 | https://github.com/babel/babel |
-| `@babel/template` | 7.29.7 | https://github.com/babel/babel |
-| `@babel/traverse` | 7.29.7 | https://github.com/babel/babel |
-| `@babel/types` | 7.29.7 | https://github.com/babel/babel |
+| `@angular/cdk` | 22.2.1 | https://github.com/angular/components |
+| `@angular/common` | 22.2.1 | https://github.com/angular/angular |
+| `@angular/compiler` | 22.2.1 | https://github.com/angular/angular |
+| `@angular/compiler-cli` | 22.2.1 | https://github.com/angular/angular |
+| `@angular/core` | 22.2.1 | https://github.com/angular/angular |
+| `@angular/forms` | 22.2.1 | https://github.com/angular/angular |
+| `@angular/localize` | 22.2.1 | https://github.com/angular/angular |
+| `@angular/material` | 22.2.1 | https://github.com/angular/components |
+| `@angular/platform-browser` | 22.2.1 | https://github.com/angular/angular |
+| `@angular/router` | 22.2.1 | https://github.com/angular/angular |
+| `@babel/code-frame` | 8.0.6 | https://github.com/babel/babel |
+| `@babel/compat-data` | 8.0.5 | https://github.com/babel/babel |
+| `@babel/core` | 8.0.1 | https://github.com/babel/babel |
+| `@babel/generator` | 8.0.6 | https://github.com/babel/babel |
+| `@babel/helper-compilation-targets` | 8.0.6 | https://github.com/babel/babel |
+| `@babel/helper-globals` | 8.0.6 | https://github.com/babel/babel |
+| `@babel/helper-string-parser` | 8.0.6 | https://github.com/babel/babel |
+| `@babel/helper-validator-identifier` | 8.0.6 | https://github.com/babel/babel |
+| `@babel/helper-validator-option` | 8.0.0 | https://github.com/babel/babel |
+| `@babel/helpers` | 8.0.5 | https://github.com/babel/babel |
+| `@babel/parser` | 8.0.6 | https://github.com/babel/babel |
+| `@babel/template` | 8.0.0 | https://github.com/babel/babel |
+| `@babel/traverse` | 8.0.6 | https://github.com/babel/babel |
+| `@babel/types` | 8.0.6 | https://github.com/babel/babel |
 | `@codemirror/autocomplete` | 6.20.3 | git+https://code.haverbeke.berlin/codemirror/autocomplete |
 | `@codemirror/commands` | 6.10.4 | git+https://code.haverbeke.berlin/codemirror/commands |
 | `@codemirror/lang-json` | 6.0.2 | https://github.com/codemirror/lang-json |
@@ -180,10 +217,9 @@ its vendored `json` package carries its own BSD-3-Clause license.
 | `@codemirror/lint` | 6.9.7 | git+https://code.haverbeke.berlin/codemirror/lint |
 | `@codemirror/state` | 6.7.1 | git+https://code.haverbeke.berlin/codemirror/state |
 | `@codemirror/view` | 6.43.6 | git+https://code.haverbeke.berlin/codemirror/view |
-| `@jridgewell/gen-mapping` | 0.3.13 | https://github.com/jridgewell/sourcemaps |
-| `@jridgewell/remapping` | 2.3.5 | https://github.com/jridgewell/sourcemaps |
+| `@jridgewell/gen-mapping` | 0.4.0-beta.0 | https://github.com/jridgewell/sourcemaps |
 | `@jridgewell/resolve-uri` | 3.1.2 | https://github.com/jridgewell/resolve-uri |
-| `@jridgewell/sourcemap-codec` | 1.5.5 | https://github.com/jridgewell/sourcemaps |
+| `@jridgewell/sourcemap-codec` | 1.6.0 | https://github.com/jridgewell/sourcemaps |
 | `@jridgewell/trace-mapping` | 0.3.31 | https://github.com/jridgewell/sourcemaps |
 | `@lezer/common` | 1.5.2 | https://github.com/lezer-parser/common |
 | `@lezer/highlight` | 1.2.3 | https://github.com/lezer-parser/highlight |
@@ -204,11 +240,9 @@ its vendored `json` package carries its own BSD-3-Clause license.
 | `@shikijs/types` | 1.29.2 | https://github.com/shikijs/shiki |
 | `@shikijs/vscode-textmate` | 10.0.2 | https://github.com/shikijs/vscode-textmate |
 | `@standard-schema/spec` | 1.1.0 | https://github.com/standard-schema/standard-schema |
-| `@types/babel__core` | 7.20.5 | https://github.com/DefinitelyTyped/DefinitelyTyped |
-| `@types/babel__generator` | 7.27.0 | https://github.com/DefinitelyTyped/DefinitelyTyped |
-| `@types/babel__template` | 7.4.4 | https://github.com/DefinitelyTyped/DefinitelyTyped |
-| `@types/babel__traverse` | 7.28.0 | https://github.com/DefinitelyTyped/DefinitelyTyped |
+| `@types/gensync` | 1.0.5 | https://github.com/DefinitelyTyped/DefinitelyTyped |
 | `@types/hast` | 3.0.5 | https://github.com/DefinitelyTyped/DefinitelyTyped |
+| `@types/jsesc` | 2.5.1 | https://github.com/DefinitelyTyped/DefinitelyTyped |
 | `@types/mdast` | 4.0.4 | https://github.com/DefinitelyTyped/DefinitelyTyped |
 | `@types/node` | 24.13.3 | https://github.com/DefinitelyTyped/DefinitelyTyped |
 | `@types/unist` | 3.0.3 | https://github.com/DefinitelyTyped/DefinitelyTyped |
@@ -237,7 +271,6 @@ its vendored `json` package carries its own BSD-3-Clause license.
 | `convert-source-map` | 1.9.0 | https://github.com/thlorenz/convert-source-map |
 | `convert-source-map` | 2.0.0 | https://github.com/thlorenz/convert-source-map |
 | `crelt` | 1.0.7 | git+https://code.haverbeke.berlin/marijn/crelt |
-| `debug` | 4.4.3 | https://github.com/debug-js/debug |
 | `deepmerge` | 4.3.1 | https://github.com/TehShrike/deepmerge |
 | `dequal` | 2.0.3 | https://github.com/lukeed/dequal |
 | `devlop` | 1.1.0 | https://github.com/wooorm/devlop |
@@ -245,23 +278,26 @@ its vendored `json` package carries its own BSD-3-Clause license.
 | `ebnf` | 1.9.1 | https://github.com/menduz/node-ebnf |
 | `emoji-regex` | 10.6.0 | https://github.com/mathiasbynens/emoji-regex |
 | `emoji-regex-xs` | 1.0.0 | https://github.com/slevithan/emoji-regex-xs |
+| `empathic` | 2.1.0 | https://www.npmjs.com/package/empathic |
 | `escalade` | 3.2.0 | https://github.com/lukeed/escalade |
-| `fast-copy` | 3.0.2 | https://github.com/planttheidea/fast-copy |
+| `fast-copy` | 3.1.0 | https://github.com/planttheidea/fast-copy |
 | `fast-deep-equal` | 3.1.3 | https://github.com/epoberezkin/fast-deep-equal |
 | `fdir` | 6.5.0 | https://github.com/thecodrr/fdir |
+| `flru` | 1.0.2 | https://www.npmjs.com/package/flru |
 | `gensync` | 1.0.0-beta.2 | https://github.com/loganfsmyth/gensync |
 | `get-east-asian-width` | 1.6.0 | https://github.com/sindresorhus/get-east-asian-width |
 | `hast-util-to-html` | 9.0.5 | https://github.com/syntax-tree/hast-util-to-html |
 | `hast-util-whitespace` | 3.0.0 | https://github.com/syntax-tree/hast-util-whitespace |
 | `html-void-elements` | 3.0.0 | https://github.com/wooorm/html-void-elements |
-| `js-tokens` | 4.0.0 | https://github.com/lydell/js-tokens |
+| `import-meta-resolve` | 4.2.0 | https://www.npmjs.com/package/import-meta-resolve |
+| `js-tokens` | 10.0.0 | https://github.com/lydell/js-tokens |
 | `jsesc` | 3.1.0 | https://github.com/mathiasbynens/jsesc |
 | `json-schema-library` | 9.3.5 | https://github.com/sagold/json-schema-library |
 | `json5` | 2.2.3 | https://github.com/json5/json5 |
 | `lezer-json5` | 2.0.2 | https://github.com/dimfeld/lezer-json5 |
 | `linkify-it` | 5.0.2 | https://github.com/markdown-it/linkify-it |
 | `loglevel` | 1.9.2 | https://github.com/pimterry/loglevel |
-| `markdown-it` | 14.3.0 | https://github.com/markdown-it/markdown-it |
+| `markdown-it` | 14.3.2 | https://github.com/markdown-it/markdown-it |
 | `mdast-util-to-hast` | 13.2.1 | https://github.com/syntax-tree/mdast-util-to-hast |
 | `mdurl` | 2.1.0 | https://github.com/markdown-it/mdurl |
 | `micromark-util-character` | 2.1.1 | https://github.com/micromark/micromark/tree/main/packages/micromark-util-character |
@@ -269,12 +305,12 @@ its vendored `json` package carries its own BSD-3-Clause license.
 | `micromark-util-sanitize-uri` | 2.0.1 | https://github.com/micromark/micromark/tree/main/packages/micromark-util-sanitize-uri |
 | `micromark-util-symbol` | 2.0.1 | https://github.com/micromark/micromark/tree/main/packages/micromark-util-symbol |
 | `micromark-util-types` | 2.0.2 | https://github.com/micromark/micromark/tree/main/packages/micromark-util-types |
-| `ms` | 2.1.3 | https://github.com/vercel/ms |
 | `nearley` | 2.20.1 | https://github.com/hardmath123/nearley |
 | `node-releases` | 2.0.51 | https://github.com/chicoxyzzy/node-releases |
+| `obug` | 2.1.4 | https://www.npmjs.com/package/obug |
 | `oniguruma-to-es` | 2.3.0 | https://github.com/slevithan/oniguruma-to-es |
 | `parse5` | 8.0.1 | https://github.com/inikulin/parse5 |
-| `picomatch` | 4.0.4 | https://github.com/micromatch/picomatch |
+| `picomatch` | 4.0.7 | https://github.com/micromatch/picomatch |
 | `property-information` | 7.2.0 | https://github.com/wooorm/property-information |
 | `punycode.js` | 2.3.1 | https://github.com/mathiasbynens/punycode.js |
 | `randexp` | 0.4.6 | https://github.com/fent/randexp.js |
@@ -287,10 +323,11 @@ its vendored `json` package carries its own BSD-3-Clause license.
 | `smtp-address-parser` | 1.0.10 | https://github.com/gene-hightower/smtp-address-parser |
 | `space-separated-tokens` | 2.0.2 | https://github.com/wooorm/space-separated-tokens |
 | `string-width` | 7.2.0 | https://github.com/sindresorhus/string-width |
+| `string-width` | 8.2.2 | https://github.com/sindresorhus/string-width |
 | `stringify-entities` | 4.0.4 | https://github.com/wooorm/stringify-entities |
 | `strip-ansi` | 7.2.0 | https://github.com/chalk/strip-ansi |
 | `style-mod` | 4.1.3 | https://github.com/marijnh/style-mod |
-| `tinyglobby` | 0.2.16 | https://github.com/SuperchupuDev/tinyglobby |
+| `tinyglobby` | 0.2.17 | https://github.com/SuperchupuDev/tinyglobby |
 | `trim-lines` | 3.0.1 | https://github.com/wooorm/trim-lines |
 | `uc.micro` | 2.1.0 | https://github.com/markdown-it/uc.micro |
 | `undici-types` | 7.18.2 | https://github.com/nodejs/undici |
@@ -301,11 +338,12 @@ its vendored `json` package carries its own BSD-3-Clause license.
 | `unist-util-visit-parents` | 6.0.2 | https://github.com/syntax-tree/unist-util-visit-parents |
 | `update-browserslist-db` | 1.2.3 | https://github.com/browserslist/update-db |
 | `valid-url` | 1.0.9 | https://github.com/ogt/valid-url |
+| `verkit` | 0.3.2 | https://www.npmjs.com/package/verkit |
 | `vfile` | 6.0.3 | https://github.com/vfile/vfile |
 | `vfile-message` | 4.0.3 | https://github.com/vfile/vfile-message |
 | `w3c-keyname` | 2.2.8 | https://github.com/marijnh/w3c-keyname |
 | `wrap-ansi` | 9.0.2 | https://github.com/chalk/wrap-ansi |
-| `yargs` | 18.0.0 | https://github.com/yargs/yargs |
+| `yargs` | 18.1.0 | https://github.com/yargs/yargs |
 | `zod` | 4.4.3 | https://github.com/colinhacks/zod |
 | `zwitch` | 2.0.4 | https://github.com/wooorm/zwitch |
 
@@ -317,12 +355,9 @@ its vendored `json` package carries its own BSD-3-Clause license.
 | `cliui` | 9.0.1 | https://github.com/yargs/cliui |
 | `electron-to-chromium` | 1.5.396 | https://github.com/Kilian/electron-to-chromium |
 | `get-caller-file` | 2.0.5 | https://github.com/stefanpenner/get-caller-file |
-| `lru-cache` | 5.1.1 | https://github.com/isaacs/node-lru-cache |
 | `picocolors` | 1.1.1 | https://github.com/alexeyraspopov/picocolors |
-| `semver` | 6.3.1 | https://github.com/npm/node-semver |
-| `semver` | 7.7.4 | https://github.com/npm/node-semver |
+| `semver` | 7.8.5 | https://github.com/npm/node-semver |
 | `y18n` | 5.0.8 | https://github.com/yargs/y18n |
-| `yallist` | 3.1.1 | https://github.com/isaacs/yallist |
 | `yaml` | 2.9.0 | https://github.com/eemeli/yaml |
 | `yargs-parser` | 22.0.0 | https://github.com/yargs/yargs-parser |
 
@@ -333,7 +368,6 @@ its vendored `json` package carries its own BSD-3-Clause license.
 | `baseline-browser-mapping` | 2.11.4 | https://github.com/web-platform-dx/baseline-browser-mapping |
 | `reflect-metadata` | 0.2.2 | https://github.com/rbuckton/reflect-metadata |
 | `rxjs` | 7.8.2 | https://github.com/reactivex/rxjs |
-| `typescript` | 6.0.3 | https://github.com/microsoft/TypeScript |
 
 #### BSD-2-Clause
 
@@ -381,11 +415,18 @@ its vendored `json` package carries its own BSD-3-Clause license.
 
 ## Full License Texts
 
-The four licenses below cover the Go list and all but seven of the npm
-packages (the three BSD-2-Clause packages, and one each under 0BSD, CC-BY-4.0,
-CC0-1.0 and Python-2.0). For those identifiers the canonical text is
-published at `https://spdx.org/licenses/<identifier>.html`, and every package
-ships its own license file in its repository.
+The four licenses below cover the Go list (`./cmd/...`), `@scalar/api-reference`
+(`MIT`), and 174 of the 182 production npm `name@version` tuples (plus three
+`BSD-2-Clause` tuples, and one each under `0BSD`, `CC-BY-4.0`, `CC0-1.0`, and
+`Python-2.0`; plus `json-schema` dual-licensed under `AFL-2.1` or `BSD-3-Clause`).
+In `cuttlefish-workflow`, HashiCorp `packer` (`1.15.0`) is source-available under
+`BSL-1.1` (`https://github.com/hashicorp/packer/blob/main/LICENSE`, converting to
+`MPL-2.0` after its change date), whereas the `hashicorp/googlecompute` plugin
+(`v1.2.4`) is licensed under `MPL-2.0` (`https://www.mozilla.org/en-US/MPL/2.0/`).
+Debian runtime packages (including OpenJDK 17 under `GPL-2.0-with-classpath-exception`)
+follow Debian DFSG-compliant upstream licenses. Canonical SPDX license texts are
+published at `https://spdx.org/licenses/<identifier>.html`, and every upstream
+package ships its own license file.
 
 ### MIT License
 
@@ -471,15 +512,18 @@ PERFORMANCE OF THIS SOFTWARE.
 
 ### Backend (Go)
 
-Run from the repository root. The first command downloads go-licenses on
-first use.
+Run from the `cuttlefish-orchestrator` image directory. The first command
+downloads `go-licenses` on first use. Normalize subpackage paths to canonical
+`go.mod` module roots (retaining separate rows where a module has dual-licensed
+files or subpackages, such as `github.com/go-jose/go-jose/v4/json` and
+`go.yaml.in/yaml/v3`).
 
 ```bash
 go run github.com/google/go-licenses@latest report ./cmd/... 2>/dev/null
 ```
 
 Its report has no version column, so the versions in the tables above come
-from the build list of the same three binaries:
+from the build list of the same binaries:
 
 ```bash
 go list -deps -f '{{if .Module}}{{.Module.Path}} {{.Module.Version}}{{end}}' ./cmd/... | sort -u
@@ -491,6 +535,10 @@ go list -deps -f '{{if .Module}}{{.Module.Path}} {{.Module.Version}}{{end}}' ./c
 cd web/cuttlefish-console
 npx --yes license-checker --production --json
 ```
+
+Cross-check against `package-lock.json` to exclude `"dev": true` and
+`"devOptional": true` packages (such as `typescript@6.0.3`, which is used only at
+TypeScript/Angular build time).
 
 ## Questions
 

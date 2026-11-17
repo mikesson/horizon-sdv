@@ -94,7 +94,8 @@ Main entry point for terraform execution is `env/main.tf` file. This file contai
 - sdv_gcp_backend_bucket (GCP Backend Bucket to store tfstate)
 - enable_arm64_dedicated_subnet (Create dedicated ARM64 VPC subnet/NAT in arm64_region; false = ARM64 uses primary sdv-subnet, jobs still supported)
 - arm64_region, arm64_zone, arm64_subnetwork (ARM64 Cuttlefish placement; independent of sdv_gcp_region/sdv_gcp_zone)
-- manual_secrets (Set Application Admin secret manually)
+- cco_webrtc_client_cidrs (Optional list of additional private CIDR ranges allowed to reach Cuttlefish Orchestrator host VM WebRTC media ports TCP/UDP 15550-15599; default: [])
+- manual_secrets (Set Application Admin / Cuttlefish Orchestrator OIDC & cookie secrets manually; keys `s5`, `s6`, `s9`, `s12`, `s14`, `s17`, `s20`, `s21`)
 
 
 

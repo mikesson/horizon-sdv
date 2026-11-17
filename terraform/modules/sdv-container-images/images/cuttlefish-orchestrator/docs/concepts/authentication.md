@@ -1,3 +1,17 @@
+<!-- Copyright 2026 Google LLC
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License. -->
+
 # Authentication
 
 Authentication is the only gate. There are no roles, permissions,
@@ -152,6 +166,22 @@ As a result, `mine=true` means everything, `created_by` is
 uniform, the audit log has one writer, and the console is reachable without
 sign-in from inside the VPC. Point cfctl at such a deployment with
 `cfctl config set-auth none`.
+
+## Proxy Mode (`CCO_AUTH_MODE=proxy`, Horizon SDV GKE)
+
+When deployed as a Horizon SDV module on GKE, an external authenticating proxy
+(`oauth2-proxy` with Keycloak OIDC) handles browser SSO at the Gateway edge and
+passes caller identity via trusted `X-Auth-Request-Email` /
+`X-Auth-Request-User` headers (bridged from `X-Forwarded-*` by `cuttlefish-console`).
+
+- Requests from untrusted source CIDRs (`CCO_TRUSTED_PROXIES`) are rejected, and
+  `NetworkPolicy/allow-cuttlefish-orchestrator-api` enforces pod-level ingress
+  isolation to `cuttlefish-console` and `<prefix>workflows`.
+- When `CCO_PROXY_DEFAULT_USER` is unset, requests missing both
+  `X-Auth-Request-Email` and `X-Auth-Request-User` fail closed with `401`.
+- In-cluster Argo Workflows (`cco-host-image-build`, `cco-cvd-run`,
+  `cco-cts-run`) authenticate via `CFCTL_AUTH_NONE=true` together with
+  `CFCTL_PROXY_EMAIL` (sent as `X-Auth-Request-Email`).
 
 ## CSRF Protection
 

@@ -229,6 +229,8 @@ Skip this subsection to finish the cutover. The brownfield run did not enable `c
 
 Apply builds `cloud-workstations-module-app:0.2.1`. Enabling the module in **Administration → Modules** is a separate step after [Section #4](#section-4---verification) is green. It is not required for the Config Connector cutover.
 
+Similarly, the optional **`cuttlefish-orchestrator`** module (`cuttlefish-orchestrator-api`, `cuttlefish-console`, `cuttlefish-workflow`) can be enabled independently in **Administration → Modules** after cutover verification (`cco_webrtc_client_cidrs` defaults to `[]`).
+
 ---
 
 ## Section #4 - Verification

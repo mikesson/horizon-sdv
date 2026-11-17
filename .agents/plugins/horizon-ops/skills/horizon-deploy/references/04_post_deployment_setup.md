@@ -205,4 +205,5 @@ To enable Jenkins pipelines and Android workload templates:
    ```
 2. Navigate to **Administration** → **Modules**.
 3. Enable **`workloads-common`**, then enable **`workloads-android`** in that order.
-4. Run the Jenkins Seed job to generate the pipeline build jobs.
+4. *(Optional)* Enable **`cuttlefish-orchestrator`** to deploy the Cloud Cuttlefish Orchestrator (`/cuttlefish-orchestrator/` WebRTC console, Spanner backend, and `cco-host-image-build`, `cco-cvd-run`, `cco-cts-run` workflows).
+5. Run the Jenkins Seed job to generate the pipeline build jobs.

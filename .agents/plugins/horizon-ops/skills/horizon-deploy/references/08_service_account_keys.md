@@ -78,7 +78,7 @@ To allow Horizon SDV to generate and manage the Jenkins GCE dynamic VM key on a 
    The GCE service account is scoped strictly to instance management, logging, monitoring, and artifact access.
 
 2. **Key Rotation (manual, approval only)**:
-   Key rotation is not supported by the standard deployment scripts. `force_update_secret_ids` does not cover `gce-creds`; it only applies to the `s5`…`s17` password secrets.
+   Key rotation is not supported by the standard deployment scripts. `force_update_secret_ids` does not cover `gce-creds`; it only applies to the `s5`…`s17` and `s20`…`s21` password/OIDC secrets.
    To rotate the key, replace the key resource with Terraform from `terraform/env`:
    ```bash
    terraform apply -replace=module.base.module.sdv_sa_key_secret_gce_creds.google_service_account_key.sa_key

@@ -105,6 +105,8 @@ sdv_sub_env_configs = {
       # s12 = "Grafana_Admin_Pass123!"
       # s14 = "Postgres_Admin_Pass123!"
       # s17 = "McpGateway_Admin_Pass123!"
+      # s20 = "Cuttlefish_OIDC_Secret123!"
+      # s21 = "Cuttlefish_Cookie_Seed123!"
     }
   }
 }
@@ -200,6 +202,7 @@ For example, if `SUB_ENV_NAME=dev`, `SUB_DOMAIN=sbx`, and `HORIZON_DOMAIN=exampl
 | Headlamp             | `https://dev.sbx.example.com/headlamp`                          |
 | Grafana              | `https://dev.sbx.example.com/grafana`                           |
 | MTK Connect          | `https://dev.sbx.example.com/mtk-connect`                       |
+| Cuttlefish Console *(if module enabled)* | `https://dev.sbx.example.com/cuttlefish-orchestrator/` |
 | MCP Gateway Registry | `https://mcp.dev.sbx.example.com`                               |
 
 ### Available Applications

@@ -161,13 +161,15 @@ One set of secrets is created per sub-environment. All secret IDs are prefixed w
 | `keycloak_horizon_admin`  | `<env>-keycloak-horizon-admin-password-b64`        | From `keycloak_horizon_admin_password` | `<env>-jenkins / jenkins-sa`            |
 | `postgres_admin`          | `<env>-postgres-admin-password-b64`                | Auto-generated (b64)            | `<env>-keycloak / keycloak-sa`                  |
 | `mcp_gateway_admin`       | `<env>-mcp-gateway-registry-admin-password-b64`    | Auto-generated (b64)            | `<env>-mcp-gateway-registry / mcp-gateway-registry-sa` |
+| `cco_oidc_client`         | `<env>-cuttlefish-orchestrator-oidc-client-secret-b64` | Auto-generated (b64)        | `<env>-keycloak / keycloak-sa`, `<env>-cuttlefish-orchestrator / cuttlefish-orchestrator-sa` |
+| `cco_oauth2_cookie`       | `<env>-cuttlefish-orchestrator-oauth2-cookie-secret-b64` | Auto-generated (URL-safe SHA-256 + b64) | `<env>-cuttlefish-orchestrator / cuttlefish-orchestrator-sa` |
 
 In addition, Git authentication secrets are created per sub-environment, prefixed with `<env>-`:
 
 - **GitHub App** (`scm_auth_method = "app"`): `<env>-github-app-id-b64`, `<env>-github-app-installation-id-b64`, `<env>-github-app-private-key-b64`, `<env>-github-app-private-key-pkcs8-b64`
 - **Username/password or token** (`scm_auth_method = "userpass"`): `<env>-scm-password-b64`
 
-Secrets that can be set manually (instead of auto-generated) are identified by their legacy `s5`/`s6`/`s9`/`s12`/`s14`/`s17` keys in the `manual_secrets` map within `sdv_sub_env_configs`.
+Secrets that can be set manually (instead of auto-generated) are identified by their legacy `s5`/`s6`/`s9`/`s12`/`s14`/`s17`/`s20`/`s21` keys in the `manual_secrets` map within `sdv_sub_env_configs`.
 
 ### GCP Parameter Manager
 

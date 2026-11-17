@@ -276,6 +276,8 @@ Afterwards:
 
 If a step of the drain times out, the disable fails and nothing else changes: the module stays enabled, the core Application resumes, and you can retry.
 
+`cuttlefish-orchestrator` is also drained before parent Application deletion (`cuttlefish_orchestrator_teardown.go`): Module Manager pauses parent `mod-cuttlefish-orchestrator` and core child `<prefix>mod-cuttlefish-orchestrator-app` reconciliation with `argocd.argoproj.io/skip-reconcile`, scales `cuttlefish-orchestrator-api` to zero and waits until active (non-terminal) API pods exit, triggers a one-shot Job (`cco-cleanup-<base36-ts>-<seq>`) from the suspended `CronJob/cco-cleanup` to reap managed GCE host VMs, disables automated sync and clears `argocd.argoproj.io/skip-reconcile` on the core child Application, then clears `argocd.argoproj.io/skip-reconcile` on the parent Application using `context.Background()` before deleting `mod-cuttlefish-orchestrator` so Argo CD `resources-finalizer` cascade-deletes all three child Applications (`<prefix>mod-cuttlefish-orchestrator-app`, `<prefix>mod-cuttlefish-orchestrator-oauth2-proxy`, and `<prefix>mod-cuttlefish-orchestrator-argo-workflows`).
+
 If a module sets `autoDisableWhenUnused`, Module Manager checks after every enable and disable whether the last enabled module that depends on it (hard or soft) has gone, and disables it if so.
 
 ```mermaid
