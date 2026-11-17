@@ -38,6 +38,12 @@ locals {
 
     # s17 -> mcp-gateway-registry-admin-password-b64
     s17 = { length = 25, min_lower = 2, min_upper = 2, min_numeric = 2, min_special = 2 }
+
+    # s20 -> cuttlefish-orchestrator-oidc-client-secret-b64
+    s20 = { length = 32, min_lower = 2, min_upper = 2, min_numeric = 2, min_special = 2 }
+
+    # s21 -> cuttlefish-orchestrator-oauth2-cookie-secret-b64 (hashed to 32 raw bytes URL-safe Base64)
+    s21 = { length = 32, min_lower = 2, min_upper = 2, min_numeric = 2, min_special = 2 }
   }
 
   # Identify which keys require auto-generation
@@ -257,6 +263,60 @@ EOT
         "roles/resourcemanager.projectIamAdmin"
       ])
     }
+    cco = {
+      name         = "cco"
+      prefix_style = "gke"
+      gke_sas = [
+        { ns = "cuttlefish-orchestrator", sa = "cuttlefish-orchestrator-api" },
+        { ns = "cuttlefish-orchestrator", sa = "cco-spanner-seed" },
+        { ns = "cuttlefish-orchestrator", sa = "cco-cleanup" },
+        { ns = "cuttlefish-orchestrator", sa = "cuttlefish-orchestrator-sa" }
+      ]
+      roles = toset([
+        "roles/compute.instanceAdmin.v1",
+        "roles/spanner.databaseUser",
+        "roles/storage.bucketViewer",
+        "roles/monitoring.metricWriter",
+        "roles/monitoring.viewer",
+        "roles/telemetry.tracesWriter",
+        "roles/serviceusage.serviceUsageConsumer",
+      ])
+      sa_roles = toset([
+        "roles/iam.serviceAccountTokenCreator",
+      ])
+      conditional_roles = [
+        {
+          role        = "roles/storage.objectAdmin"
+          title       = "cco_artifacts_bucket_object_admin"
+          description = "Object admin only on the sub-env Cuttlefish Orchestrator artifacts bucket"
+          expression  = "resource.name == \"projects/_/buckets/${var.sdv_gcp_project_id}-__ENV__-cco-artifacts\" || resource.name.startsWith(\"projects/_/buckets/${var.sdv_gcp_project_id}-__ENV__-cco-artifacts/objects/\")"
+        },
+        {
+          role        = "roles/storage.objectViewer"
+          title       = "cco_aaos_bucket_object_viewer"
+          description = "Read-only object access to AAOS build artifacts bucket"
+          expression  = "resource.name == \"projects/_/buckets/${var.sdv_gcp_project_id}-aaos\" || resource.name.startsWith(\"projects/_/buckets/${var.sdv_gcp_project_id}-aaos/objects/\")"
+        }
+      ]
+    }
+    cco_host_vm = {
+      name         = "cco-host-vm"
+      prefix_style = "gke"
+      gke_sas      = []
+      roles = toset([
+        "roles/logging.logWriter",
+        "roles/monitoring.metricWriter",
+      ])
+      sa_roles = toset([])
+      conditional_roles = [
+        {
+          role        = "roles/storage.objectViewer"
+          title       = "cco_host_vm_artifact_viewer"
+          description = "Read-only object access to AAOS and sub-env Cuttlefish Orchestrator artifact buckets"
+          expression  = "resource.name == \"projects/_/buckets/${var.sdv_gcp_project_id}-aaos\" || resource.name.startsWith(\"projects/_/buckets/${var.sdv_gcp_project_id}-aaos/objects/\") || resource.name == \"projects/_/buckets/${var.sdv_gcp_project_id}-__ENV__-cco-artifacts\" || resource.name.startsWith(\"projects/_/buckets/${var.sdv_gcp_project_id}-__ENV__-cco-artifacts/objects/\")"
+        }
+      ]
+    }
   }
 
   # When no sub-envs are defined, avoid merge([]) which is invalid in Terraform
@@ -266,7 +326,7 @@ EOT
       "sa_${replace(env, "-", "_")}_${tpl_key}" => {
         account_id   = tpl.prefix_style == "gke" ? "gke-${env}-${tpl.name}-sa" : "${env}-${tpl.name}-sa"
         display_name = "${env} ${replace(title(tpl.name), "-", " ")} SA"
-        description  = "${env}-${tpl.gke_sas[0].ns}/${tpl.gke_sas[0].sa} in GKE cluster uses this account through WI"
+        description  = length(tpl.gke_sas) > 0 ? "${env}-${tpl.gke_sas[0].ns}/${tpl.gke_sas[0].sa} in GKE cluster uses this account through WI" : "${env} ${replace(title(tpl.name), "-", " ")} VM service account"
 
         gke_sas = [
           for gke_sa in tpl.gke_sas : {
@@ -275,7 +335,16 @@ EOT
           }
         ]
 
-        roles = tpl.roles
+        roles    = tpl.roles
+        sa_roles = try(tpl.sa_roles, toset([]))
+        conditional_roles = [
+          for cr in try(tpl.conditional_roles, []) : {
+            role        = cr.role
+            title       = cr.title
+            description = try(cr.description, "")
+            expression  = replace(cr.expression, "__ENV__", env)
+          }
+        ]
       }
     }
   ]...)
@@ -292,6 +361,23 @@ EOT
     keycloak_horizon_admin = { secret_suffix = "keycloak-horizon-admin-password-b64", apply_value = true, ns = "jenkins", sa = "jenkins-sa", value_key = "keycloak_horizon_admin" }
     postgres_admin         = { secret_suffix = "postgres-admin-password-b64", apply_value = false, ns = "keycloak", sa = "keycloak-sa", value_key = "postgres_admin" }
     mcp_gateway_admin      = { secret_suffix = "mcp-gateway-registry-admin-password-b64", apply_value = true, ns = "mcp-gateway-registry", sa = "mcp-gateway-registry-sa", value_key = "mcp_gateway_admin" }
+    cco_oidc_client = {
+      secret_suffix = "cuttlefish-orchestrator-oidc-client-secret-b64"
+      apply_value   = true
+      ns            = "keycloak"
+      sa            = "keycloak-sa"
+      extra_gke_access = [
+        { ns = "cuttlefish-orchestrator", sa = "cuttlefish-orchestrator-sa" }
+      ]
+      value_key = "cco_oidc_client"
+    }
+    cco_oauth2_cookie = {
+      secret_suffix = "cuttlefish-orchestrator-oauth2-cookie-secret-b64"
+      apply_value   = true
+      ns            = "cuttlefish-orchestrator"
+      sa            = "cuttlefish-orchestrator-sa"
+      value_key     = "cco_oauth2_cookie"
+    }
   }
 
   _sub_env_secret_values = {
@@ -307,6 +393,8 @@ EOT
       keycloak_horizon_admin = base64encode(config.keycloak_horizon_admin_password)
       postgres_admin         = base64encode(local.get_sub_env_password[env]["s14"])
       mcp_gateway_admin      = base64encode(local.get_sub_env_password[env]["s17"])
+      cco_oidc_client        = base64encode(local.get_sub_env_password[env]["s20"])
+      cco_oauth2_cookie      = base64encode(replace(replace(base64sha256(local.get_sub_env_password[env]["s21"]), "+", "-"), "/", "_"))
     }
   }
 
@@ -317,12 +405,20 @@ EOT
         secret_id   = "${env}-${tpl.secret_suffix}"
         value       = local._sub_env_secret_values[env][tpl.value_key]
         apply_value = tpl.apply_value
-        gke_access = [
-          {
-            ns = "${env}-${tpl.ns}"
-            sa = tpl.sa
-          }
-        ]
+        gke_access = concat(
+          [
+            {
+              ns = "${env}-${tpl.ns}"
+              sa = tpl.sa
+            }
+          ],
+          [
+            for acc in try(tpl.extra_gke_access, []) : {
+              ns = "${env}-${acc.ns}"
+              sa = acc.sa
+            }
+          ]
+        )
       }
     }
   ]...)
@@ -511,6 +607,33 @@ EOT
         {
           ns = "mcp-gateway-registry"
           sa = "mcp-gateway-registry-sa"
+        },
+      ]
+    }
+    # s18/s19 belong to sdv_gcp_userpass_secrets_map; use s20/s21 to stay disjoint across merge().
+    s20 = {
+      secret_id   = "cuttlefish-orchestrator-oidc-client-secret-b64"
+      value       = base64encode(local.resolved_secret_values["s20"])
+      apply_value = true
+      gke_access = [
+        {
+          ns = "keycloak"
+          sa = "keycloak-sa"
+        },
+        {
+          ns = "cuttlefish-orchestrator"
+          sa = "cuttlefish-orchestrator-sa"
+        },
+      ]
+    }
+    s21 = {
+      secret_id   = "cuttlefish-orchestrator-oauth2-cookie-secret-b64"
+      value       = base64encode(replace(replace(base64sha256(local.resolved_secret_values["s21"]), "+", "-"), "/", "_"))
+      apply_value = true
+      gke_access = [
+        {
+          ns = "cuttlefish-orchestrator"
+          sa = "cuttlefish-orchestrator-sa"
         },
       ]
     }

@@ -424,3 +424,355 @@ spec:
           image: {{ .Values.config.postjobs.keycloakhorizonapi }}
           imagePullPolicy: Always
       restartPolicy: Never
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ .Values.config.namespacePrefix }}keycloak-post-cuttlefish-orchestrator-job
+  namespace: {{ .Values.config.namespacePrefix }}keycloak
+  annotations:
+    argocd.argoproj.io/sync-wave: "5"
+    argocd.argoproj.io/hook: Sync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  backoffLimit: 5
+  ttlSecondsAfterFinished: 120
+  activeDeadlineSeconds: 600
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: keycloak-post-cuttlefish-orchestrator-container
+          image: curlimages/curl:8.11.0
+          terminationMessagePolicy: FallbackToLogsOnError
+          env:
+            - name: PLATFORM_URL
+              value: http://{{ .Values.config.namespacePrefix }}keycloak-keycloakx-http:8080/auth
+            - name: DOMAIN
+              value: https://{{ .Values.config.domain }}
+            - name: KEYCLOAK_ADMIN_USER
+              value: "admin"
+            - name: KEYCLOAK_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: keycloak-initial-creds
+                  key: password
+            - name: CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: keycloak-cuttlefish-orchestrator-client
+                  key: client-secret
+          command:
+            - sh
+            - -c
+            - |
+              set -eu
+              umask 077
+              [ -n "${CLIENT_SECRET:-}" ] || { echo "Error: CLIENT_SECRET is empty" >&2; exit 1; }
+
+              WORKDIR=$(mktemp -d)
+              trap 'rm -rf "$WORKDIR"' EXIT
+
+              awk_parse() {
+                LC_ALL=C awk -v MODE="$1" -v KEY="$2" -v VAL="$3" '
+                function read_str(s, pos,    i, c, esc, out, hex_ok, hi, hd, cp, hi2, cp2, full) {
+                  out = ""
+                  esc = 0
+                  i = pos + 1
+                  while (i <= length(s)) {
+                    c = substr(s, i, 1)
+                    if (esc) {
+                      if (c == "\"" || c == "\\" || c == "/") out = out c
+                      else if (c == "b") out = out sprintf("%c", 8)
+                      else if (c == "f") out = out sprintf("%c", 12)
+                      else if (c == "n") out = out "\n"
+                      else if (c == "r") out = out "\r"
+                      else if (c == "t") out = out "\t"
+                      else if (c == "u" && i + 4 <= length(s)) {
+                        hex_ok = 1
+                        cp = 0
+                        for (hi = 1; hi <= 4; hi++) {
+                          hd = index("0123456789abcdefABCDEF", substr(s, i + hi, 1)) - 1
+                          if (hd < 0) { hex_ok = 0; break }
+                          if (hd >= 16) hd -= 6
+                          cp = cp * 16 + hd
+                        }
+                        if (!hex_ok || cp == 0) {
+                          out = out "\\u"
+                        } else if (cp < 128) {
+                          out = out sprintf("%c", cp)
+                          i += 4
+                        } else if (cp < 2048) {
+                          out = out sprintf("%c%c", 192 + int(cp / 64), 128 + (cp % 64))
+                          i += 4
+                        } else if (cp >= 55296 && cp <= 56319 && i + 10 <= length(s) && substr(s, i + 5, 2) == "\\u") {
+                          cp2 = 0
+                          for (hi2 = 7; hi2 <= 10; hi2++) {
+                            hd = index("0123456789abcdefABCDEF", substr(s, i + hi2, 1)) - 1
+                            if (hd < 0) { hex_ok = 0; break }
+                            if (hd >= 16) hd -= 6
+                            cp2 = cp2 * 16 + hd
+                          }
+                          if (hex_ok && cp2 >= 56320 && cp2 <= 57343) {
+                            full = 65536 + (cp - 55296) * 1024 + (cp2 - 56320)
+                            out = out sprintf("%c%c%c%c", 240 + int(full / 262144), 128 + (int(full / 4096) % 64), 128 + (int(full / 64) % 64), 128 + (full % 64))
+                            i += 10
+                          } else {
+                            out = out "\\u"
+                          }
+                        } else if (cp >= 55296 && cp <= 57343) {
+                          out = out "\\u"
+                        } else {
+                          out = out sprintf("%c%c%c", 224 + int(cp / 4096), 128 + (int(cp / 64) % 64), 128 + (cp % 64))
+                          i += 4
+                        }
+                      }
+                      else out = out "\\" c
+                      esc = 0
+                    } else if (c == "\\") {
+                      esc = 1
+                    } else if (c == "\"") {
+                      NEXT_POS = i + 1
+                      return out
+                    } else {
+                      out = out c
+                    }
+                    i++
+                  }
+                  NEXT_POS = length(s) + 1
+                  return out
+                }
+                BEGIN { doc = "" }
+                { doc = (NR == 1 ? $0 : doc "\n" $0) }
+                END {
+                  depth = 0
+                  expect_val = 0
+                  cur_key = ""
+                  split("", fields)
+                  i = 1
+                  n = length(doc)
+                  while (i <= n) {
+                    c = substr(doc, i, 1)
+                    if (c == " " || c == "\t" || c == "\n" || c == "\r") {
+                      i++
+                      continue
+                    }
+                    if (c == "\"") {
+                      s = read_str(doc, i)
+                      i = NEXT_POS
+                      if ((MODE == "top" && depth == 1) || (MODE == "arr" && depth == 2)) {
+                        if (expect_val) {
+                          fields[cur_key] = s
+                          expect_val = 0
+                          cur_key = ""
+                        } else {
+                          cur_key = s
+                        }
+                      }
+                      continue
+                    }
+                    if (c == ":") {
+                      if (cur_key != "") {
+                        expect_val = 1
+                      }
+                      i++
+                      continue
+                    }
+                    if (c == "{") {
+                      depth++
+                      expect_val = 0
+                      cur_key = ""
+                      if (MODE == "arr" && depth == 2) {
+                        split("", fields)
+                      }
+                    } else if (c == "}") {
+                      if (MODE == "arr" && depth == 2) {
+                        if (fields[KEY] == VAL && fields["id"] != "") {
+                          print fields["id"]
+                          exit 0
+                        }
+                        split("", fields)
+                      }
+                      depth--
+                      expect_val = 0
+                      cur_key = ""
+                    } else if (c == "[") {
+                      depth++
+                      expect_val = 0
+                      cur_key = ""
+                    } else if (c == "]") {
+                      depth--
+                      expect_val = 0
+                      cur_key = ""
+                    } else {
+                      expect_val = 0
+                      cur_key = ""
+                    }
+                    i++
+                  }
+                  if (MODE == "top") {
+                    if (KEY == "__check_env__") {
+                      if (ENVIRON[VAL] != "" && fields["value"] == ENVIRON[VAL]) exit 0
+                      exit 1
+                    }
+                    if (fields[KEY] != "") {
+                      print fields[KEY]
+                      exit 0
+                    }
+                  }
+                  exit 1
+                }'
+              }
+
+              json_escape_env() {
+                ENV_NAME="$1" LC_ALL=C awk '
+                BEGIN {
+                  s = ENVIRON[ENVIRON["ENV_NAME"]]
+                  out = ""
+                  for (i = 1; i <= length(s); i++) {
+                    c = substr(s, i, 1)
+                    if (c == "\\") out = out "\\\\"
+                    else if (c == "\"") out = out "\\\""
+                    else if (c == "\n") out = out "\\n"
+                    else if (c == "\r") out = out "\\r"
+                    else if (c == "\t") out = out "\\t"
+                    else out = out c
+                  }
+                  printf "%s", out
+                }'
+              }
+
+              get_token() {
+                BODY="${WORKDIR}/token.json"
+                CODE=$(curl -sS -o "$BODY" -w "%{http_code}" \
+                  --data-urlencode "client_id=admin-cli" \
+                  --data-urlencode "username=${KEYCLOAK_ADMIN_USER}" \
+                  --data-urlencode "password=${KEYCLOAK_ADMIN_PASSWORD}" \
+                  --data-urlencode "grant_type=password" \
+                  "${PLATFORM_URL}/realms/master/protocol/openid-connect/token" || printf "000")
+                if [ "$CODE" != "200" ]; then
+                  return 1
+                fi
+                awk_parse "top" "access_token" "" < "$BODY" || return 1
+              }
+
+              TOKEN=""
+              GROUPS_SCOPE_UUID=""
+              attempt=0
+              while [ "$attempt" -lt 60 ]; do
+                attempt=$((attempt + 1))
+                TOKEN=$(get_token || true)
+                if [ -n "$TOKEN" ]; then
+                  REALM_CODE=$(curl -sS -o /dev/null -w "%{http_code}" \
+                    -H "Authorization: Bearer ${TOKEN}" \
+                    "${PLATFORM_URL}/admin/realms/horizon" || printf "000")
+                  if [ "$REALM_CODE" = "200" ]; then
+                    SCOPES_CODE=$(curl -sS -o "${WORKDIR}/scopes.json" -w "%{http_code}" \
+                      -H "Authorization: Bearer ${TOKEN}" \
+                      "${PLATFORM_URL}/admin/realms/horizon/client-scopes" || printf "000")
+                    if [ "$SCOPES_CODE" = "200" ]; then
+                      GROUPS_SCOPE_UUID=$(awk_parse "arr" "name" "groups" < "${WORKDIR}/scopes.json" || true)
+                      if [ -n "$GROUPS_SCOPE_UUID" ]; then
+                        break
+                      fi
+                    fi
+                  fi
+                fi
+                echo "Waiting for Keycloak horizon realm and groups client scope (attempt ${attempt}/60)..."
+                sleep 5
+              done
+
+              if [ -z "$TOKEN" ] || [ -z "$GROUPS_SCOPE_UUID" ]; then
+                echo "Timed out waiting for Keycloak horizon realm and groups scope."
+                exit 1
+              fi
+
+              # Refresh admin token right before applying client configuration.
+              TOKEN=$(get_token)
+              ESC_SECRET=$(json_escape_env "CLIENT_SECRET")
+              ESC_DOMAIN=$(json_escape_env "DOMAIN")
+              PAYLOAD_FILE="${WORKDIR}/client.json"
+              cat > "$PAYLOAD_FILE" <<EOF
+              {"clientId":"cuttlefish-orchestrator","name":"Cuttlefish Orchestrator Console","enabled":true,"protocol":"openid-connect","publicClient":false,"standardFlowEnabled":true,"directAccessGrantsEnabled":false,"serviceAccountsEnabled":false,"rootUrl":"${ESC_DOMAIN}","baseUrl":"/cuttlefish-orchestrator/","adminUrl":"/cuttlefish-orchestrator/","redirectUris":["${ESC_DOMAIN}/cuttlefish-orchestrator/oauth2/callback"],"webOrigins":["${ESC_DOMAIN}"],"attributes":{"post.logout.redirect.uris":"${ESC_DOMAIN}/cuttlefish-orchestrator/*"},"secret":"${ESC_SECRET}"}
+              EOF
+
+              create_client() {
+                CREATE_CODE=$(curl -sS -o "${WORKDIR}/create.json" -w "%{http_code}" -X POST \
+                  -H "Authorization: Bearer ${TOKEN}" \
+                  -H "Content-Type: application/json" \
+                  -d @"$PAYLOAD_FILE" \
+                  "${PLATFORM_URL}/admin/realms/horizon/clients")
+                if [ "$CREATE_CODE" != "201" ] && [ "$CREATE_CODE" != "409" ]; then
+                  echo "Failed to create cuttlefish-orchestrator client: HTTP ${CREATE_CODE}"
+                  cat "${WORKDIR}/create.json"
+                  exit 1
+                fi
+              }
+
+              fetch_client_uuid() {
+                GET_CODE=$(curl -sS -o "${WORKDIR}/clients.json" -w "%{http_code}" \
+                  -H "Authorization: Bearer ${TOKEN}" \
+                  "${PLATFORM_URL}/admin/realms/horizon/clients?clientId=cuttlefish-orchestrator")
+                if [ "$GET_CODE" != "200" ]; then
+                  echo "Failed to query cuttlefish-orchestrator client: HTTP ${GET_CODE}" >&2
+                  exit 1
+                fi
+                awk_parse "arr" "clientId" "cuttlefish-orchestrator" < "${WORKDIR}/clients.json" || true
+              }
+
+              CLIENT_UUID=$(fetch_client_uuid)
+              if [ -z "$CLIENT_UUID" ]; then
+                create_client
+                CLIENT_UUID=$(fetch_client_uuid)
+              else
+                UPD_CODE=$(curl -sS -o "${WORKDIR}/update.json" -w "%{http_code}" -X PUT \
+                  -H "Authorization: Bearer ${TOKEN}" \
+                  -H "Content-Type: application/json" \
+                  -d @"$PAYLOAD_FILE" \
+                  "${PLATFORM_URL}/admin/realms/horizon/clients/${CLIENT_UUID}")
+                if [ "$UPD_CODE" != "204" ] && [ "$UPD_CODE" != "200" ]; then
+                  echo "Failed to update cuttlefish-orchestrator client: HTTP ${UPD_CODE}"
+                  cat "${WORKDIR}/update.json"
+                  exit 1
+                fi
+              fi
+
+              if [ -z "$CLIENT_UUID" ]; then
+                echo "Could not resolve cuttlefish-orchestrator client UUID."
+                exit 1
+              fi
+
+              SECRET_CODE=$(curl -sS -o "${WORKDIR}/secret.json" -w "%{http_code}" \
+                -H "Authorization: Bearer ${TOKEN}" \
+                "${PLATFORM_URL}/admin/realms/horizon/clients/${CLIENT_UUID}/client-secret")
+              if [ "$SECRET_CODE" != "200" ] || ! awk_parse "top" "__check_env__" "CLIENT_SECRET" < "${WORKDIR}/secret.json"; then
+                echo "Client secret mismatch or unreadable; recreating cuttlefish-orchestrator client..."
+                DEL_CODE=$(curl -sS -o /dev/null -w "%{http_code}" -X DELETE \
+                  -H "Authorization: Bearer ${TOKEN}" \
+                  "${PLATFORM_URL}/admin/realms/horizon/clients/${CLIENT_UUID}")
+                if [ "$DEL_CODE" != "204" ] && [ "$DEL_CODE" != "200" ]; then
+                  echo "Failed to delete mismatched cuttlefish-orchestrator client: HTTP ${DEL_CODE}"
+                  exit 1
+                fi
+                create_client
+                CLIENT_UUID=$(fetch_client_uuid)
+                [ -n "$CLIENT_UUID" ] || { echo "Failed to re-fetch client UUID after recreate."; exit 1; }
+                SECRET_CODE=$(curl -sS -o "${WORKDIR}/secret.json" -w "%{http_code}" \
+                  -H "Authorization: Bearer ${TOKEN}" \
+                  "${PLATFORM_URL}/admin/realms/horizon/clients/${CLIENT_UUID}/client-secret")
+                if [ "$SECRET_CODE" != "200" ] || ! awk_parse "top" "__check_env__" "CLIENT_SECRET" < "${WORKDIR}/secret.json"; then
+                  echo "Client secret still does not match after recreation."
+                  exit 1
+                fi
+              fi
+
+              SCOPE_CODE=$(curl -sS -o "${WORKDIR}/scope_put.json" -w "%{http_code}" -X PUT \
+                -H "Authorization: Bearer ${TOKEN}" \
+                "${PLATFORM_URL}/admin/realms/horizon/clients/${CLIENT_UUID}/default-client-scopes/${GROUPS_SCOPE_UUID}")
+              if [ "$SCOPE_CODE" != "204" ] && [ "$SCOPE_CODE" != "200" ] && [ "$SCOPE_CODE" != "409" ]; then
+                echo "Failed to attach groups default client scope: HTTP ${SCOPE_CODE}"
+                cat "${WORKDIR}/scope_put.json"
+                exit 1
+              fi
+
+              echo "Keycloak client cuttlefish-orchestrator verified and configured."

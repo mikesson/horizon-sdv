@@ -288,6 +288,8 @@ sdv_enable_kms_encryption = false
 # s12 : Grafana Admin
 # s14 : PostgreSQL Admin
 # s17 : MCP Gateway Registry Admin
+# s20 : Cuttlefish Orchestrator OIDC Client Secret
+# s21 : Cuttlefish Orchestrator OAuth2 Cookie Secret Seed
 
 manual_secrets = {
 #   s5  = "Change_Me_123"
@@ -296,6 +298,8 @@ manual_secrets = {
 #   s12 = "Change_Me_123"
 #   s14 = "Change_Me_123"
 #   s17 = "Change_Me_123"
+#   s20 = "Change_Me_123"
+#   s21 = "Change_Me_123"
 }
 
 # --- SUB-ENVIRONMENTS CONFIGURATION (OPTIONAL) ---
@@ -319,6 +323,8 @@ manual_secrets = {
 #       # s12 = "Change_Me_123"
 #       # s14 = "Change_Me_123"
 #       # s17 = "Change_Me_123"
+#       # s20 = "Change_Me_123"
+#       # s21 = "Change_Me_123"
 #     }
 #   }
 # }

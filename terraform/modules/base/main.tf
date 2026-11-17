@@ -162,6 +162,44 @@ resource "google_service_account_iam_member" "cws_host_sa_user" {
   depends_on = [module.sdv_wi]
 }
 
+locals {
+  cco_env_prefixes = concat([""], [for env in var.sdv_sub_environments : "${env}-"])
+  cco_host_vm_sa_emails = [
+    for p in local.cco_env_prefixes :
+    "gke-${p}cco-host-vm-sa@${data.google_project.project.project_id}.iam.gserviceaccount.com"
+  ]
+}
+
+# actAs on the CCO host VM SA only, so gke-cco-sa can launch Cuttlefish host VMs
+# without holding project-wide roles/iam.serviceAccountUser.
+resource "google_service_account_iam_member" "cco_host_sa_user" {
+  for_each = toset(local.cco_env_prefixes)
+
+  service_account_id = "projects/${data.google_project.project.project_id}/serviceAccounts/gke-${each.key}cco-host-vm-sa@${data.google_project.project.project_id}.iam.gserviceaccount.com"
+  role               = "roles/iam.serviceAccountUser"
+  member             = "serviceAccount:gke-${each.key}cco-sa@${data.google_project.project.project_id}.iam.gserviceaccount.com"
+
+  depends_on = [module.sdv_wi]
+}
+
+# Least-privilege CEL-scoped secretAccessor fallback on gke-cco-sa limited strictly
+# to the two CCO OIDC/cookie secrets (Direct WI via sdv-secrets remains supported too).
+resource "google_project_iam_member" "cco_secret_accessor" {
+  for_each = toset(local.cco_env_prefixes)
+
+  project = data.google_project.project.project_id
+  role    = "roles/secretmanager.secretAccessor"
+  member  = "serviceAccount:gke-${each.key}cco-sa@${data.google_project.project.project_id}.iam.gserviceaccount.com"
+
+  condition {
+    title       = "cco_secrets_only"
+    description = "Read-only access strictly to Cuttlefish Orchestrator OIDC and cookie secrets."
+    expression  = "resource.name == \"projects/${data.google_project.project.number}/secrets/${each.key}cuttlefish-orchestrator-oidc-client-secret-b64\" || resource.name.startsWith(\"projects/${data.google_project.project.number}/secrets/${each.key}cuttlefish-orchestrator-oidc-client-secret-b64/\") || resource.name == \"projects/${data.google_project.project.number}/secrets/${each.key}cuttlefish-orchestrator-oauth2-cookie-secret-b64\" || resource.name.startsWith(\"projects/${data.google_project.project.number}/secrets/${each.key}cuttlefish-orchestrator-oauth2-cookie-secret-b64/\")"
+  }
+
+  depends_on = [module.sdv_wi]
+}
+
 module "sdv_network" {
   source = "../sdv-network"
 
@@ -231,6 +269,22 @@ module "sdv_gcs_openbsw" {
   source = "../sdv-gcs"
 
   bucket_name = "${data.google_project.project.project_id}-openbsw"
+  location    = var.sdv_location
+}
+
+module "sdv_gcs_cco_artifacts" {
+  source = "../sdv-gcs"
+
+  bucket_name = "${data.google_project.project.project_id}-cco-artifacts"
+  location    = var.sdv_location
+}
+
+module "sdv_gcs_cco_artifacts_subenv" {
+  for_each = toset(var.sdv_sub_environments)
+
+  source = "../sdv-gcs"
+
+  bucket_name = "${data.google_project.project.project_id}-${each.key}-cco-artifacts"
   location    = var.sdv_location
 }
 
@@ -538,6 +592,87 @@ resource "google_compute_firewall" "allow_tcp_22" {
     module.sdv_network
   ]
 
+}
+
+resource "google_compute_firewall" "cco_allow_api_to_hosts" {
+  name      = "cco-allow-api-to-hosts"
+  network   = var.sdv_network
+  direction = "INGRESS"
+  priority  = 900
+
+  allow {
+    protocol = "tcp"
+    ports    = ["1080", "2080"]
+  }
+
+  source_ranges = concat(
+    [var.pods_range],
+    [var.nodes_range],
+    var.enable_arm64_dedicated_subnet ? [var.arm64_pods_range, var.arm64_nodes_range] : []
+  )
+
+  target_service_accounts = local.cco_host_vm_sa_emails
+  description             = "Allow Cuttlefish Orchestrator API pods and GKE nodes to reach host orchestrator and nginx ports (1080, 2080)"
+
+  depends_on = [
+    module.sdv_network,
+    module.sdv_wi
+  ]
+}
+
+resource "google_compute_firewall" "cco_allow_iap_ssh_to_hosts" {
+  name      = "cco-allow-iap-ssh-to-hosts"
+  network   = var.sdv_network
+  direction = "INGRESS"
+  priority  = 900 # Higher priority than deny_ssh_rdp_security_compliance (950)
+
+  allow {
+    protocol = "tcp"
+    ports    = ["22"]
+  }
+
+  source_ranges = [
+    "35.235.240.0/20", # Google Identity-Aware Proxy (IAP): required for IAP SSH
+  ]
+
+  target_service_accounts = local.cco_host_vm_sa_emails
+  description             = "Allow IAP-tunneled SSH to Cuttlefish Orchestrator host VMs"
+
+  depends_on = [
+    module.sdv_network,
+    module.sdv_wi
+  ]
+}
+
+resource "google_compute_firewall" "cco_allow_webrtc_private_media" {
+  name      = "cco-allow-webrtc-private-media"
+  network   = var.sdv_network
+  direction = "INGRESS"
+  priority  = 1000
+
+  allow {
+    protocol = "tcp"
+    ports    = ["15550-15599"]
+  }
+
+  allow {
+    protocol = "udp"
+    ports    = ["15550-15599"]
+  }
+
+  source_ranges = concat(
+    [var.nodes_range],
+    var.enable_arm64_dedicated_subnet ? [var.arm64_nodes_range] : [],
+    var.cco_webrtc_client_cidrs
+  )
+
+  target_service_accounts = local.cco_host_vm_sa_emails
+  description             = "Allow Cuttlefish WebRTC media (TCP/UDP 15550-15599) from private nodes and configured client CIDRs"
+
+  depends_on = [
+    module.sdv_network,
+    module.sdv_wi
+  ]
 }
 
 # ============================================

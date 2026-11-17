@@ -483,3 +483,9 @@ variable "sdv_enable_kms_encryption" {
   default     = false
 }
 
+variable "cco_webrtc_client_cidrs" {
+  description = "Additional private CIDR ranges allowed to reach Cuttlefish host VM WebRTC media ports (TCP/UDP 15550-15599)"
+  type        = list(string)
+  default     = []
+}
+

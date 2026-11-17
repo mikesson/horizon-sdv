@@ -165,7 +165,9 @@ module "base" {
     "spanner.googleapis.com",
     "gkehub.googleapis.com",
     "parametermanager.googleapis.com",
-    "connectgateway.googleapis.com"
+    "connectgateway.googleapis.com",
+    "telemetry.googleapis.com",
+    "cloudtrace.googleapis.com"
   ])
 
   sdv_cluster_name                   = "sdv-cluster"
@@ -607,6 +609,80 @@ module "base" {
         sa_roles          = toset([])
         conditional_roles = []
       }
+      sa17 = {
+        account_id   = "gke-cco-sa"
+        display_name = "Cuttlefish Orchestrator Control Plane"
+        description  = "cuttlefish-orchestrator workloads in GKE cluster use this account through WI"
+
+        gke_sas = [
+          {
+            gke_ns = "cuttlefish-orchestrator"
+            gke_sa = "cuttlefish-orchestrator-api"
+          },
+          {
+            gke_ns = "cuttlefish-orchestrator"
+            gke_sa = "cco-spanner-seed"
+          },
+          {
+            gke_ns = "cuttlefish-orchestrator"
+            gke_sa = "cco-cleanup"
+          },
+          {
+            gke_ns = "cuttlefish-orchestrator"
+            gke_sa = "cuttlefish-orchestrator-sa"
+          }
+        ]
+
+        roles = toset([
+          "roles/compute.instanceAdmin.v1",
+          "roles/spanner.databaseUser",
+          "roles/storage.bucketViewer",
+          "roles/monitoring.metricWriter",
+          "roles/monitoring.viewer",
+          "roles/telemetry.tracesWriter",
+          "roles/serviceusage.serviceUsageConsumer",
+        ])
+        # SignBlob for optional GCS V4 signed URLs; project-wide secretAccessor/objectUser stay off this SA.
+        sa_roles = toset([
+          "roles/iam.serviceAccountTokenCreator",
+        ])
+        conditional_roles = [
+          {
+            role        = "roles/storage.objectAdmin"
+            title       = "cco_artifacts_bucket_object_admin"
+            description = "Object admin only on the Cuttlefish Orchestrator artifacts bucket"
+            expression  = "resource.name == \"projects/_/buckets/${var.sdv_gcp_project_id}-cco-artifacts\" || resource.name.startsWith(\"projects/_/buckets/${var.sdv_gcp_project_id}-cco-artifacts/objects/\")"
+          },
+          {
+            role        = "roles/storage.objectViewer"
+            title       = "cco_aaos_bucket_object_viewer"
+            description = "Read-only object access to AAOS build artifacts bucket"
+            expression  = "resource.name == \"projects/_/buckets/${var.sdv_gcp_project_id}-aaos\" || resource.name.startsWith(\"projects/_/buckets/${var.sdv_gcp_project_id}-aaos/objects/\")"
+          }
+        ]
+      }
+      sa18 = {
+        account_id   = "gke-cco-host-vm-sa"
+        display_name = "Cuttlefish Orchestrator Host VM"
+        description  = "Service account attached to Cuttlefish host VMs provisioned by Cuttlefish Orchestrator"
+
+        # Attached to Cuttlefish host VMs via GCE metadata. No Kubernetes workload impersonates it.
+        gke_sas = []
+
+        roles = toset([
+          "roles/logging.logWriter",
+          "roles/monitoring.metricWriter",
+        ])
+        sa_roles = toset([])
+        conditional_roles = [
+          {
+            role        = "roles/storage.objectViewer"
+            title       = "cco_host_vm_artifact_viewer"
+            description = "Read-only object access to AAOS and Cuttlefish Orchestrator artifact buckets"
+            expression  = "resource.name == \"projects/_/buckets/${var.sdv_gcp_project_id}-aaos\" || resource.name.startsWith(\"projects/_/buckets/${var.sdv_gcp_project_id}-aaos/objects/\") || resource.name == \"projects/_/buckets/${var.sdv_gcp_project_id}-cco-artifacts\" || resource.name.startsWith(\"projects/_/buckets/${var.sdv_gcp_project_id}-cco-artifacts/objects/\")"
+          }
+        ]
+      }
     }
   )
 
@@ -696,4 +772,6 @@ module "base" {
   sdv_dns_dnssec_enabled = var.sdv_dns_dnssec_enabled
   # Static A records: no zone delegation, LB cert auth; add A records to parent zone manually
   sdv_dns_use_static_a_records = var.sdv_dns_use_static_a_records
+  # Additional private CIDRs permitted to reach Cuttlefish host WebRTC media ports
+  cco_webrtc_client_cidrs = var.cco_webrtc_client_cidrs
 }
