@@ -1,0 +1,65 @@
+{{/*
+Copyright 2026 Google LLC
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    https://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/}}
+{{- if and .Values.repo.url .Values.repo.revision }}
+{{- $pfx := include "ccoParent.prefix" . -}}
+{{- $appNs := include "ccoParent.appNamespace" . -}}
+{{- $argoNs := include "ccoParent.argocdNamespace" . -}}
+{{- $argoProj := include "ccoParent.argocdProject" . }}
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: {{ printf "%smod-%s-app" $pfx .Values.moduleName }}
+  namespace: {{ $argoNs }}
+  labels:
+    app.kubernetes.io/name: {{ .Values.moduleName }}
+    horizon-sdv.io/module: {{ .Values.moduleName }}
+    horizon-sdv.io/app-role: child
+    horizon-sdv.io/expose: "true"
+    horizon-sdv.io/module-manager-managed: "true"
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+    horizon-sdv.io/portal-url: "/cuttlefish-orchestrator/"
+    horizon-sdv.io/portal-title: "Cuttlefish Orchestrator"
+    horizon-sdv.io/portal-id: cuttlefish-orchestrator
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: {{ $argoProj }}
+  source:
+    repoURL: {{ .Values.repo.url | quote }}
+    targetRevision: {{ .Values.repo.revision | quote }}
+    path: gitops/modules/cuttlefish-orchestrator/orchestrator
+    helm:
+      releaseName: cuttlefish-orchestrator
+      values: |
+        moduleName: {{ .Values.moduleName | quote }}
+        spannerSeedImage: {{ .Values.spannerSeedImage | quote }}
+        cloudSdkImage: {{ .Values.cloudSdkImage | quote }}
+        spanner:
+{{ .Values.spanner | toYaml | nindent 10 }}
+        api:
+{{ .Values.api | toYaml | nindent 10 }}
+        config:
+{{ .Values.config | toYaml | nindent 10 }}
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: {{ $appNs }}
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+    automated:
+      prune: true
+{{ end }}

@@ -124,3 +124,19 @@ spec:
       overviewServiceNamespace: cloud-workstations-overview
       hardDependencies:
         - workloads-common
+    - name: cuttlefish-orchestrator
+      path: gitops/modules/cuttlefish-orchestrator
+      overviewPath: portal/overview.html
+      overviewService: mod-cuttlefish-orchestrator-overview
+      overviewServiceNamespace: {{ .Values.namespace | quote }}
+      softDependencies:
+        - workloads-android
+        - storage-gcs
+        - workloads-common
+      softFeaturesPropagation: ConfigMap
+      softFeaturesConfigMapNamespaces:
+        - {{ .Values.namespace | quote }}
+      applications:
+        - id: cuttlefish-orchestrator
+          title: "Cuttlefish Orchestrator"
+          url: "/cuttlefish-orchestrator/"

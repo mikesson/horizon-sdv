@@ -1,0 +1,81 @@
+# Copyright 2026 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Default values for cuttlefish-orchestrator parent chart.
+# In-cluster, Module Manager merges cluster config from MODULE_CONFIG plus
+# overviewNamespace from ModuleCatalog.
+
+moduleName: cuttlefish-orchestrator
+
+repo:
+  url: https://github.com/GoogleCloudPlatform/horizon-sdv.git
+  revision: HEAD
+
+# Overridden by Module Manager (from ModuleCatalog overviewServiceNamespace) or
+# derived from <prefix>module-manager in _helpers.tpl when empty.
+overviewNamespace: ""
+overviewServiceName: mod-cuttlefish-orchestrator-overview
+
+# Overridden or derived from <prefix>argocd / <prefix>horizon-sdv when empty.
+argocd:
+  namespace: ""
+  project: ""
+
+# Pinned utility images for child jobs (Spanner seed and module-manager GCE cleanup).
+spannerSeedImage: gcr.io/google.com/cloudsdktool/google-cloud-cli:debian_component_based@sha256:f455f6bfd3d66abe3131ddff47d95c5f01061e8e91937285adcf2a86b5c82e48
+cloudSdkImage: gcr.io/google.com/cloudsdktool/google-cloud-cli:debian_component_based@sha256:f455f6bfd3d66abe3131ddff47d95c5f01061e8e91937285adcf2a86b5c82e48
+
+oauth2ProxyChart:
+  repoURL: https://oauth2-proxy.github.io/manifests
+  chart: oauth2-proxy
+  version: "8.3.0"
+
+spanner:
+  processingUnits: 100
+  deletionPolicy: delete
+  seedDefaultZone: true
+
+api:
+  hostImageProject: ""
+  allowSelfSignedHostSSLCert: false
+  spotAdvice: false
+
+# Placeholder defaults mirroring MODULE_CONFIG (gitops/templates/module-manager.yaml)
+# so standalone helm lint / helm template succeeds outside the cluster.
+config:
+  domain: dev.example.com
+  projectID: example-project
+  region: europe-west1
+  zone: europe-west1-d
+  storageLocation: europe-west1
+  clusterName: sdv-cluster
+  namespacePrefix: ""
+  isSubEnvironment: false
+  environmentName: dev
+  # REQUIRED in production for CCO_AUTH_MODE=proxy header isolation: cuttlefish-orchestrator-api
+  # trusts X-Auth-Request-* headers from CCO_TRUSTED_PROXIES (Pod/VPC CIDRs), so NetworkPolicies must
+  # restrict :8080 ingress strictly to cuttlefish-console, <prefix>workflows, and probeSourceCIDRs.
+  enableNetworkPolicies: true
+  probeSourceCIDRs:
+    - 10.1.0.0/24
+    - 10.2.0.0/24
+  cloudWorkstations:
+    network: sdv-network
+    subnetwork: sdv-subnet
+  containerImages:
+    cuttlefishOrchestratorApi: example/cuttlefish-orchestrator-api:latest
+    cuttlefishConsole: example/cuttlefish-console:latest
+  nginx:
+    image: nginx
+    tag: "1.27-alpine"

@@ -26,6 +26,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
 // PlatformDrainFinalizer blocks root horizon-sdv Application deletion until module apps are drained.
@@ -148,6 +149,7 @@ func (p *PlatformDrainer) platformDrainNamespaces(ctx context.Context) []string 
 	// Module-owned KCC namespaces are not Application destinations (workflows publish the CRs there), so they
 	// are not discovered above; add remotive-topology's namespace explicitly (absent namespaces list nothing).
 	nss = appendNamespaceOnce(nss, NamespacePrefixFromModuleConfig(os.Getenv("MODULE_CONFIG"))+remotiveKCCNamespaceSuffix)
+	nss = appendNamespaceOnce(nss, cuttlefishOrchestratorNamespace(os.Getenv("MODULE_CONFIG")))
 	nss = appendNamespaceOnce(nss, cloudWorkstationsNamespace)
 	return nss
 }
@@ -218,10 +220,18 @@ func (p *PlatformDrainer) disableOne(ctx context.Context, moduleName string, bes
 	if err := TeardownPrefixedModuleChildApplication(ctx, p.Client, p.ArgoCDNamespace, os.Getenv("MODULE_CONFIG"), moduleName); err != nil {
 		return err
 	}
+	if err := DrainCuttlefishOrchestratorModule(ctx, p.Client, p.ArgoCDNamespace, os.Getenv("MODULE_CONFIG"), moduleName); err != nil {
+		if !bestEffort {
+			return err
+		}
+		log.FromContext(ctx).Error(err, "best-effort cuttlefish-orchestrator drain failed during platform teardown; continuing",
+			"module", moduleName)
+	}
 
 	// Teardown sets skip-reconcile on prefixed parents so Git cannot recreate the child.
 	// Clear it before the parent delete, matching PerformModuleDisable. Leaving it set freezes mod-*.
 	clearParentSkipReconcileIfPrefixedModule(ctx, p.Client, p.ArgoCDNamespace, moduleName)
+	clearParentSkipReconcileIfCuttlefishOrchestrator(ctx, p.Client, p.ArgoCDNamespace, moduleName)
 
 	appName := ApplicationName(moduleName)
 	app := &unstructured.Unstructured{}
@@ -230,6 +240,7 @@ func (p *PlatformDrainer) disableOne(ctx context.Context, moduleName string, bes
 	app.SetName(appName)
 	if err := p.Client.Delete(ctx, app); err != nil && !errors.IsNotFound(err) {
 		clearParentSkipReconcileIfPrefixedModule(ctx, p.Client, p.ArgoCDNamespace, moduleName)
+		clearParentSkipReconcileIfCuttlefishOrchestrator(ctx, p.Client, p.ArgoCDNamespace, moduleName)
 		return err
 	}
 	var newEnabled []string

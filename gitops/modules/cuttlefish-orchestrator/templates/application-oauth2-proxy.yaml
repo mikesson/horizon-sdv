@@ -1,0 +1,105 @@
+{{/*
+Copyright 2026 Google LLC
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    https://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/}}
+{{- if and .Values.repo.url .Values.repo.revision }}
+{{- $pfx := include "ccoParent.prefix" . -}}
+{{- $appNs := include "ccoParent.appNamespace" . -}}
+{{- $argoNs := include "ccoParent.argocdNamespace" . -}}
+{{- $argoProj := include "ccoParent.argocdProject" . -}}
+{{- $cookieName := include "ccoParent.oauth2CookieName" . }}
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: {{ printf "%smod-%s-oauth2-proxy" $pfx .Values.moduleName }}
+  namespace: {{ $argoNs }}
+  labels:
+    app.kubernetes.io/name: {{ .Values.moduleName }}
+    horizon-sdv.io/module: {{ .Values.moduleName }}
+    horizon-sdv.io/app-role: child
+    horizon-sdv.io/expose: "false"
+    horizon-sdv.io/module-manager-managed: "true"
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: {{ $argoProj }}
+  source:
+    repoURL: {{ .Values.oauth2ProxyChart.repoURL | quote }}
+    chart: {{ .Values.oauth2ProxyChart.chart | quote }}
+    targetRevision: {{ .Values.oauth2ProxyChart.version | quote }}
+    helm:
+      releaseName: cuttlefish-console-oauth2-proxy
+      values: |
+        fullnameOverride: cuttlefish-console-oauth2-proxy
+        replicaCount: 1
+        podDisruptionBudget:
+          enabled: false
+        networkPolicy:
+          create: false
+        serviceAccount:
+          automountServiceAccountToken: false
+        httpScheme: http
+        proxyVarsAsSecrets: true
+        service:
+          type: ClusterIP
+          portNumber: 80
+          targetPort: http
+          appProtocol: http
+        resources:
+          requests:
+            cpu: 50m
+            memory: 64Mi
+          limits:
+            cpu: 250m
+            memory: 256Mi
+        config:
+          existingSecret: cuttlefish-console-oauth2-proxy-creds
+          cookieName: {{ $cookieName | quote }}
+          configFile: |-
+            provider = "oidc"
+            provider_display_name = "Horizon Keycloak"
+            oidc_issuer_url = "https://{{ .Values.config.domain }}/auth/realms/horizon"
+            redirect_url = "https://{{ .Values.config.domain }}/cuttlefish-orchestrator/oauth2/callback"
+            proxy_prefix = "/cuttlefish-orchestrator/oauth2"
+            upstreams = [ "http://cuttlefish-console:8080/" ]
+            email_domains = [ "*" ]
+            insecure_oidc_allow_unverified_email = true
+            scope = "openid profile email groups"
+            oidc_groups_claim = "groups"
+            allowed_groups = [ "administrators", "developers" ]
+            cookie_path = "/cuttlefish-orchestrator"
+            cookie_secure = true
+            cookie_httponly = true
+            cookie_samesite = "lax"
+            reverse_proxy = true
+            pass_user_headers = true
+            # Console Nginx bridges X-Forwarded-* request headers (pass_user_headers = true);
+            # Angular frontend does not inspect X-Auth-Request-* HTTP response headers.
+            set_xauthrequest = false
+            skip_auth_strip_headers = true
+            skip_provider_button = true
+            pass_authorization_header = false
+            pass_access_token = false
+            pass_basic_auth = false
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: {{ $appNs }}
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+    automated:
+      prune: true
+{{ end }}

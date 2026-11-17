@@ -100,10 +100,14 @@ func PerformModuleDisable(ctx context.Context, c client.Client, stateStore State
 	if err := TeardownPrefixedModuleChildApplication(ctx, c, argocdNamespace, moduleConfig, moduleName); err != nil {
 		return fmt.Errorf("perform module disable: teardown child Application for %q: %w", moduleName, err)
 	}
+	if err := DrainCuttlefishOrchestratorModule(ctx, c, argocdNamespace, moduleConfig, moduleName); err != nil {
+		return fmt.Errorf("perform module disable: drain cuttlefish-orchestrator for %q: %w", moduleName, err)
+	}
 	// Teardown sets skip-reconcile on the parent mod-* Application so Git cannot recreate the child during delete.
 	// Clear it before we delete the parent: otherwise Argo does not prune managed resources (overview Deployment,
 	// etc.) and resources-finalizer.argocd.argoproj.io keeps mod-* stuck in Deleting indefinitely.
 	clearParentSkipReconcileIfPrefixedModule(ctx, c, argocdNamespace, moduleName)
+	clearParentSkipReconcileIfCuttlefishOrchestrator(ctx, c, argocdNamespace, moduleName)
 	if err := deletePrefixedChildApplicationIfPresent(ctx, c, argocdNamespace, moduleConfig, moduleName); err != nil {
 		return fmt.Errorf("perform module disable: remove recreated child Application for %q: %w", moduleName, err)
 	}
@@ -123,6 +127,7 @@ func PerformModuleDisable(ctx context.Context, c client.Client, stateStore State
 	}
 	if err := stateStore.Update(ctx, state); err != nil {
 		clearParentSkipReconcileIfPrefixedModule(ctx, c, argocdNamespace, moduleName)
+		clearParentSkipReconcileIfCuttlefishOrchestrator(ctx, c, argocdNamespace, moduleName)
 		return err
 	}
 
@@ -134,6 +139,7 @@ func PerformModuleDisable(ctx context.Context, c client.Client, stateStore State
 	logger.Info("disabling module", "module", moduleName, "moduleID", moduleID, "application", appName, "enforceNoHardDependents", enforceNoHardDependents)
 	if err := c.Delete(ctx, app); err != nil && !errors.IsNotFound(err) {
 		clearParentSkipReconcileIfPrefixedModule(ctx, c, argocdNamespace, moduleName)
+		clearParentSkipReconcileIfCuttlefishOrchestrator(ctx, c, argocdNamespace, moduleName)
 		return err
 	}
 	if err := deletePrefixedChildApplicationIfPresent(ctx, c, argocdNamespace, moduleConfig, moduleName); err != nil {

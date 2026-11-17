@@ -1,0 +1,120 @@
+# Copyright 2026 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cuttlefish-orchestrator-api
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: cuttlefish-orchestrator-api
+    app.kubernetes.io/component: api
+    horizon-sdv.io/module: {{ .Values.moduleName | quote }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "5"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: cuttlefish-orchestrator-api
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: cuttlefish-orchestrator-api
+        app.kubernetes.io/component: api
+        horizon-sdv.io/module: {{ .Values.moduleName | quote }}
+    spec:
+      serviceAccountName: cuttlefish-orchestrator-api
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: api
+          image: {{ include "cco.apiImage" . | quote }}
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          env:
+            - name: GCE_METADATA_HOST
+              value: "169.254.169.252:988"
+            - name: CCO_DEVICE_INGRESS
+              value: "private"
+            - name: CCO_DEPLOYMENT
+              value: {{ include "cco.deployment" . | quote }}
+            - name: CCO_AUTH_MODE
+              value: "proxy"
+            - name: CCO_TRUSTED_PROXIES
+              value: "10.0.0.0/8,172.16.0.0/12,192.168.0.0/16"
+            - name: CCO_DEFAULT_USER
+              value: ""
+            - name: CCO_OPENAPI_SERVER_URL
+              value: "/cuttlefish-orchestrator"
+            - name: CCO_SPANNER_PROJECT
+              value: {{ .Values.config.projectID | quote }}
+            - name: CCO_SPANNER_INSTANCE
+              value: {{ include "cco.spannerInstanceId" . | quote }}
+            - name: CCO_SPANNER_DATABASE
+              value: {{ include "cco.spannerDatabaseId" . | quote }}
+            - name: CCO_PROJECT_ID
+              value: {{ .Values.config.projectID | quote }}
+            - name: CCO_NETWORK
+              value: {{ include "cco.network" . | quote }}
+            - name: CCO_SUBNETWORK
+              value: {{ include "cco.subnetwork" . | quote }}
+            - name: CCO_HOST_SERVICE_ACCOUNT
+              value: {{ include "cco.hostVmServiceAccount" . | quote }}
+            - name: CCO_HOST_IMAGE_PROJECT
+              value: {{ (.Values.api).hostImageProject | default .Values.config.projectID | quote }}
+            - name: CCO_ARTIFACTS_BUCKET
+              value: {{ include "cco.artifactsBucket" . | quote }}
+            - name: CCO_HOST_ORCHESTRATOR_PORT
+              value: "2080"
+            - name: CCO_ALLOW_SELF_SIGNED_HOST_SSL_CERT
+              value: {{ (.Values.api).allowSelfSignedHostSSLCert | default false | quote }}
+            - name: CCO_SPOT_ADVICE
+              value: {{ (.Values.api).spotAdvice | default false | quote }}
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 6
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 15
+            timeoutSeconds: 3
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi

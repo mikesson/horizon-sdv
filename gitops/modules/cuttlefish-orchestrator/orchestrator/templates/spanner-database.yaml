@@ -1,0 +1,452 @@
+# Copyright 2026 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+apiVersion: spanner.cnrm.cloud.google.com/v1beta1
+kind: SpannerDatabase
+metadata:
+  name: {{ include "cco.spannerDatabaseId" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: cuttlefish-orchestrator
+    horizon-sdv.io/module: {{ .Values.moduleName | quote }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+    cnrm.cloud.google.com/project-id: {{ .Values.config.projectID | quote }}
+    cnrm.cloud.google.com/deletion-policy: {{ (.Values.spanner).deletionPolicy | default "delete" | quote }}
+spec:
+  instanceRef:
+    name: {{ include "cco.spannerInstanceId" . }}
+  databaseDialect: GOOGLE_STANDARD_SQL
+  enableDropProtection: false
+  ddl:
+    - |-
+      CREATE TABLE system_config (
+          config_key STRING(100) NOT NULL,
+          config_value STRING(MAX) NOT NULL,
+          description STRING(500),
+          created_at TIMESTAMP NOT NULL DEFAULT (CURRENT_TIMESTAMP()),
+          updated_at TIMESTAMP NOT NULL DEFAULT (CURRENT_TIMESTAMP()),
+      ) PRIMARY KEY (config_key)
+    - |-
+      CREATE TABLE hosts (
+          host_id STRING(36) NOT NULL DEFAULT (GENERATE_UUID()),
+          name STRING(63) NOT NULL,
+          zone STRING(100) NOT NULL,
+          gce_instance_name STRING(255),
+          gce_project STRING(100),
+          machine_type STRING(100),
+          gpu_type STRING(100),
+          gpu_count INT64 NOT NULL DEFAULT (1),
+          min_cpu_platform STRING(100),
+          boot_disk_size_gb INT64,
+          boot_image STRING(MAX),
+          provisioning_model STRING(20) DEFAULT ('STANDARD'),
+          status STRING(30) NOT NULL DEFAULT ('pending'),
+          ip_address STRING(45),
+          internal_ip STRING(45),
+          host_orchestrator_port INT64 NOT NULL DEFAULT (2080),
+          max_devices INT64 NOT NULL DEFAULT (4),
+          current_device_count INT64 NOT NULL DEFAULT (0),
+          created_by STRING(320),
+          error_message STRING(1000),
+          error_type STRING(50),
+          error_code STRING(100),
+          error_suggestion STRING(1000),
+          error_alternative_zones ARRAY<STRING(50)>,
+          error_retryable BOOL,
+          error_occurred_at TIMESTAMP,
+          stopped_at TIMESTAMP,
+          vm_terminates_at TIMESTAMP,
+          preempted_at TIMESTAMP,
+          preempted_incarnation INT64,
+          preemption_count INT64 NOT NULL DEFAULT (0),
+          last_preemption_id STRING(64),
+          consecutive_create_fails INT64 NOT NULL DEFAULT (0),
+          last_create_fail_reason STRING(500),
+          degraded_at TIMESTAMP,
+          degraded_reason STRING(500),
+          provision_blocked_at TIMESTAMP,
+          provision_blocked_reason STRING(500),
+          incarnation INT64 NOT NULL DEFAULT (0),
+          desired_state STRING(16),
+          vm_status STRING(32),
+          vm_observed_at TIMESTAMP,
+          stalled_reason STRING(500),
+          ho_ready_at TIMESTAMP,
+          requested_zone STRING(64),
+          zone_pinned BOOL NOT NULL DEFAULT (FALSE),
+          exclusive BOOL NOT NULL DEFAULT (FALSE),
+          foreign_cvds BOOL NOT NULL DEFAULT (FALSE),
+          batch_id STRING(36),
+          origin STRING(16),
+          pool STRING(64),
+          lifecycle_mode STRING(20) DEFAULT ('ephemeral'),
+          ttl_seconds INT64 DEFAULT (36000),
+          expires_at TIMESTAMP,
+          protected_device_count INT64 DEFAULT (0),
+          created_at TIMESTAMP NOT NULL DEFAULT (CURRENT_TIMESTAMP()),
+          updated_at TIMESTAMP NOT NULL DEFAULT (CURRENT_TIMESTAMP()),
+          tombstoned_at TIMESTAMP,
+          live_name STRING(63) AS (IF(status != 'deleted', name, NULL)) STORED,
+          CONSTRAINT chk_hosts_name_shape CHECK (REGEXP_CONTAINS(name, r'^[a-z][a-z0-9-]*$')),
+      ) PRIMARY KEY (host_id),
+        ROW DELETION POLICY (OLDER_THAN(tombstoned_at, INTERVAL 7 DAY))
+    - |-
+      CREATE INDEX idx_hosts_zone ON hosts(zone)
+    - |-
+      CREATE INDEX idx_hosts_status ON hosts(status)
+    - |-
+      CREATE INDEX idx_hosts_gce_instance ON hosts(gce_project, gce_instance_name)
+    - |-
+      CREATE INDEX idx_hosts_lifecycle_expires ON hosts(lifecycle_mode, expires_at, protected_device_count, status)
+    - |-
+      CREATE INDEX idx_hosts_created_at ON hosts(created_at DESC)
+    - |-
+      CREATE INDEX idx_hosts_provisioning_model ON hosts(provisioning_model)
+    - |-
+      CREATE NULL_FILTERED INDEX idx_hosts_live_name ON hosts(live_name)
+    - |-
+      CREATE TABLE devices (
+          host_id STRING(36) NOT NULL,
+          device_id STRING(36) NOT NULL DEFAULT (GENERATE_UUID()),
+          name STRING(63) NOT NULL,
+          cvd_id STRING(50),
+          status STRING(30) NOT NULL DEFAULT ('pending'),
+          build_id STRING(255),
+          build_target STRING(255),
+          adb_port INT64,
+          webrtc_port INT64,
+          gpu_mode STRING(50) NOT NULL DEFAULT ('auto'),
+          created_by STRING(320),
+          error_message STRING(1000),
+          started_at TIMESTAMP,
+          stopped_at TIMESTAMP,
+          tags ARRAY<STRING(64)>,
+          created_at TIMESTAMP NOT NULL DEFAULT (CURRENT_TIMESTAMP()),
+          updated_at TIMESTAMP NOT NULL DEFAULT (CURRENT_TIMESTAMP()),
+          health_status STRING(30) DEFAULT ('unknown'),
+          last_health_check TIMESTAMP,
+          consecutive_fails INT64 DEFAULT (0),
+          last_failure_reason STRING(500),
+          last_healthy_at TIMESTAMP,
+          cvd_status STRING(32),
+          boot_observation STRING(MAX),
+          instances STRING(MAX),
+          lifecycle_mode STRING(20) DEFAULT ('ephemeral'),
+          ttl_seconds INT64 DEFAULT (14400),
+          expires_at TIMESTAMP,
+          pinned_at TIMESTAMP,
+          pinned_by STRING(320),
+          pinned_reason STRING(50),
+          pinned_reason_detail STRING(500),
+          pinned_until TIMESTAMP,
+          extend_count INT64 DEFAULT (0),
+          desired_spec STRING(MAX),
+          recreate_count INT64 NOT NULL DEFAULT (0),
+          recreate_window_start TIMESTAMP,
+          restart_count INT64 NOT NULL DEFAULT (0),
+          restart_window_start TIMESTAMP,
+          bugreport_captured_at TIMESTAMP,
+          tombstoned_at TIMESTAMP,
+          batch_id STRING(36),
+          live_name STRING(63) AS (IF(status != 'deleted', name, NULL)) STORED,
+          CONSTRAINT chk_devices_name_shape CHECK (REGEXP_CONTAINS(name, r'^[a-z][a-z0-9-]*$')),
+      ) PRIMARY KEY (host_id, device_id),
+          INTERLEAVE IN PARENT hosts ON DELETE CASCADE,
+          ROW DELETION POLICY (OLDER_THAN(tombstoned_at, INTERVAL 7 DAY))
+    - |-
+      CREATE INDEX idx_devices_status ON devices(status)
+    - |-
+      CREATE INDEX idx_devices_build ON devices(build_id)
+    - |-
+      CREATE INDEX idx_devices_health ON devices(health_status, last_health_check)
+    - |-
+      CREATE INDEX idx_devices_lifecycle_expires ON devices(lifecycle_mode, expires_at, status)
+    - |-
+      CREATE INDEX idx_devices_created_at ON devices(created_at DESC)
+    - |-
+      CREATE NULL_FILTERED INDEX idx_devices_batch_id ON devices(batch_id)
+    - |-
+      CREATE NULL_FILTERED INDEX idx_devices_live_name ON devices(live_name)
+    - |-
+      CREATE TABLE snapshots (
+          host_id STRING(36) NOT NULL,
+          snapshot_id STRING(36) NOT NULL,
+          device_id STRING(36) NOT NULL,
+          cvd_group STRING(50) NOT NULL,
+          cvd_name STRING(50) NOT NULL,
+          host_incarnation INT64 NOT NULL,
+          state STRING(16) NOT NULL DEFAULT ('creating'),
+          created_by STRING(320),
+          created_at TIMESTAMP NOT NULL DEFAULT (CURRENT_TIMESTAMP()),
+          updated_at TIMESTAMP NOT NULL DEFAULT (CURRENT_TIMESTAMP()),
+          lost_at TIMESTAMP,
+      ) PRIMARY KEY (host_id, snapshot_id),
+          INTERLEAVE IN PARENT hosts ON DELETE CASCADE,
+          ROW DELETION POLICY (OLDER_THAN(lost_at, INTERVAL 7 DAY))
+    - |-
+      CREATE INDEX idx_snapshots_device ON snapshots(device_id)
+    - |-
+      CREATE TABLE host_artifact_cache (
+          host_id STRING(36) NOT NULL,
+          fetch_key STRING(200) NOT NULL,
+          build_id STRING(36),
+          host_incarnation INT64 NOT NULL,
+          fetched_at TIMESTAMP NOT NULL DEFAULT (CURRENT_TIMESTAMP()),
+      ) PRIMARY KEY (host_id, fetch_key),
+          INTERLEAVE IN PARENT hosts ON DELETE CASCADE
+    - |-
+      CREATE TABLE batches (
+          batch_id STRING(36) NOT NULL,
+          name_prefix STRING(255) NOT NULL,
+          requested_count INT64 NOT NULL,
+          fill_policy STRING(20) NOT NULL,
+          placement STRING(20) NOT NULL,
+          ready_timeout_seconds INT64,
+          spec_fingerprint STRING(64) NOT NULL DEFAULT (''),
+          created_by STRING(320),
+          created_at TIMESTAMP NOT NULL DEFAULT (CURRENT_TIMESTAMP()),
+          ready_at TIMESTAMP,
+          failed_at TIMESTAMP,
+          failure_reason STRING(1000),
+      ) PRIMARY KEY (batch_id),
+        ROW DELETION POLICY (OLDER_THAN(created_at, INTERVAL 90 DAY))
+    - |-
+      CREATE TABLE builds (
+          build_id STRING(36) NOT NULL DEFAULT (GENERATE_UUID()),
+          name STRING(255),
+          android_build_id STRING(255),
+          target STRING(255),
+          branch STRING(255),
+          flavor STRING(100),
+          fingerprint STRING(255),
+          created_by STRING(320),
+          source STRING(50) NOT NULL,
+          description STRING(1000),
+          is_default BOOL DEFAULT (false),
+          artifact_specs JSON,
+          metadata JSON,
+          created_at TIMESTAMP NOT NULL DEFAULT (CURRENT_TIMESTAMP()),
+          updated_at TIMESTAMP NOT NULL DEFAULT (CURRENT_TIMESTAMP()),
+      ) PRIMARY KEY (build_id)
+    - |-
+      CREATE INDEX idx_builds_android_id ON builds(android_build_id)
+    - |-
+      CREATE INDEX idx_builds_target ON builds(target)
+    - |-
+      CREATE INDEX idx_builds_branch ON builds(branch)
+    - |-
+      CREATE INDEX idx_builds_created_at ON builds(created_at DESC)
+    - |-
+      CREATE TABLE quotas (
+          scope       STRING(20) NOT NULL,
+          scope_id    STRING(36) NOT NULL,
+          max_hosts   INT64 NOT NULL,
+          used_hosts  INT64 NOT NULL DEFAULT (0),
+          high_water_used_hosts INT64,
+          high_water_at         TIMESTAMP,
+          created_at  TIMESTAMP NOT NULL DEFAULT (CURRENT_TIMESTAMP()),
+          updated_at  TIMESTAMP NOT NULL DEFAULT (CURRENT_TIMESTAMP()),
+      ) PRIMARY KEY (scope, scope_id)
+    - |-
+      CREATE TABLE audit_logs (
+          log_id STRING(36) NOT NULL DEFAULT (GENERATE_UUID()),
+          timestamp TIMESTAMP NOT NULL DEFAULT (CURRENT_TIMESTAMP()),
+          actor_email STRING(320),
+          action STRING(100) NOT NULL,
+          resource_type STRING(50) NOT NULL,
+          resource_id STRING(36),
+          request_id STRING(36),
+          changes JSON,
+          metadata JSON,
+          origin STRING(MAX) AS (JSON_VALUE(metadata, '$.origin')) STORED,
+          pool STRING(MAX) AS (JSON_VALUE(metadata, '$.pool')) STORED,
+          max_devices INT64 AS (SAFE_CAST(JSON_VALUE(metadata, '$.max_devices') AS INT64)) STORED,
+          density INT64 AS (SAFE_CAST(JSON_VALUE(metadata, '$.density') AS INT64)) STORED,
+          gpu_required BOOL AS (SAFE_CAST(JSON_VALUE(metadata, '$.gpu_required') AS BOOL)) STORED,
+          fits_default_host BOOL AS (SAFE_CAST(JSON_VALUE(metadata, '$.fits_default_host') AS BOOL)) STORED,
+          gpu_degraded BOOL AS (SAFE_CAST(JSON_VALUE(metadata, '$.gpu_degraded') AS BOOL)) STORED,
+      ) PRIMARY KEY (log_id),
+        ROW DELETION POLICY (OLDER_THAN(timestamp, INTERVAL 90 DAY))
+    - |-
+      CREATE INDEX idx_audit_timestamp ON audit_logs(timestamp DESC)
+    - |-
+      CREATE INDEX idx_audit_actor_email ON audit_logs(actor_email)
+    - |-
+      CREATE INDEX idx_audit_action ON audit_logs(action)
+    - |-
+      CREATE INDEX idx_audit_resource ON audit_logs(resource_type, resource_id)
+    - |-
+      CREATE NULL_FILTERED INDEX idx_audit_host_create
+        ON audit_logs(action, origin, timestamp DESC)
+        STORING (pool, max_devices, density, gpu_required, fits_default_host)
+    - |-
+      CREATE NULL_FILTERED INDEX idx_audit_gpu_degraded
+        ON audit_logs(action, gpu_degraded, timestamp DESC)
+    - |-
+      CREATE TABLE machine_families (
+          family STRING(32) NOT NULL,
+          name STRING(255),
+          description STRING(1000),
+          category STRING(50) NOT NULL DEFAULT ('general_purpose'),
+          architecture STRING(20) NOT NULL DEFAULT ('x86'),
+          cpu_type STRING(255),
+          boot_disk_type STRING(50),
+          gpu_mode STRING(20) NOT NULL DEFAULT ('none'),
+          max_gpus INT64,
+          default_gpu_type STRING(100),
+          default_gpu_count INT64,
+          is_enabled BOOL NOT NULL DEFAULT (true),
+          sort_order INT64 NOT NULL DEFAULT (0),
+          created_at TIMESTAMP NOT NULL DEFAULT (CURRENT_TIMESTAMP()),
+          updated_at TIMESTAMP NOT NULL DEFAULT (CURRENT_TIMESTAMP()),
+      ) PRIMARY KEY(family)
+    - |-
+      CREATE INDEX idx_machine_families_enabled ON machine_families(is_enabled)
+    - |-
+      CREATE TABLE machine_type_overrides (
+          machine_type STRING(100) NOT NULL,
+          is_enabled BOOL,
+          is_default BOOL NOT NULL DEFAULT (false),
+          max_devices INT64,
+          created_at TIMESTAMP NOT NULL DEFAULT (CURRENT_TIMESTAMP()),
+          updated_at TIMESTAMP NOT NULL DEFAULT (CURRENT_TIMESTAMP()),
+      ) PRIMARY KEY(machine_type)
+    - |-
+      CREATE INDEX idx_machine_type_overrides_default ON machine_type_overrides(is_default)
+    - |-
+      CREATE TABLE zone_health (
+          zone                 STRING(64)  NOT NULL,
+          machine_family       STRING(32)  NOT NULL,
+          binding_metric       STRING(64)  NOT NULL,
+          consecutive_failures INT64       NOT NULL DEFAULT (0),
+          last_failure_at      TIMESTAMP,
+          last_reason          STRING(200),
+          cooldown_until       TIMESTAMP,
+          updated_at           TIMESTAMP   NOT NULL OPTIONS (allow_commit_timestamp=true),
+      ) PRIMARY KEY (zone, machine_family),
+        ROW DELETION POLICY (OLDER_THAN(updated_at, INTERVAL 7 DAY))
+    - |-
+      CREATE TABLE spot_advice (
+          zone          STRING(64)  NOT NULL,
+          machine_type  STRING(64)  NOT NULL,
+          obtainability FLOAT64     NOT NULL,
+          uptime_tier_s INT64       NOT NULL,
+          synced_at     TIMESTAMP   NOT NULL OPTIONS (allow_commit_timestamp=true),
+      ) PRIMARY KEY (zone, machine_type),
+        ROW DELETION POLICY (OLDER_THAN(synced_at, INTERVAL 1 DAY))
+    - |-
+      CREATE TABLE host_image_configs (
+          machine_family STRING(50) NOT NULL,
+          image_family STRING(100) NOT NULL,
+          source_project STRING(100),
+          description STRING(500),
+          enabled BOOL NOT NULL DEFAULT (true),
+          created_at TIMESTAMP NOT NULL DEFAULT (CURRENT_TIMESTAMP()),
+          updated_at TIMESTAMP NOT NULL DEFAULT (CURRENT_TIMESTAMP()),
+          created_by STRING(320),
+          updated_by STRING(320),
+      ) PRIMARY KEY (machine_family)
+    - |-
+      CREATE INDEX idx_host_image_configs_enabled ON host_image_configs (enabled)
+    - |-
+      CREATE TABLE tasks (
+          task_id STRING(36) NOT NULL DEFAULT (GENERATE_UUID()),
+          shard INT64 NOT NULL,
+          task_type STRING(64) NOT NULL,
+          state STRING(16) NOT NULL DEFAULT ('pending'),
+          resource_id STRING(36),
+          trace_context STRING(64),
+          available_at TIMESTAMP NOT NULL DEFAULT (CURRENT_TIMESTAMP()),
+          lease_expiry TIMESTAMP,
+          lease_holder STRING(64),
+          attempts INT64 NOT NULL DEFAULT (0),
+          max_attempts INT64 NOT NULL DEFAULT (10),
+          priority INT64 NOT NULL DEFAULT (0),
+          reconcile_key STRING(MAX) AS (IF(state = 'pending' AND task_type IN ('host.reconcile', 'device.reconcile'), CONCAT(task_type, '/', resource_id), NULL)) STORED,
+          transition_key STRING(MAX) AS (IF(state IN ('pending', 'leased') AND task_type IN ('host.provision', 'host.deprovision', 'device.create_cvd', 'device.cleanup_cvd'), CONCAT(task_type, '/', resource_id), NULL)) STORED,
+          last_error STRING(2000),
+          created_at TIMESTAMP NOT NULL DEFAULT (CURRENT_TIMESTAMP()),
+          updated_at TIMESTAMP NOT NULL DEFAULT (CURRENT_TIMESTAMP()),
+      ) PRIMARY KEY (task_id),
+        ROW DELETION POLICY (OLDER_THAN(updated_at, INTERVAL 90 DAY))
+    - |-
+      CREATE INDEX idx_tasks_claimable_v2 ON tasks(shard, state, priority DESC, available_at)
+    - |-
+      CREATE NULL_FILTERED INDEX idx_tasks_by_resource ON tasks(task_type, resource_id, state)
+    - |-
+      CREATE UNIQUE NULL_FILTERED INDEX idx_tasks_reconcile_key ON tasks(reconcile_key)
+    - |-
+      CREATE UNIQUE NULL_FILTERED INDEX idx_tasks_transition_key ON tasks(transition_key)
+    - |-
+      CREATE NULL_FILTERED INDEX idx_tasks_lease_expiry ON tasks(lease_expiry)
+    - |-
+      CREATE TABLE task_steps (
+          task_id STRING(36) NOT NULL,
+          step_id INT64 NOT NULL,
+          step_name STRING(64) NOT NULL,
+          output JSON,
+          created_at TIMESTAMP NOT NULL DEFAULT (CURRENT_TIMESTAMP()),
+      ) PRIMARY KEY (task_id, step_id),
+        INTERLEAVE IN PARENT tasks ON DELETE CASCADE
+    - |-
+      CREATE TABLE leader_leases (
+          lease_name STRING(64) NOT NULL,
+          holder STRING(64),
+          acquired_at TIMESTAMP,
+          lease_expiry TIMESTAMP,
+          updated_at TIMESTAMP NOT NULL DEFAULT (CURRENT_TIMESTAMP()),
+      ) PRIMARY KEY (lease_name)
+    - |-
+      CREATE TABLE idempotency_keys (
+          idempotency_key STRING(255) NOT NULL,
+          resource_id STRING(36) NOT NULL,
+          request_fingerprint STRING(64) NOT NULL,
+          created_at TIMESTAMP NOT NULL DEFAULT (CURRENT_TIMESTAMP()),
+      ) PRIMARY KEY (idempotency_key),
+        ROW DELETION POLICY (OLDER_THAN(created_at, INTERVAL 30 DAY))
+    - |-
+      CREATE TABLE operations (
+          operation_id STRING(36) NOT NULL DEFAULT (GENERATE_UUID()),
+          verb STRING(64) NOT NULL,
+          resource_type STRING(16) NOT NULL,
+          resource_id STRING(36) NOT NULL,
+          instance_name STRING(64),
+          task_id STRING(36),
+          done BOOL NOT NULL DEFAULT (false),
+          request JSON,
+          error JSON,
+          response JSON,
+          exclusive BOOL NOT NULL DEFAULT (FALSE),
+          mutating BOOL NOT NULL DEFAULT (FALSE),
+          created_by STRING(256),
+          created_at TIMESTAMP NOT NULL DEFAULT (CURRENT_TIMESTAMP()),
+          updated_at TIMESTAMP NOT NULL DEFAULT (CURRENT_TIMESTAMP()),
+          exclusive_key STRING(MAX) AS (IF(done = false AND exclusive,
+              CONCAT(resource_type, '/', resource_id), NULL)) STORED,
+          mutating_key STRING(MAX) AS (IF(done = false AND mutating,
+              CONCAT(resource_type, '/', resource_id), NULL)) STORED,
+          open_at TIMESTAMP AS (IF(done = false, created_at, NULL)) STORED,
+      ) PRIMARY KEY (operation_id),
+        ROW DELETION POLICY (OLDER_THAN(created_at, INTERVAL 90 DAY))
+    - |-
+      CREATE UNIQUE NULL_FILTERED INDEX idx_operations_exclusive ON operations(exclusive_key)
+    - |-
+      CREATE NULL_FILTERED INDEX idx_operations_mutating ON operations(mutating_key)
+    - |-
+      CREATE NULL_FILTERED INDEX idx_operations_open ON operations(open_at)
+    - |-
+      CREATE UNIQUE NULL_FILTERED INDEX idx_operations_task ON operations(task_id)
+    - |-
+      CREATE INDEX idx_operations_by_resource ON operations(resource_id, created_at DESC)
