@@ -1,0 +1,577 @@
+# Copyright 2026 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+{{- $root := . }}
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: cco-host-image-build
+  namespace: {{ $root.Values.workflowNamespace | quote }}
+  labels:
+    app.kubernetes.io/name: cco-host-image-build
+    horizon-sdv.io/expose: "true"
+    horizon-sdv.io/module: {{ $root.Values.moduleName | quote }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "8"
+spec:
+  entrypoint: main
+  onExit: cleanup-orphan-packer
+  archiveLogs: true
+  serviceAccountName: {{ $root.Values.serviceAccountElevated | quote }}
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+    runAsGroup: 1000
+    fsGroup: 1000
+    seccompProfile:
+      type: RuntimeDefault
+{{- if $root.Values.podGcStrategy }}
+  podGC:
+    strategy: {{ $root.Values.podGcStrategy | quote }}
+{{- end }}
+{{- if $root.Values.workflowTtlSecondsAfterCompletion }}
+  ttlStrategy:
+    secondsAfterCompletion: {{ $root.Values.workflowTtlSecondsAfterCompletion }}
+{{- end }}
+  synchronization:
+    mutexes:
+      - name: cco-host-image-build
+  workflowMetadata:
+    annotations:
+      workflows.argoproj.io/title: "CCO Host Image Build (Packer + Cuttlefish >= 1.58.0)"
+      workflows.argoproj.io/description: "Bakes a Debian 13 (x86_64 or arm64) GCE image for Cloud Cuttlefish Orchestrator with cuttlefish-* >= 1.58.0 over IAP, without custom_configs."
+  arguments:
+    parameters:
+      - name: horizonSubmittedFrom
+        value: ""
+        description: "Opaque provenance label (e.g. portal id); stored on workflow labels."
+      - name: submittedBy
+        value: ""
+        description: "Submitter email or username for CCO audit metadata."
+      - name: architecture
+        value: "x86_64"
+        enum:
+          - x86_64
+          - arm64
+        description: "Target CPU architecture: x86_64 (debian-13, enable-vmx) or arm64 (debian-13-arm64)."
+      - name: imageFamily
+        value: ""
+        description: "Output GCE image family (defaults to cco-host for x86_64, cco-host-arm64 for arm64)."
+      - name: imageName
+        value: ""
+        description: "Optional explicit GCE image name (auto-generated from imageFamily and timestamp if empty)."
+      - name: machineType
+        value: ""
+        description: "Packer builder GCE machine type (defaults to n2-standard-8 for x86_64, c4a-standard-8 for arm64)."
+      - name: zone
+        value: ""
+        description: "Optional GCE zone override (defaults to platform x86 or ARM64 zone)."
+      - name: subnetwork
+        value: ""
+        description: "Optional GCE subnetwork override (defaults to platform x86 or ARM64 subnetwork)."
+      - name: cuttlefishVersion
+        value: ""
+        description: "Optional cuttlefish deb version (>= 1.58.0); empty installs latest >= 1.58.0 from android-cuttlefish-nightly."
+      - name: diskSizeGb
+        value: "100"
+        description: "Packer image disk size in GiB."
+      - name: updateCcoMapping
+        value: "false"
+        enum:
+          - "false"
+          - "true"
+        description: "When true, updates CCO host-image family mappings via cfctl after baking."
+      - name: targetMachineFamilies
+        value: ""
+        description: "Comma-separated machine families to update when updateCcoMapping=true (defaults to n1,n2,n4,c3,c4,g2 for x86_64 or c4a for arm64)."
+  templates:
+    - name: main
+      steps:
+        - - name: bake-image
+            template: bake-image
+    - name: bake-image
+      container:
+        image: {{ $root.Values.workflowImage | quote }}
+        imagePullPolicy: IfNotPresent
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+              - ALL
+        resources:
+          requests:
+            cpu: "1"
+            memory: "2Gi"
+          limits:
+            cpu: "4"
+            memory: "4Gi"
+        env:
+          - name: WORKFLOW_NAME
+            value: '{{ "{{" }}workflow.name{{ "}}" }}'
+          - name: DEFAULT_PROJECT_ID
+            value: {{ $root.Values.hostImageProject | default $root.Values.projectId | quote }}
+          - name: DEFAULT_ZONE
+            value: {{ $root.Values.zone | quote }}
+          - name: DEFAULT_NETWORK
+            value: {{ $root.Values.network | quote }}
+          - name: DEFAULT_SUBNETWORK
+            value: {{ $root.Values.subnetwork | quote }}
+          - name: DEFAULT_ARM64_ZONE
+            value: {{ $root.Values.arm64Zone | quote }}
+          - name: DEFAULT_ARM64_SUBNETWORK
+            value: {{ $root.Values.arm64Subnetwork | quote }}
+{{- if $root.Values.cloudEnvConfigMapName }}
+          - name: CLOUD_PROJECT
+            valueFrom:
+              configMapKeyRef:
+                name: {{ $root.Values.cloudEnvConfigMapName | quote }}
+                key: CLOUD_PROJECT
+                optional: true
+          - name: CLOUD_ZONE
+            valueFrom:
+              configMapKeyRef:
+                name: {{ $root.Values.cloudEnvConfigMapName | quote }}
+                key: CLOUD_ZONE
+                optional: true
+          - name: ARM64_ZONE
+            valueFrom:
+              configMapKeyRef:
+                name: {{ $root.Values.cloudEnvConfigMapName | quote }}
+                key: ARM64_ZONE
+                optional: true
+          - name: ARM64_SUBNETWORK
+            valueFrom:
+              configMapKeyRef:
+                name: {{ $root.Values.cloudEnvConfigMapName | quote }}
+                key: ARM64_SUBNETWORK
+                optional: true
+{{- end }}
+          - name: ARCH
+            value: '{{ "{{" }}workflow.parameters.architecture{{ "}}" }}'
+          - name: IMAGE_FAMILY
+            value: '{{ "{{" }}workflow.parameters.imageFamily{{ "}}" }}'
+          - name: IMAGE_NAME
+            value: '{{ "{{" }}workflow.parameters.imageName{{ "}}" }}'
+          - name: MACHINE_TYPE
+            value: '{{ "{{" }}workflow.parameters.machineType{{ "}}" }}'
+          - name: ZONE_OVERRIDE
+            value: '{{ "{{" }}workflow.parameters.zone{{ "}}" }}'
+          - name: SUBNET_OVERRIDE
+            value: '{{ "{{" }}workflow.parameters.subnetwork{{ "}}" }}'
+          - name: CUTTLEFISH_VERSION
+            value: '{{ "{{" }}workflow.parameters.cuttlefishVersion{{ "}}" }}'
+          - name: DISK_SIZE_GB
+            value: '{{ "{{" }}workflow.parameters.diskSizeGb{{ "}}" }}'
+          - name: UPDATE_CCO_MAPPING
+            value: '{{ "{{" }}workflow.parameters.updateCcoMapping{{ "}}" }}'
+          - name: TARGET_MACHINE_FAMILIES
+            value: '{{ "{{" }}workflow.parameters.targetMachineFamilies{{ "}}" }}'
+          - name: SUBMITTED_BY
+            value: '{{ "{{" }}workflow.parameters.submittedBy{{ "}}" }}'
+          - name: CFCTL_SERVER
+            value: {{ $root.Values.ccoApiUrl | quote }}
+          - name: CFCTL_AUTH_NONE
+            value: "true"
+        command: ["/bin/bash", "-ceuo", "pipefail"]
+        args:
+          - |
+            PROJECT_ID="${CLOUD_PROJECT:-${DEFAULT_PROJECT_ID}}"
+            if [[ -z "${PROJECT_ID}" ]]; then
+              PROJECT_ID="$(gcloud config get-value project 2>/dev/null || true)"
+            fi
+            [[ -n "${PROJECT_ID}" ]] || { echo "ERROR: Could not resolve GCP project ID" >&2; exit 1; }
+
+            case "${ARCH}" in
+              x86_64)
+                SOURCE_IMAGE_FAMILY="debian-13"
+                IMAGE_FAMILY="${IMAGE_FAMILY:-cco-host}"
+                MACHINE_TYPE="${MACHINE_TYPE:-n2-standard-8}"
+                ZONE="${ZONE_OVERRIDE:-${CLOUD_ZONE:-${DEFAULT_ZONE}}}"
+                SUBNETWORK="${SUBNET_OVERRIDE:-${DEFAULT_SUBNETWORK}}"
+                ENABLE_VMX="true"
+                DEFAULT_FAMILIES="n1,n2,n4,c3,c4,g2"
+                ;;
+              arm64)
+                SOURCE_IMAGE_FAMILY="debian-13-arm64"
+                IMAGE_FAMILY="${IMAGE_FAMILY:-cco-host-arm64}"
+                MACHINE_TYPE="${MACHINE_TYPE:-c4a-standard-8}"
+                ZONE="${ZONE_OVERRIDE:-${ARM64_ZONE:-${DEFAULT_ARM64_ZONE:-${CLOUD_ZONE:-${DEFAULT_ZONE}}}}}"
+                SUBNETWORK="${SUBNET_OVERRIDE:-${ARM64_SUBNETWORK:-${DEFAULT_ARM64_SUBNETWORK:-${DEFAULT_SUBNETWORK}}}}"
+                ENABLE_VMX="false"
+                DEFAULT_FAMILIES="c4a"
+                ;;
+              *)
+                echo "ERROR: Unsupported architecture '${ARCH}'; expected x86_64 or arm64" >&2
+                exit 1
+                ;;
+            esac
+
+            [[ -n "${ZONE}" ]] || { echo "ERROR: Could not resolve GCE zone" >&2; exit 1; }
+            [[ -n "${SUBNETWORK}" ]] || { echo "ERROR: Could not resolve GCE subnetwork" >&2; exit 1; }
+
+            case "${MACHINE_TYPE}" in
+              c4-*|n4-*|c4a-*)
+                DISK_TYPE="hyperdisk-balanced"
+                ;;
+              *)
+                DISK_TYPE="pd-balanced"
+                ;;
+            esac
+
+            if [[ "${MACHINE_TYPE}" == *-metal ]]; then
+              ON_HOST_MAINTENANCE="TERMINATE"
+            else
+              ON_HOST_MAINTENANCE="MIGRATE"
+            fi
+
+            PACKER_INSTANCE_NAME="$(printf 'packer-%s' "${WORKFLOW_NAME}" | tr '[:upper:]_' '[:lower:]-' | cut -c1-62 | sed 's/-$//')"
+            STAMP="$(date -u +%Y%m%d-%H%M%S)"
+            if [[ -z "${IMAGE_NAME}" ]]; then
+              IMAGE_NAME="$(printf '%s-%s' "${IMAGE_FAMILY}" "${STAMP}" | tr '[:upper:]_' '[:lower:]-' | cut -c1-63 | sed 's/-$//')"
+            fi
+
+            echo "Baking image=${IMAGE_NAME} family=${IMAGE_FAMILY} source=${SOURCE_IMAGE_FAMILY} arch=${ARCH} zone=${ZONE} machine=${MACHINE_TYPE} packer_vm=${PACKER_INSTANCE_NAME}"
+
+            # Prune stale OS Login SSH keys before Packer connects over IAP to prevent 32KB profile overflow.
+            python3 - <<'PY'
+            import json
+            import subprocess
+            import time
+            import urllib.error
+            import urllib.parse
+            import urllib.request
+
+            token = subprocess.check_output(
+                ["gcloud", "auth", "print-access-token"], text=True
+            ).strip()
+            with urllib.request.urlopen(
+                f"https://oauth2.googleapis.com/tokeninfo?access_token={urllib.parse.quote(token)}"
+            ) as resp:
+                info = json.load(resp)
+            user_id = info.get("email") or info.get("sub")
+            if not user_id:
+                raise SystemExit(0)
+            enc_user = urllib.parse.quote(user_id, safe="")
+            req = urllib.request.Request(
+                f"https://oslogin.googleapis.com/v1/users/{enc_user}/loginProfile",
+                headers={"Authorization": f"Bearer {token}"},
+            )
+            try:
+                with urllib.request.urlopen(req) as resp:
+                    profile = json.load(resp)
+            except urllib.error.HTTPError as exc:
+                print(f"OS Login lookup skipped (HTTP {exc.code})")
+                raise SystemExit(0)
+            keys = profile.get("sshPublicKeys") or {}
+            now_us = int(time.time() * 1_000_000)
+            pruned = 0
+            # Delete expired keys or trim oldest keys when close to OS Login metadata capacity.
+            ordered = sorted(
+                keys.items(),
+                key=lambda item: int(item[1].get("expirationTimeUsec") or 0),
+            )
+            for idx, (fp, entry) in enumerate(ordered):
+                exp = int(entry.get("expirationTimeUsec") or 0)
+                expired = exp > 0 and exp < now_us
+                excess = len(ordered) - idx > 20
+                if not (expired or excess):
+                    continue
+                del_req = urllib.request.Request(
+                    f"https://oslogin.googleapis.com/v1/users/{enc_user}/sshPublicKeys/{urllib.parse.quote(fp, safe='')}",
+                    headers={"Authorization": f"Bearer {token}"},
+                    method="DELETE",
+                )
+                try:
+                    with urllib.request.urlopen(del_req):
+                        pruned += 1
+                except urllib.error.HTTPError:
+                    pass
+            print(f"OS Login keys checked={len(keys)} pruned={pruned}")
+            PY
+
+            WORK_DIR="$(mktemp -d /workspace/packer-XXXXXX)"
+            trap 'rm -rf "${WORK_DIR}"' EXIT
+
+            cat > "${WORK_DIR}/provision-cco-host.sh" <<'PROVISION_EOF'
+            #!/usr/bin/env bash
+            set -euo pipefail
+
+            CUTTLEFISH_VERSION="${CUTTLEFISH_VERSION:-}"
+
+            sudo apt-get update -y
+            sudo env DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+              ca-certificates curl gnupg iptables iproute2 jq kmod
+
+            sudo mkdir -p /etc/apt/keyrings
+            sudo curl -fsSL https://us-apt.pkg.dev/doc/repo-signing-key.gpg \
+              | sudo gpg --dearmor --yes -o /etc/apt/keyrings/android-cuttlefish.gpg
+            echo "deb [signed-by=/etc/apt/keyrings/android-cuttlefish.gpg] https://us-apt.pkg.dev/projects/android-cuttlefish-artifacts android-cuttlefish-nightly main" \
+              | sudo tee /etc/apt/sources.list.d/android-cuttlefish.list > /dev/null
+
+            sudo apt-get update -y
+            if [[ -n "${CUTTLEFISH_VERSION}" ]]; then
+              sudo env DEBIAN_FRONTEND=noninteractive apt-get install -y \
+                "cuttlefish-base=${CUTTLEFISH_VERSION}" \
+                "cuttlefish-user=${CUTTLEFISH_VERSION}" \
+                "cuttlefish-orchestration=${CUTTLEFISH_VERSION}"
+            else
+              sudo env DEBIAN_FRONTEND=noninteractive apt-get install -y \
+                cuttlefish-base cuttlefish-user cuttlefish-orchestration
+            fi
+
+            # Verify installed packages satisfy CCO minimum 1.58.0 requirement.
+            for pkg in cuttlefish-base cuttlefish-user cuttlefish-orchestration; do
+              ver="$(dpkg-query -W -f='${Version}' "${pkg}")"
+              echo "Installed ${pkg}=${ver}"
+              dpkg --compare-versions "${ver}" ge "1.58.0" || {
+                echo "ERROR: ${pkg} version ${ver} is below required 1.58.0" >&2
+                exit 1
+              }
+            done
+
+            # Ensure no Horizon custom_configs overrides are baked onto CCO host images.
+            if [[ -d /etc/cuttlefish/custom_configs ]]; then
+              echo "ERROR: Unexpected /etc/cuttlefish/custom_configs present on CCO host image" >&2
+              exit 1
+            fi
+
+            # Verify Host Orchestrator (:2080) and Operator (:1080) services and KVM support.
+            for svc in cuttlefish-operator cuttlefish-host_orchestrator; do
+              sudo systemctl enable "${svc}" || true
+              sudo systemctl restart "${svc}" || true
+              systemctl is-active --quiet "${svc}" || {
+                echo "ERROR: Service ${svc} is not active" >&2
+                sudo systemctl status "${svc}" --no-pager || true
+                exit 1
+              }
+            done
+
+            ss -tln | grep -qE ':1080\b' || { echo "ERROR: cuttlefish-operator not listening on :1080" >&2; ss -tln; exit 1; }
+            ss -tln | grep -qE ':2080\b' || { echo "ERROR: cuttlefish-host_orchestrator not listening on :2080" >&2; ss -tln; exit 1; }
+
+            if [[ -e /dev/kvm ]]; then
+              echo "Verified /dev/kvm is present on builder VM"
+            else
+              modinfo kvm >/dev/null 2>&1 || [[ -e /sys/module/kvm ]] || {
+                echo "ERROR: Neither /dev/kvm nor kvm kernel module found" >&2
+                exit 1
+              }
+              echo "Verified kvm kernel support (runtime /dev/kvm activates on bare-metal or enable-vmx host)"
+            fi
+
+            sudo apt-get clean
+            sudo rm -rf /var/lib/apt/lists/*
+            PROVISION_EOF
+            chmod 0755 "${WORK_DIR}/provision-cco-host.sh"
+
+            cat > "${WORK_DIR}/cco-host.pkr.hcl" <<'PACKER_EOF'
+            packer {
+              required_plugins {
+                googlecompute = {
+                  version = ">= 1.2.3, < 1.2.5"
+                  source  = "github.com/hashicorp/googlecompute"
+                }
+              }
+            }
+
+            variable "project_id" { type = string }
+            variable "zone" { type = string }
+            variable "network" { type = string }
+            variable "subnetwork" { type = string }
+            variable "source_image_family" { type = string }
+            variable "image_family" { type = string }
+            variable "image_name" { type = string }
+            variable "machine_type" { type = string }
+            variable "on_host_maintenance" { type = string }
+            variable "disk_type" { type = string }
+            variable "disk_size_gb" { type = number }
+            variable "instance_name" { type = string }
+            variable "workflow_name" { type = string }
+            variable "cuttlefish_version" { type = string }
+            variable "image_licenses" { type = list(string) }
+            variable "provision_script" { type = string }
+
+            source "googlecompute" "cco_host" {
+              project_id              = var.project_id
+              zone                    = var.zone
+              network                 = var.network
+              subnetwork              = var.subnetwork
+              source_image_family     = var.source_image_family
+              source_image_project_id = ["debian-cloud"]
+              machine_type            = var.machine_type
+              on_host_maintenance     = var.on_host_maintenance
+              disk_type               = var.disk_type
+              disk_size               = var.disk_size_gb
+              image_name              = var.image_name
+              image_family            = var.image_family
+              image_description       = "Cuttlefish Orchestrator host image (${var.source_image_family}, cuttlefish >= 1.58.0)"
+              image_licenses          = var.image_licenses
+              instance_name           = var.instance_name
+              ssh_username            = "packer"
+              omit_external_ip        = true
+              use_internal_ip         = true
+              use_iap                 = true
+              enable_nested_virtualization = length(var.image_licenses) > 0
+              labels = {
+                managed-by = "horizon-sdv"
+                component  = "cco-host-image-build"
+                workflow   = var.workflow_name
+              }
+            }
+
+            build {
+              sources = ["source.googlecompute.cco_host"]
+
+              provisioner "shell" {
+                environment_vars = [
+                  "CUTTLEFISH_VERSION=${var.cuttlefish_version}",
+                ]
+                script = var.provision_script
+              }
+            }
+            PACKER_EOF
+
+            if [[ "${ENABLE_VMX}" == "true" ]]; then
+              LICENSES_JSON='["https://www.googleapis.com/compute/v1/projects/vm-options/global/licenses/enable-vmx"]'
+            else
+              LICENSES_JSON='[]'
+            fi
+
+            jq -n \
+              --arg project_id "${PROJECT_ID}" \
+              --arg zone "${ZONE}" \
+              --arg network "${DEFAULT_NETWORK}" \
+              --arg subnetwork "${SUBNETWORK}" \
+              --arg source_image_family "${SOURCE_IMAGE_FAMILY}" \
+              --arg image_family "${IMAGE_FAMILY}" \
+              --arg image_name "${IMAGE_NAME}" \
+              --arg machine_type "${MACHINE_TYPE}" \
+              --arg on_host_maintenance "${ON_HOST_MAINTENANCE}" \
+              --arg disk_type "${DISK_TYPE}" \
+              --argjson disk_size_gb "${DISK_SIZE_GB}" \
+              --arg instance_name "${PACKER_INSTANCE_NAME}" \
+              --arg workflow_name "${WORKFLOW_NAME}" \
+              --arg cuttlefish_version "${CUTTLEFISH_VERSION}" \
+              --argjson image_licenses "${LICENSES_JSON}" \
+              --arg provision_script "${WORK_DIR}/provision-cco-host.sh" \
+              '{
+                project_id: $project_id,
+                zone: $zone,
+                network: $network,
+                subnetwork: $subnetwork,
+                source_image_family: $source_image_family,
+                image_family: $image_family,
+                image_name: $image_name,
+                machine_type: $machine_type,
+                on_host_maintenance: $on_host_maintenance,
+                disk_type: $disk_type,
+                disk_size_gb: $disk_size_gb,
+                instance_name: $instance_name,
+                workflow_name: $workflow_name,
+                cuttlefish_version: $cuttlefish_version,
+                image_licenses: $image_licenses,
+                provision_script: $provision_script
+              }' > "${WORK_DIR}/vars.auto.pkrvars.json"
+
+            packer validate -var-file="${WORK_DIR}/vars.auto.pkrvars.json" "${WORK_DIR}/cco-host.pkr.hcl"
+            packer build -color=false -var-file="${WORK_DIR}/vars.auto.pkrvars.json" "${WORK_DIR}/cco-host.pkr.hcl"
+
+            if [[ "${UPDATE_CCO_MAPPING}" == "true" ]]; then
+              export CFCTL_PROXY_EMAIL="${SUBMITTED_BY:-argo-workflow@horizon-sdv.local}"
+              FAMILIES="${TARGET_MACHINE_FAMILIES:-${DEFAULT_FAMILIES}}"
+              IFS=',' read -r -a family_arr <<< "${FAMILIES}"
+              for fam in "${family_arr[@]}"; do
+                fam="$(echo "${fam}" | xargs)"
+                [[ -n "${fam}" ]] || continue
+                cfctl admin host-image update "${fam}" \
+                  --image-family "${IMAGE_FAMILY}" \
+                  --source-project "${PROJECT_ID}" \
+                  --enabled
+              done
+            fi
+
+    - name: cleanup-orphan-packer
+      container:
+        image: {{ $root.Values.workflowImage | quote }}
+        imagePullPolicy: IfNotPresent
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+              - ALL
+        resources:
+          requests:
+            cpu: "100m"
+            memory: "256Mi"
+          limits:
+            cpu: "500m"
+            memory: "512Mi"
+        env:
+          - name: WORKFLOW_NAME
+            value: '{{ "{{" }}workflow.name{{ "}}" }}'
+          - name: DEFAULT_PROJECT_ID
+            value: {{ $root.Values.hostImageProject | default $root.Values.projectId | quote }}
+          - name: ARCH
+            value: '{{ "{{" }}workflow.parameters.architecture{{ "}}" }}'
+          - name: ZONE_OVERRIDE
+            value: '{{ "{{" }}workflow.parameters.zone{{ "}}" }}'
+          - name: DEFAULT_ZONE
+            value: {{ $root.Values.zone | quote }}
+          - name: DEFAULT_ARM64_ZONE
+            value: {{ $root.Values.arm64Zone | quote }}
+{{- if $root.Values.cloudEnvConfigMapName }}
+          - name: CLOUD_PROJECT
+            valueFrom:
+              configMapKeyRef:
+                name: {{ $root.Values.cloudEnvConfigMapName | quote }}
+                key: CLOUD_PROJECT
+                optional: true
+          - name: CLOUD_ZONE
+            valueFrom:
+              configMapKeyRef:
+                name: {{ $root.Values.cloudEnvConfigMapName | quote }}
+                key: CLOUD_ZONE
+                optional: true
+          - name: ARM64_ZONE
+            valueFrom:
+              configMapKeyRef:
+                name: {{ $root.Values.cloudEnvConfigMapName | quote }}
+                key: ARM64_ZONE
+                optional: true
+{{- end }}
+        command: ["/bin/bash", "-ceuo", "pipefail"]
+        args:
+          - |
+            PROJECT_ID="${CLOUD_PROJECT:-${DEFAULT_PROJECT_ID}}"
+            if [[ -z "${PROJECT_ID}" ]]; then
+              PROJECT_ID="$(gcloud config get-value project 2>/dev/null || true)"
+            fi
+            [[ -n "${PROJECT_ID}" ]] || exit 0
+            if [[ "${ARCH}" == "arm64" ]]; then
+              ZONE="${ZONE_OVERRIDE:-${ARM64_ZONE:-${DEFAULT_ARM64_ZONE:-${CLOUD_ZONE:-${DEFAULT_ZONE}}}}}"
+            else
+              ZONE="${ZONE_OVERRIDE:-${CLOUD_ZONE:-${DEFAULT_ZONE}}}"
+            fi
+            [[ -n "${ZONE}" ]] || exit 0
+
+            PACKER_INSTANCE_NAME="$(printf 'packer-%s' "${WORKFLOW_NAME}" | tr '[:upper:]_' '[:lower:]-' | cut -c1-62 | sed 's/-$//')"
+            if gcloud compute instances describe "${PACKER_INSTANCE_NAME}" --project="${PROJECT_ID}" --zone="${ZONE}" >/dev/null 2>&1; then
+              echo "Cleaning up orphan Packer instance ${PACKER_INSTANCE_NAME} in ${ZONE}"
+              gcloud compute instances delete "${PACKER_INSTANCE_NAME}" --project="${PROJECT_ID}" --zone="${ZONE}" --quiet || true
+            fi
+            ORPHAN_DISKS="$(gcloud compute disks list --project="${PROJECT_ID}" --zones="${ZONE}" --filter="name=${PACKER_INSTANCE_NAME} AND -users:*" --format="value(name)" 2>/dev/null || true)"
+            for d in ${ORPHAN_DISKS}; do
+              echo "Cleaning up orphan Packer disk ${d} in ${ZONE}"
+              gcloud compute disks delete "${d}" --project="${PROJECT_ID}" --zone="${ZONE}" --quiet || true
+            done

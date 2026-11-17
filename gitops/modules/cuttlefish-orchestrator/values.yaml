@@ -76,6 +76,7 @@ config:
   containerImages:
     cuttlefishOrchestratorApi: example/cuttlefish-orchestrator-api:latest
     cuttlefishConsole: example/cuttlefish-console:latest
+    cuttlefishWorkflow: example/cuttlefish-workflow:latest
   nginx:
     image: nginx
-    tag: "1.27-alpine"
+    tag: "1.31.2-alpine3.23"

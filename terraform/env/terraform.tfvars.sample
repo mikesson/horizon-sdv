@@ -166,6 +166,11 @@ arm64_services_secondary_range_name   = "services-range-us"
 # arm64_pods_secondary_range_name       = "pods-range-arm64"      # optional; same as Terraform default
 # arm64_services_secondary_range_name   = "services-range-arm64"  # optional; same as Terraform default
 
+# Optional: Additional private CIDR ranges allowed to reach Cuttlefish Orchestrator host VM
+# WebRTC media ports (TCP/UDP 15550-15599). Cluster pods, primary subnet, and ARM64 subnet
+# CIDRs are permitted automatically.
+# cco_webrtc_client_cidrs = []
+
 # ========================================
 # GKE cluster
 # ========================================

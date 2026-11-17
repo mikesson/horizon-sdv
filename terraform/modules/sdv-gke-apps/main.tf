@@ -553,6 +553,7 @@ resource "kubectl_manifest" "argocd_application" {
                 horizonApi: ${var.gcp_cloud_region}-docker.pkg.dev/${var.gcp_project_id}/${var.gcp_registry_id}/horizon-api-app:${var.images["horizon-api-app"].version}
                 cuttlefishOrchestratorApi: ${var.gcp_cloud_region}-docker.pkg.dev/${var.gcp_project_id}/${var.gcp_registry_id}/cuttlefish-orchestrator-api:${var.images["cuttlefish-orchestrator-api"].version}
                 cuttlefishConsole: ${var.gcp_cloud_region}-docker.pkg.dev/${var.gcp_project_id}/${var.gcp_registry_id}/cuttlefish-console:${var.images["cuttlefish-console"].version}
+                cuttlefishWorkflow: ${var.gcp_cloud_region}-docker.pkg.dev/${var.gcp_project_id}/${var.gcp_registry_id}/cuttlefish-workflow:${var.images["cuttlefish-workflow"].version}
               apps:
                 kccWebhookCertMonitor: ${var.gcp_cloud_region}-docker.pkg.dev/${var.gcp_project_id}/${var.gcp_registry_id}/kcc-webhook-cert-monitor:${var.images["kcc-webhook-cert-monitor"].version}
                 horizonPortal: ${var.gcp_cloud_region}-docker.pkg.dev/${var.gcp_project_id}/${var.gcp_registry_id}/horizon-dev-portal:${var.images["horizon-dev-portal"].version}

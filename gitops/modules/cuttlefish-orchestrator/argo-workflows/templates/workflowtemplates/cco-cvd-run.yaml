@@ -1,0 +1,442 @@
+# Copyright 2026 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+{{- $root := . }}
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: cco-cvd-run
+  namespace: {{ $root.Values.workflowNamespace | quote }}
+  labels:
+    app.kubernetes.io/name: cco-cvd-run
+    horizon-sdv.io/expose: "true"
+    horizon-sdv.io/module: {{ $root.Values.moduleName | quote }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "8"
+spec:
+  entrypoint: main
+  onExit: cleanup-device
+  archiveLogs: true
+  serviceAccountName: {{ $root.Values.serviceAccountWorkflow | quote }}
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+    runAsGroup: 1000
+    fsGroup: 1000
+    seccompProfile:
+      type: RuntimeDefault
+{{- if $root.Values.podGcStrategy }}
+  podGC:
+    strategy: {{ $root.Values.podGcStrategy | quote }}
+{{- end }}
+{{- if $root.Values.workflowTtlSecondsAfterCompletion }}
+  ttlStrategy:
+    secondsAfterCompletion: {{ $root.Values.workflowTtlSecondsAfterCompletion }}
+{{- end }}
+  workflowMetadata:
+    annotations:
+      workflows.argoproj.io/title: "CCO CVD Run"
+      workflows.argoproj.io/description: "Provisions a Cuttlefish virtual device through CCO, verifies Android boot via cfctl ADB bridge, captures bugreport to GCS, and cleans up on exit."
+  arguments:
+    parameters:
+      - name: horizonSubmittedFrom
+        value: ""
+        description: "Opaque provenance label (e.g. portal id); stored on workflow labels."
+      - name: submittedBy
+        value: ""
+        description: "Submitter email passed as CFCTL_PROXY_EMAIL to CCO."
+      - name: deviceName
+        value: ""
+        description: "Optional explicit device name (defaults to deterministic workflow name)."
+      - name: architecture
+        value: "x86"
+        enum:
+          - x86
+          - arm
+        description: "Target Cuttlefish guest architecture (x86 or arm)."
+      - name: pool
+        value: ""
+        description: "Optional CCO host pool override (e.g. default, gpu, arm)."
+      - name: interaction
+        value: "headless"
+        enum:
+          - headless
+          - interactive
+        description: "Device placement interaction mode."
+      - name: gpuMode
+        value: "auto"
+        enum:
+          - auto
+          - swiftshader
+          - gfxstream
+          - drm_virgl
+        description: "GPU rendering mode."
+      - name: capacity
+        value: "auto"
+        enum:
+          - auto
+          - spot
+          - standard
+        description: "Auto-provisioned host capacity model."
+      - name: instances
+        value: "1"
+        description: "Number of Cuttlefish instances in the device group (1-8)."
+      - name: buildId
+        value: ""
+        description: "Optional CCO build UUID or Android CI build ID."
+      - name: buildTarget
+        value: "aosp_cf_x86_64_only_phone-userdebug"
+        description: "Android build target for Android CI or tracked builds."
+      - name: buildBranch
+        value: ""
+        description: "Optional AOSP branch to track latest build when buildId and artifact URLs are omitted."
+      - name: defaultBuildUrl
+        value: ""
+        description: "Optional gs:// or https:// URL to *-img-*.zip for URL-based build registration."
+      - name: hostPackageUrl
+        value: ""
+        description: "Optional gs:// or https:// URL to cvd-host_package.tar.gz for URL-based build registration."
+      - name: adbShellCommand
+        value: "getprop ro.build.fingerprint"
+        description: "Optional ADB shell command to run after sys.boot_completed=1."
+      - name: bootTimeoutSeconds
+        value: "600"
+        description: "Timeout in seconds waiting for device running status and Android boot."
+      - name: keepDevice
+        value: "false"
+        enum:
+          - "false"
+          - "true"
+        description: "When true, retain the CCO device after workflow exit instead of deleting it."
+      - name: bugreportDestination
+        value: {{ if $root.Values.artifactsBucket }}{{ printf "gs://%s/workflows/cvd-runs" $root.Values.artifactsBucket | quote }}{{ else }}""{{ end }}
+        description: "Optional gs:// prefix where the captured bugreport archive is copied."
+  templates:
+    - name: main
+      steps:
+        - - name: run-cvd
+            template: run-cvd
+    - name: run-cvd
+      container:
+        image: {{ $root.Values.workflowImage | quote }}
+        imagePullPolicy: IfNotPresent
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+              - ALL
+        resources:
+          requests:
+            cpu: "1"
+            memory: "2Gi"
+          limits:
+            cpu: "2"
+            memory: "4Gi"
+        volumeMounts:
+          - name: workspace
+            mountPath: /workspace
+        env:
+          - name: HOME
+            value: /workspace
+          - name: WORKFLOW_NAME
+            value: '{{ "{{" }}workflow.name{{ "}}" }}'
+          - name: CCO_SERVER_URL
+            value: {{ $root.Values.ccoApiUrl | quote }}
+          - name: CFCTL_SERVER
+            value: {{ $root.Values.ccoApiUrl | quote }}
+          - name: CFCTL_AUTH_NONE
+            value: "true"
+          - name: SUBMITTED_BY
+            value: '{{ "{{" }}workflow.parameters.submittedBy{{ "}}" }}'
+          - name: DEVICE_NAME_PARAM
+            value: '{{ "{{" }}workflow.parameters.deviceName{{ "}}" }}'
+          - name: ARCHITECTURE
+            value: '{{ "{{" }}workflow.parameters.architecture{{ "}}" }}'
+          - name: POOL
+            value: '{{ "{{" }}workflow.parameters.pool{{ "}}" }}'
+          - name: INTERACTION
+            value: '{{ "{{" }}workflow.parameters.interaction{{ "}}" }}'
+          - name: GPU_MODE
+            value: '{{ "{{" }}workflow.parameters.gpuMode{{ "}}" }}'
+          - name: CAPACITY
+            value: '{{ "{{" }}workflow.parameters.capacity{{ "}}" }}'
+          - name: INSTANCES
+            value: '{{ "{{" }}workflow.parameters.instances{{ "}}" }}'
+          - name: BUILD_ID
+            value: '{{ "{{" }}workflow.parameters.buildId{{ "}}" }}'
+          - name: BUILD_TARGET
+            value: '{{ "{{" }}workflow.parameters.buildTarget{{ "}}" }}'
+          - name: BUILD_BRANCH
+            value: '{{ "{{" }}workflow.parameters.buildBranch{{ "}}" }}'
+          - name: DEFAULT_BUILD_URL
+            value: '{{ "{{" }}workflow.parameters.defaultBuildUrl{{ "}}" }}'
+          - name: HOST_PACKAGE_URL
+            value: '{{ "{{" }}workflow.parameters.hostPackageUrl{{ "}}" }}'
+          - name: ADB_SHELL_COMMAND
+            value: '{{ "{{" }}workflow.parameters.adbShellCommand{{ "}}" }}'
+          - name: BOOT_TIMEOUT_SECONDS
+            value: '{{ "{{" }}workflow.parameters.bootTimeoutSeconds{{ "}}" }}'
+          - name: BUGREPORT_DESTINATION
+            value: '{{ "{{" }}workflow.parameters.bugreportDestination{{ "}}" }}'
+        command: ["/bin/bash", "-ceuo", "pipefail"]
+        args:
+          - |
+            PROXY_EMAIL="${SUBMITTED_BY:-argo-workflow@horizon-sdv.local}"
+            export CFCTL_PROXY_EMAIL="${PROXY_EMAIL}"
+
+            if [[ -n "${DEVICE_NAME_PARAM}" ]]; then
+              DEVICE_NAME="${DEVICE_NAME_PARAM}"
+            else
+              DEVICE_NAME="$(printf 'cvd-%s' "${WORKFLOW_NAME}" | tr '[:upper:]_' '[:lower:]-' | cut -c1-63 | sed 's/-$//')"
+            fi
+
+            REGISTERED_BUILD_ID=""
+            if [[ -n "${DEFAULT_BUILD_URL}" && -n "${HOST_PACKAGE_URL}" ]]; then
+              url_type() {
+                if [[ "$1" == gs://* ]]; then echo "gcs"; else echo "https"; fi
+              }
+              BUILD_PAYLOAD="$(jq -n \
+                --arg name "wf-${DEVICE_NAME}" \
+                --arg target "${BUILD_TARGET}" \
+                --arg default_url "${DEFAULT_BUILD_URL}" \
+                --arg default_type "$(url_type "${DEFAULT_BUILD_URL}")" \
+                --arg host_url "${HOST_PACKAGE_URL}" \
+                --arg host_type "$(url_type "${HOST_PACKAGE_URL}")" \
+                '{
+                  name: $name,
+                  source: "url",
+                  target: $target,
+                  artifact_specs: [
+                    { type: $default_type, role: "default_build", url: $default_url },
+                    { type: $host_type, role: "host_package", url: $host_url }
+                  ]
+                }')"
+              BUILD_RESP="$(curl -fsS -X POST "${CCO_SERVER_URL}/v2/builds" \
+                -H "X-Auth-Request-Email: ${PROXY_EMAIL}" \
+                -H "Content-Type: application/json" \
+                -d "${BUILD_PAYLOAD}")"
+              REGISTERED_BUILD_ID="$(printf '%s' "${BUILD_RESP}" | jq -er '.id')"
+              echo "Registered URL build id=${REGISTERED_BUILD_ID}"
+            elif [[ -n "${BUILD_ID}" ]]; then
+              if [[ "${BUILD_ID}" =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]]; then
+                REGISTERED_BUILD_ID="${BUILD_ID}"
+              else
+                [[ -n "${BUILD_TARGET}" ]] || { echo "ERROR: buildTarget is required when buildId is an Android CI build ID" >&2; exit 1; }
+                BUILD_PAYLOAD="$(jq -n \
+                  --arg name "ci-${BUILD_ID}-${BUILD_TARGET}" \
+                  --arg build_id "${BUILD_ID}" \
+                  --arg target "${BUILD_TARGET}" \
+                  --arg branch "${BUILD_BRANCH}" \
+                  '{
+                    name: $name,
+                    source: "android_build",
+                    build_id: $build_id,
+                    target: $target
+                  } + (if $branch != "" then {branch: $branch} else {} end)')"
+                BUILD_RESP="$(curl -fsS -X POST "${CCO_SERVER_URL}/v2/builds" \
+                  -H "X-Auth-Request-Email: ${PROXY_EMAIL}" \
+                  -H "Content-Type: application/json" \
+                  -d "${BUILD_PAYLOAD}")"
+                REGISTERED_BUILD_ID="$(printf '%s' "${BUILD_RESP}" | jq -er '.id')"
+                echo "Registered Android CI build id=${REGISTERED_BUILD_ID}"
+              fi
+            fi
+
+            if (( INSTANCES < 1 || INSTANCES > 8 )); then
+              echo "ERROR: instances must be between 1 and 8 (got ${INSTANCES})" >&2
+              exit 1
+            fi
+
+            DEVICE_PAYLOAD="$(jq -n \
+              --arg name "${DEVICE_NAME}" \
+              --arg gpu_mode "${GPU_MODE}" \
+              --arg interaction "${INTERACTION}" \
+              --arg capacity "${CAPACITY}" \
+              --arg pool "${POOL}" \
+              --arg arch "${ARCHITECTURE}" \
+              --arg reg_build "${REGISTERED_BUILD_ID}" \
+              --arg branch "${BUILD_BRANCH}" \
+              --arg target "${BUILD_TARGET}" \
+              --argjson instances "${INSTANCES}" \
+              '
+              {
+                name: $name,
+                gpu_mode: $gpu_mode,
+                requirements: (
+                  {
+                    interaction: $interaction,
+                    capacity: $capacity
+                  }
+                  + (if $pool != "" then {pool: $pool} else {} end)
+                  + (if $arch != "" then {architecture: $arch} else {} end)
+                  + (
+                    if $reg_build != "" then {build: {registered: $reg_build}}
+                    elif ($branch != "" and $target != "") then {build: {track: {branch: $branch, target: $target}}}
+                    else {} end
+                  )
+                )
+              }
+              + (
+                if $instances > 1 then {
+                  mode: "advanced",
+                  advanced_config: {
+                    env_config: {
+                      instances: [range(0; $instances) | {vm: {cpus: 8, memory_mb: 8192, setupwizard_mode: "DISABLED"}}]
+                    }
+                  }
+                } else {mode: "simple"} end
+              )')"
+
+            DEVICE_RESP="$(curl -fsS -X POST "${CCO_SERVER_URL}/v2/devices" \
+              -H "X-Auth-Request-Email: ${PROXY_EMAIL}" \
+              -H "Content-Type: application/json" \
+              -d "${DEVICE_PAYLOAD}")"
+            DEVICE_ID="$(printf '%s' "${DEVICE_RESP}" | jq -er '.id')"
+            echo "Created CCO device name=${DEVICE_NAME} id=${DEVICE_ID}"
+
+            DEADLINE=$(( $(date +%s) + BOOT_TIMEOUT_SECONDS ))
+            while true; do
+              STATUS_JSON="$(curl -fsS "${CCO_SERVER_URL}/v2/devices/${DEVICE_ID}" \
+                -H "X-Auth-Request-Email: ${PROXY_EMAIL}")"
+              STATE="$(printf '%s' "${STATUS_JSON}" | jq -r '.status')"
+              echo "Device ${DEVICE_ID} status=${STATE}"
+              case "${STATE}" in
+                running)
+                  break
+                  ;;
+                error|deleted)
+                  ERR_MSG="$(printf '%s' "${STATUS_JSON}" | jq -r '.error_message // ""')"
+                  echo "ERROR: Device entered terminal/error state=${STATE}: ${ERR_MSG}" >&2
+                  exit 1
+                  ;;
+              esac
+              if (( $(date +%s) >= DEADLINE )); then
+                echo "ERROR: Timed out waiting for device ${DEVICE_ID} to reach running status" >&2
+                exit 1
+              fi
+              sleep 10
+            done
+
+            cleanup_adb() {
+              cfctl device disconnect "${DEVICE_ID}" >/dev/null 2>&1 || true
+            }
+            trap cleanup_adb EXIT
+
+            cfctl device connect "${DEVICE_ID}" --background --all-instances --wait-online 120s
+
+            SERIALS="$(adb devices | awk 'NR>1 && $2=="device" {print $1}')"
+            [[ -n "${SERIALS}" ]] || { echo "ERROR: No online ADB serials found after cfctl device connect" >&2; exit 1; }
+
+            for serial in ${SERIALS}; do
+              echo "Waiting for sys.boot_completed=1 on ${serial}"
+              boot_ok="0"
+              while (( $(date +%s) < DEADLINE )); do
+                boot_val="$(adb -s "${serial}" shell getprop sys.boot_completed 2>/dev/null | tr -d '\r' || true)"
+                if [[ "${boot_val}" == "1" ]]; then
+                  boot_ok="1"
+                  break
+                fi
+                sleep 5
+              done
+              if [[ "${boot_ok}" != "1" ]]; then
+                echo "ERROR: Timed out waiting for sys.boot_completed=1 on ${serial}" >&2
+                exit 1
+              fi
+              echo "Verified sys.boot_completed=1 on ${serial}"
+              if [[ -n "${ADB_SHELL_COMMAND}" ]]; then
+                adb -s "${serial}" shell "${ADB_SHELL_COMMAND}"
+              fi
+            done
+
+            BUGREPORT_JSON="$(curl -fsS -X POST "${CCO_SERVER_URL}/v2/devices/${DEVICE_ID}/bugreport" \
+              -H "X-Auth-Request-Email: ${PROXY_EMAIL}" \
+              -H "Content-Type: application/json" \
+              -d '{"include_adb": true}')"
+            echo "Bugreport captured: ${BUGREPORT_JSON}"
+            BUGREPORT_GS_URI="$(printf '%s' "${BUGREPORT_JSON}" | jq -r '.gs_uri // ""')"
+            BUGREPORT_DOWNLOAD_PATH="$(printf '%s' "${BUGREPORT_JSON}" | jq -r '.download_path // ""')"
+
+            mkdir -p /workspace/artifacts
+            printf '%s\n' "${BUGREPORT_JSON}" > /workspace/artifacts/bugreport.json
+            if [[ -n "${BUGREPORT_DESTINATION}" ]]; then
+              DEST_OBJECT="${BUGREPORT_DESTINATION%/}/${WORKFLOW_NAME}/bugreport.zip"
+              if [[ -n "${BUGREPORT_GS_URI}" ]]; then
+                gcloud storage cp "${BUGREPORT_GS_URI}" "${DEST_OBJECT}"
+              elif [[ -n "${BUGREPORT_DOWNLOAD_PATH}" ]]; then
+                curl -fsS "${CCO_SERVER_URL}${BUGREPORT_DOWNLOAD_PATH}" \
+                  -H "X-Auth-Request-Email: ${PROXY_EMAIL}" \
+                  -o /workspace/artifacts/bugreport.zip
+                gcloud storage cp /workspace/artifacts/bugreport.zip "${DEST_OBJECT}"
+              fi
+              echo "Uploaded bugreport to ${DEST_OBJECT}"
+            fi
+      volumes:
+        - name: workspace
+          emptyDir:
+            sizeLimit: "4Gi"
+      outputs:
+        artifacts:
+          - name: cvd-run-artifacts
+            path: /workspace/artifacts
+            optional: true
+
+    - name: cleanup-device
+      container:
+        image: {{ $root.Values.workflowImage | quote }}
+        imagePullPolicy: IfNotPresent
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+              - ALL
+        resources:
+          requests:
+            cpu: "100m"
+            memory: "256Mi"
+          limits:
+            cpu: "500m"
+            memory: "512Mi"
+        env:
+          - name: WORKFLOW_NAME
+            value: '{{ "{{" }}workflow.name{{ "}}" }}'
+          - name: CCO_SERVER_URL
+            value: {{ $root.Values.ccoApiUrl | quote }}
+          - name: SUBMITTED_BY
+            value: '{{ "{{" }}workflow.parameters.submittedBy{{ "}}" }}'
+          - name: DEVICE_NAME_PARAM
+            value: '{{ "{{" }}workflow.parameters.deviceName{{ "}}" }}'
+          - name: KEEP_DEVICE
+            value: '{{ "{{" }}workflow.parameters.keepDevice{{ "}}" }}'
+        command: ["/bin/bash", "-ceuo", "pipefail"]
+        args:
+          - |
+            if [[ "${KEEP_DEVICE}" == "true" ]]; then
+              echo "keepDevice=true; retaining CCO device for inspection"
+              exit 0
+            fi
+            PROXY_EMAIL="${SUBMITTED_BY:-argo-workflow@horizon-sdv.local}"
+            if [[ -n "${DEVICE_NAME_PARAM}" ]]; then
+              DEVICE_NAME="${DEVICE_NAME_PARAM}"
+            else
+              DEVICE_NAME="$(printf 'cvd-%s' "${WORKFLOW_NAME}" | tr '[:upper:]_' '[:lower:]-' | cut -c1-63 | sed 's/-$//')"
+            fi
+            DEVICES_JSON="$(curl -fsS --get "${CCO_SERVER_URL}/v2/devices" \
+              --data-urlencode "name=${DEVICE_NAME}" \
+              -H "X-Auth-Request-Email: ${PROXY_EMAIL}" || echo '{"items":[]}')"
+            DEVICE_IDS="$(printf '%s' "${DEVICES_JSON}" | jq -r '.items[]?.id // empty')"
+            for did in ${DEVICE_IDS}; do
+              echo "Deleting CCO device id=${did} name=${DEVICE_NAME}"
+              curl -fsS -X DELETE "${CCO_SERVER_URL}/v2/devices/${did}" \
+                -H "X-Auth-Request-Email: ${PROXY_EMAIL}" || true
+            done

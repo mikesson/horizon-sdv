@@ -49,6 +49,8 @@ Same ephemeral GCE driver as CVD Launcher (**`cvd_argo_gce_ephemeral.sh`**, **`C
 
 **Gemini:** When **`enableGeminiAiAssistant`** is true and not list-only, **`prepare-gemini-cts`** → **`gemini-review`** (**`run_ai_review.sh`**, preset **`cts`**); uploads via **`hooks/review-post-cts.sh`**. **`geminiAnalyseOnSuccess`** gates success-path review. MTK connect failure skips Gemini (Jenkins parity).
 
+> **Companion CCO Workflow:** When the optional **`cuttlefish-orchestrator`** module is enabled, **`cco-cts-run`** provides an additive Argo Workflow that runs sharded `cts-tradefed` against 1-8 CCO-managed virtual devices (`cfctl device connect`) and archives `invocation_summary.txt`, `test_result.xml`, `test_result_failures_suite.html`, and bug reports to GCS without modifying `workloads-android`. See [`gitops/modules/cuttlefish-orchestrator/README.md`](../../../../gitops/modules/cuttlefish-orchestrator/README.md).
+
 ### CTS vs CVD Launcher (scope) <a name="cts-vs-cvd-launcher-scope"></a>
 
 This job is the **CTS Execution** pipeline: it runs **Tradefed** against Cuttlefish virtual devices and publishes **Compatibility Test Suite** results (XML/HTML under `android-cts-results/` and `android-cts-results-html/`). When **Gemini AI Review** is enabled on a failed build, it uses **`preset: 'cts'`** and sequenced prompts that **prioritize failed tests from Tradefed** when suite artifacts exist, and **still analyze guest `kernel.log` and other CVD logs** for boot and bring-up issues (including when **devices never became healthy** and Tradefed left no usable summary—see [Gemini prompts and artifacts](#gemini-prompts-and-artifacts)). See `prompt/sequenced/README_SKILLS.md`.

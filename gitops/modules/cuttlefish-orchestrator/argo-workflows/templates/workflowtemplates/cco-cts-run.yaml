@@ -1,0 +1,506 @@
+# Copyright 2026 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+{{- $root := . }}
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: cco-cts-run
+  namespace: {{ $root.Values.workflowNamespace | quote }}
+  labels:
+    app.kubernetes.io/name: cco-cts-run
+    horizon-sdv.io/expose: "true"
+    horizon-sdv.io/module: {{ $root.Values.moduleName | quote }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "8"
+spec:
+  entrypoint: main
+  onExit: cleanup-device
+  archiveLogs: true
+  serviceAccountName: {{ $root.Values.serviceAccountWorkflow | quote }}
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+    runAsGroup: 1000
+    fsGroup: 1000
+    seccompProfile:
+      type: RuntimeDefault
+{{- if $root.Values.podGcStrategy }}
+  podGC:
+    strategy: {{ $root.Values.podGcStrategy | quote }}
+{{- end }}
+{{- if $root.Values.workflowTtlSecondsAfterCompletion }}
+  ttlStrategy:
+    secondsAfterCompletion: {{ $root.Values.workflowTtlSecondsAfterCompletion }}
+{{- end }}
+  workflowMetadata:
+    annotations:
+      workflows.argoproj.io/title: "CCO CTS Run"
+      workflows.argoproj.io/description: "Runs multi-shard Android CTS via cts-tradefed against a CCO Cuttlefish device group connected over cfctl ADB, uploads results/bugreport to GCS, and fails if FAILED > 0."
+  arguments:
+    parameters:
+      - name: horizonSubmittedFrom
+        value: ""
+        description: "Opaque provenance label (e.g. portal id); stored on workflow labels."
+      - name: submittedBy
+        value: ""
+        description: "Submitter email passed as CFCTL_PROXY_EMAIL to CCO."
+      - name: deviceName
+        value: ""
+        description: "Optional explicit device name (defaults to deterministic workflow name)."
+      - name: architecture
+        value: "x86"
+        enum:
+          - x86
+          - arm
+        description: "Target Cuttlefish guest architecture (x86 or arm)."
+      - name: pool
+        value: ""
+        description: "Optional CCO host pool override (e.g. default, gpu, arm)."
+      - name: capacity
+        value: "auto"
+        enum:
+          - auto
+          - spot
+          - standard
+        description: "Auto-provisioned host capacity model."
+      - name: gpuMode
+        value: "swiftshader"
+        enum:
+          - auto
+          - swiftshader
+          - gfxstream
+          - drm_virgl
+        description: "GPU rendering mode."
+      - name: shardCount
+        value: "4"
+        description: "Number of Cuttlefish instances and CTS Tradefed shards (1-8)."
+      - name: buildId
+        value: ""
+        description: "Optional CCO build UUID or Android CI build ID."
+      - name: buildTarget
+        value: "aosp_cf_x86_64_only_phone-userdebug"
+        description: "Android build target for Android CI or tracked builds."
+      - name: buildBranch
+        value: ""
+        description: "Optional AOSP branch to track latest build when buildId and artifact URLs are omitted."
+      - name: defaultBuildUrl
+        value: ""
+        description: "Optional gs:// or https:// URL to *-img-*.zip for URL-based build registration."
+      - name: hostPackageUrl
+        value: ""
+        description: "Optional gs:// or https:// URL to cvd-host_package.tar.gz for URL-based build registration."
+      - name: ctsDownloadUrl
+        value: "https://dl.google.com/dl/android/cts/android-cts-15_r8-linux_x86-x86.zip"
+        description: "gs:// or https:// URL for the Android CTS zip archive."
+      - name: ctsTestplan
+        value: "cts-system-virtual"
+        description: "CTS test plan passed to cts-tradefed."
+      - name: ctsModule
+        value: ""
+        description: "Optional CTS module filter."
+      - name: ctsRetryStrategy
+        value: "RETRY_ANY_FAILURE"
+        description: "Tradefed retry strategy."
+      - name: ctsMaxTestcaseRunCount
+        value: "2"
+        description: "Maximum attempts per testcase."
+      - name: ctsTimeoutMinutes
+        value: "600"
+        description: "CTS execution timeout in minutes."
+      - name: keepDevice
+        value: "false"
+        enum:
+          - "false"
+          - "true"
+        description: "When true, retain the CCO device after workflow exit instead of deleting it."
+      - name: resultsDestination
+        value: {{ if $root.Values.aaosBucket }}{{ printf "gs://%s/Android/Tests/CCO_CTS_Workflows" $root.Values.aaosBucket | quote }}{{ else if $root.Values.artifactsBucket }}{{ printf "gs://%s/workflows/cts-results" $root.Values.artifactsBucket | quote }}{{ else }}""{{ end }}
+        description: "Optional gs:// prefix for archiving CTS XML, HTML, invocation_summary.txt, and bugreport."
+  templates:
+    - name: main
+      steps:
+        - - name: run-cts
+            template: run-cts
+    - name: run-cts
+      container:
+        image: {{ $root.Values.workflowImage | quote }}
+        imagePullPolicy: IfNotPresent
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+              - ALL
+        resources:
+          requests:
+            cpu: "4"
+            memory: "12Gi"
+          limits:
+            cpu: "8"
+            memory: "24Gi"
+        volumeMounts:
+          - name: workspace
+            mountPath: /workspace
+        env:
+          - name: HOME
+            value: /workspace
+          - name: WORKFLOW_NAME
+            value: '{{ "{{" }}workflow.name{{ "}}" }}'
+          - name: CCO_SERVER_URL
+            value: {{ $root.Values.ccoApiUrl | quote }}
+          - name: CFCTL_SERVER
+            value: {{ $root.Values.ccoApiUrl | quote }}
+          - name: CFCTL_AUTH_NONE
+            value: "true"
+          - name: SUBMITTED_BY
+            value: '{{ "{{" }}workflow.parameters.submittedBy{{ "}}" }}'
+          - name: DEVICE_NAME_PARAM
+            value: '{{ "{{" }}workflow.parameters.deviceName{{ "}}" }}'
+          - name: ARCHITECTURE
+            value: '{{ "{{" }}workflow.parameters.architecture{{ "}}" }}'
+          - name: POOL
+            value: '{{ "{{" }}workflow.parameters.pool{{ "}}" }}'
+          - name: CAPACITY
+            value: '{{ "{{" }}workflow.parameters.capacity{{ "}}" }}'
+          - name: GPU_MODE
+            value: '{{ "{{" }}workflow.parameters.gpuMode{{ "}}" }}'
+          - name: SHARD_COUNT
+            value: '{{ "{{" }}workflow.parameters.shardCount{{ "}}" }}'
+          - name: BUILD_ID
+            value: '{{ "{{" }}workflow.parameters.buildId{{ "}}" }}'
+          - name: BUILD_TARGET
+            value: '{{ "{{" }}workflow.parameters.buildTarget{{ "}}" }}'
+          - name: BUILD_BRANCH
+            value: '{{ "{{" }}workflow.parameters.buildBranch{{ "}}" }}'
+          - name: DEFAULT_BUILD_URL
+            value: '{{ "{{" }}workflow.parameters.defaultBuildUrl{{ "}}" }}'
+          - name: HOST_PACKAGE_URL
+            value: '{{ "{{" }}workflow.parameters.hostPackageUrl{{ "}}" }}'
+          - name: CTS_DOWNLOAD_URL
+            value: '{{ "{{" }}workflow.parameters.ctsDownloadUrl{{ "}}" }}'
+          - name: CTS_TESTPLAN
+            value: '{{ "{{" }}workflow.parameters.ctsTestplan{{ "}}" }}'
+          - name: CTS_MODULE
+            value: '{{ "{{" }}workflow.parameters.ctsModule{{ "}}" }}'
+          - name: CTS_RETRY_STRATEGY
+            value: '{{ "{{" }}workflow.parameters.ctsRetryStrategy{{ "}}" }}'
+          - name: CTS_MAX_TESTCASE_RUN_COUNT
+            value: '{{ "{{" }}workflow.parameters.ctsMaxTestcaseRunCount{{ "}}" }}'
+          - name: CTS_TIMEOUT_MINUTES
+            value: '{{ "{{" }}workflow.parameters.ctsTimeoutMinutes{{ "}}" }}'
+          - name: RESULTS_DESTINATION
+            value: '{{ "{{" }}workflow.parameters.resultsDestination{{ "}}" }}'
+        command: ["/bin/bash", "-ceuo", "pipefail"]
+        args:
+          - |
+            PROXY_EMAIL="${SUBMITTED_BY:-argo-workflow@horizon-sdv.local}"
+            export CFCTL_PROXY_EMAIL="${PROXY_EMAIL}"
+
+            if (( SHARD_COUNT < 1 || SHARD_COUNT > 8 )); then
+              echo "ERROR: shardCount must be between 1 and 8 (got ${SHARD_COUNT})" >&2
+              exit 1
+            fi
+            [[ -n "${CTS_DOWNLOAD_URL}" ]] || { echo "ERROR: ctsDownloadUrl is required" >&2; exit 1; }
+
+            if [[ -n "${DEVICE_NAME_PARAM}" ]]; then
+              DEVICE_NAME="${DEVICE_NAME_PARAM}"
+            else
+              DEVICE_NAME="$(printf 'cts-%s' "${WORKFLOW_NAME}" | tr '[:upper:]_' '[:lower:]-' | cut -c1-63 | sed 's/-$//')"
+            fi
+
+            REGISTERED_BUILD_ID=""
+            if [[ -n "${DEFAULT_BUILD_URL}" && -n "${HOST_PACKAGE_URL}" ]]; then
+              url_type() {
+                if [[ "$1" == gs://* ]]; then echo "gcs"; else echo "https"; fi
+              }
+              BUILD_PAYLOAD="$(jq -n \
+                --arg name "cts-${DEVICE_NAME}" \
+                --arg target "${BUILD_TARGET}" \
+                --arg default_url "${DEFAULT_BUILD_URL}" \
+                --arg default_type "$(url_type "${DEFAULT_BUILD_URL}")" \
+                --arg host_url "${HOST_PACKAGE_URL}" \
+                --arg host_type "$(url_type "${HOST_PACKAGE_URL}")" \
+                '{
+                  name: $name,
+                  source: "url",
+                  target: $target,
+                  artifact_specs: [
+                    { type: $default_type, role: "default_build", url: $default_url },
+                    { type: $host_type, role: "host_package", url: $host_url }
+                  ]
+                }')"
+              BUILD_RESP="$(curl -fsS -X POST "${CCO_SERVER_URL}/v2/builds" \
+                -H "X-Auth-Request-Email: ${PROXY_EMAIL}" \
+                -H "Content-Type: application/json" \
+                -d "${BUILD_PAYLOAD}")"
+              REGISTERED_BUILD_ID="$(printf '%s' "${BUILD_RESP}" | jq -er '.id')"
+            elif [[ -n "${BUILD_ID}" ]]; then
+              if [[ "${BUILD_ID}" =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]]; then
+                REGISTERED_BUILD_ID="${BUILD_ID}"
+              else
+                [[ -n "${BUILD_TARGET}" ]] || { echo "ERROR: buildTarget is required when buildId is an Android CI build ID" >&2; exit 1; }
+                BUILD_PAYLOAD="$(jq -n \
+                  --arg name "ci-${BUILD_ID}-${BUILD_TARGET}" \
+                  --arg build_id "${BUILD_ID}" \
+                  --arg target "${BUILD_TARGET}" \
+                  --arg branch "${BUILD_BRANCH}" \
+                  '{
+                    name: $name,
+                    source: "android_build",
+                    build_id: $build_id,
+                    target: $target
+                  } + (if $branch != "" then {branch: $branch} else {} end)')"
+                BUILD_RESP="$(curl -fsS -X POST "${CCO_SERVER_URL}/v2/builds" \
+                  -H "X-Auth-Request-Email: ${PROXY_EMAIL}" \
+                  -H "Content-Type: application/json" \
+                  -d "${BUILD_PAYLOAD}")"
+                REGISTERED_BUILD_ID="$(printf '%s' "${BUILD_RESP}" | jq -er '.id')"
+              fi
+            fi
+
+            DEVICE_PAYLOAD="$(jq -n \
+              --arg name "${DEVICE_NAME}" \
+              --arg gpu_mode "${GPU_MODE}" \
+              --arg capacity "${CAPACITY}" \
+              --arg pool "${POOL}" \
+              --arg arch "${ARCHITECTURE}" \
+              --arg reg_build "${REGISTERED_BUILD_ID}" \
+              --arg branch "${BUILD_BRANCH}" \
+              --arg target "${BUILD_TARGET}" \
+              --argjson shards "${SHARD_COUNT}" \
+              '
+              {
+                name: $name,
+                gpu_mode: $gpu_mode,
+                requirements: (
+                  {
+                    interaction: "headless",
+                    capacity: $capacity
+                  }
+                  + (if $pool != "" then {pool: $pool} else {} end)
+                  + (if $arch != "" then {architecture: $arch} else {} end)
+                  + (
+                    if $reg_build != "" then {build: {registered: $reg_build}}
+                    elif ($branch != "" and $target != "") then {build: {track: {branch: $branch, target: $target}}}
+                    else {} end
+                  )
+                )
+              }
+              + (
+                if $shards > 1 then {
+                  mode: "advanced",
+                  advanced_config: {
+                    env_config: {
+                      instances: [range(0; $shards) | {vm: {cpus: 8, memory_mb: 8192, setupwizard_mode: "DISABLED"}}]
+                    }
+                  }
+                } else {mode: "simple"} end
+              )')"
+
+            DEVICE_RESP="$(curl -fsS -X POST "${CCO_SERVER_URL}/v2/devices" \
+              -H "X-Auth-Request-Email: ${PROXY_EMAIL}" \
+              -H "Content-Type: application/json" \
+              -d "${DEVICE_PAYLOAD}")"
+            DEVICE_ID="$(printf '%s' "${DEVICE_RESP}" | jq -er '.id')"
+            echo "Created CTS device name=${DEVICE_NAME} id=${DEVICE_ID} shards=${SHARD_COUNT}"
+
+            cleanup_adb() {
+              cfctl device disconnect "${DEVICE_ID}" >/dev/null 2>&1 || true
+            }
+            trap cleanup_adb EXIT
+
+            DEADLINE=$(( $(date +%s) + 900 ))
+            while true; do
+              STATUS_JSON="$(curl -fsS "${CCO_SERVER_URL}/v2/devices/${DEVICE_ID}" \
+                -H "X-Auth-Request-Email: ${PROXY_EMAIL}")"
+              STATE="$(printf '%s' "${STATUS_JSON}" | jq -r '.status')"
+              echo "Device ${DEVICE_ID} status=${STATE}"
+              case "${STATE}" in
+                running) break ;;
+                error|deleted)
+                  ERR_MSG="$(printf '%s' "${STATUS_JSON}" | jq -r '.error_message // ""')"
+                  echo "ERROR: Device entered state=${STATE}: ${ERR_MSG}" >&2
+                  exit 1
+                  ;;
+              esac
+              (( $(date +%s) < DEADLINE )) || { echo "ERROR: Timed out waiting for device ${DEVICE_ID}" >&2; exit 1; }
+              sleep 10
+            done
+
+            cfctl device connect "${DEVICE_ID}" --background --all-instances --wait-online 180s
+
+            SERIALS="$(adb devices | awk 'NR>1 && $2=="device" {print $1}')"
+            ACTUAL_SHARDS="$(printf '%s\n' "${SERIALS}" | sed '/^$/d' | wc -l | xargs)"
+            (( ACTUAL_SHARDS > 0 )) || { echo "ERROR: Zero ADB devices connected" >&2; exit 1; }
+            BOOT_DEADLINE=$(( $(date +%s) + 900 ))
+            for serial in ${SERIALS}; do
+              echo "Waiting for sys.boot_completed=1 on ${serial}"
+              boot_ok="0"
+              while (( $(date +%s) < BOOT_DEADLINE )); do
+                boot_val="$(adb -s "${serial}" shell getprop sys.boot_completed 2>/dev/null | tr -d '\r' || true)"
+                if [[ "${boot_val}" == "1" ]]; then
+                  boot_ok="1"
+                  break
+                fi
+                sleep 5
+              done
+              if [[ "${boot_ok}" != "1" ]]; then
+                echo "ERROR: Timed out waiting for sys.boot_completed=1 on ${serial}" >&2
+                adb -s "${serial}" shell getprop init.svc.bootanim 2>/dev/null >&2 || true
+                adb -s "${serial}" logcat -d -t 50 >&2 || true
+                exit 1
+              fi
+              echo "Verified sys.boot_completed=1 on ${serial}"
+            done
+
+            mkdir -p /workspace/cts /workspace/artifacts/cts-results
+            CTS_ZIP="/workspace/android-cts.zip"
+            case "${CTS_DOWNLOAD_URL}" in
+              gs://*) gcloud storage cp "${CTS_DOWNLOAD_URL}" "${CTS_ZIP}" ;;
+              https://*|http://*) curl -fsSL "${CTS_DOWNLOAD_URL}" -o "${CTS_ZIP}" ;;
+              *) echo "ERROR: Unsupported CTS URL scheme: ${CTS_DOWNLOAD_URL}" >&2; exit 1 ;;
+            esac
+            unzip -q "${CTS_ZIP}" -d /workspace/cts
+            rm -f "${CTS_ZIP}"
+
+            if [[ -d /workspace/cts/android-cts/tools ]]; then
+              TF_HOME="/workspace/cts/android-cts"
+            elif [[ -d /workspace/cts/tools ]]; then
+              TF_HOME="/workspace/cts"
+            else
+              echo "ERROR: Could not locate tools/ inside extracted CTS archive" >&2
+              exit 1
+            fi
+            find "${TF_HOME}/tools" -type f \( -name '*.sh' -o -name 'cts-tradefed' \) -exec chmod a+x {} \;
+            if [[ -d "${TF_HOME}/jdk/bin" ]]; then
+              chmod a+x "${TF_HOME}"/jdk/bin/* 2>/dev/null || true
+              export PATH="${TF_HOME}/jdk/bin:${PATH}"
+            fi
+            mkdir -p "${TF_HOME}/results"
+
+            tf_args=(
+              run commandAndExit "${CTS_TESTPLAN}"
+              --no-enable-parameterized-modules
+              --shard-count "${ACTUAL_SHARDS}"
+            )
+            [[ -z "${CTS_MODULE}" ]] || tf_args+=(--module "${CTS_MODULE}")
+            [[ -z "${CTS_RETRY_STRATEGY}" ]] || tf_args+=(--retry-strategy "${CTS_RETRY_STRATEGY}")
+            [[ -z "${CTS_MAX_TESTCASE_RUN_COUNT}" ]] || tf_args+=(--max-testcase-run-count "${CTS_MAX_TESTCASE_RUN_COUNT}")
+            tf_args+=(--reboot-at-last-retry)
+
+            CTS_EXIT=0
+            timeout "${CTS_TIMEOUT_MINUTES}m" "${TF_HOME}/tools/cts-tradefed" "${tf_args[@]}" || CTS_EXIT=$?
+
+            LATEST_RESULTS=""
+            if [[ -d "${TF_HOME}/results/latest" ]]; then
+              LATEST_RESULTS="$(readlink -f "${TF_HOME}/results/latest")"
+            fi
+            if [[ -z "${LATEST_RESULTS}" || ! -f "${LATEST_RESULTS}/invocation_summary.txt" ]]; then
+              echo "ERROR: Missing CTS invocation_summary.txt under ${TF_HOME}/results/latest (cts exit=${CTS_EXIT})" >&2
+              exit 1
+            fi
+
+            for fname in invocation_summary.txt test_result.xml test_result_failures_suite.html logo.png compatibility_result.css; do
+              if [[ -f "${LATEST_RESULTS}/${fname}" ]]; then
+                cp -f "${LATEST_RESULTS}/${fname}" /workspace/artifacts/cts-results/
+              fi
+            done
+
+            BUGREPORT_JSON="$(curl -fsS -X POST "${CCO_SERVER_URL}/v2/devices/${DEVICE_ID}/bugreport" \
+              -H "X-Auth-Request-Email: ${PROXY_EMAIL}" \
+              -H "Content-Type: application/json" \
+              -d '{"include_adb": true}' || echo '{}')"
+            printf '%s\n' "${BUGREPORT_JSON}" > /workspace/artifacts/cts-results/bugreport.json
+            BUGREPORT_GS_URI="$(printf '%s' "${BUGREPORT_JSON}" | jq -r '.gs_uri // ""')"
+
+            if [[ -n "${RESULTS_DESTINATION}" ]]; then
+              STAMP="$(date -u +%Y-%m-%d-%H%M%S)"
+              DEST_PREFIX="${RESULTS_DESTINATION%/}/${STAMP}_${WORKFLOW_NAME}"
+              gcloud storage cp -r /workspace/artifacts/cts-results/* "${DEST_PREFIX}/"
+              if [[ -n "${BUGREPORT_GS_URI}" ]]; then
+                gcloud storage cp "${BUGREPORT_GS_URI}" "${DEST_PREFIX}/bugreport.zip" || true
+              fi
+              echo "Archived CTS results to ${DEST_PREFIX}/"
+            fi
+
+            FAILED_COUNT="$({ grep '^[[:space:]]*FAILED' /workspace/artifacts/cts-results/invocation_summary.txt || true; } | awk '{print $NF}' | tr -cd '0-9')"
+            FAILED_COUNT="${FAILED_COUNT:-1}"
+            echo "CTS invocation FAILED count=${FAILED_COUNT} (tradefed exit=${CTS_EXIT})"
+            if (( FAILED_COUNT > 0 )); then
+              echo "ERROR: CTS recorded ${FAILED_COUNT} failed test case(s)" >&2
+              exit 1
+            fi
+            if (( CTS_EXIT != 0 )); then
+              echo "ERROR: cts-tradefed exited non-zero (${CTS_EXIT})" >&2
+              exit "${CTS_EXIT}"
+            fi
+      volumes:
+        - name: workspace
+          emptyDir:
+            sizeLimit: {{ $root.Values.ctsWorkspaceStorageSize | quote }}
+      outputs:
+        artifacts:
+          - name: cts-results
+            path: /workspace/artifacts/cts-results
+            optional: true
+
+    - name: cleanup-device
+      container:
+        image: {{ $root.Values.workflowImage | quote }}
+        imagePullPolicy: IfNotPresent
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+              - ALL
+        resources:
+          requests:
+            cpu: "100m"
+            memory: "256Mi"
+          limits:
+            cpu: "500m"
+            memory: "512Mi"
+        env:
+          - name: WORKFLOW_NAME
+            value: '{{ "{{" }}workflow.name{{ "}}" }}'
+          - name: CCO_SERVER_URL
+            value: {{ $root.Values.ccoApiUrl | quote }}
+          - name: SUBMITTED_BY
+            value: '{{ "{{" }}workflow.parameters.submittedBy{{ "}}" }}'
+          - name: DEVICE_NAME_PARAM
+            value: '{{ "{{" }}workflow.parameters.deviceName{{ "}}" }}'
+          - name: KEEP_DEVICE
+            value: '{{ "{{" }}workflow.parameters.keepDevice{{ "}}" }}'
+        command: ["/bin/bash", "-ceuo", "pipefail"]
+        args:
+          - |
+            if [[ "${KEEP_DEVICE}" == "true" ]]; then
+              echo "keepDevice=true; retaining CCO device for inspection"
+              exit 0
+            fi
+            PROXY_EMAIL="${SUBMITTED_BY:-argo-workflow@horizon-sdv.local}"
+            if [[ -n "${DEVICE_NAME_PARAM}" ]]; then
+              DEVICE_NAME="${DEVICE_NAME_PARAM}"
+            else
+              DEVICE_NAME="$(printf 'cts-%s' "${WORKFLOW_NAME}" | tr '[:upper:]_' '[:lower:]-' | cut -c1-63 | sed 's/-$//')"
+            fi
+            DEVICES_JSON="$(curl -fsS --get "${CCO_SERVER_URL}/v2/devices" \
+              --data-urlencode "name=${DEVICE_NAME}" \
+              -H "X-Auth-Request-Email: ${PROXY_EMAIL}" || echo '{"items":[]}')"
+            DEVICE_IDS="$(printf '%s' "${DEVICES_JSON}" | jq -r '.items[]?.id // empty')"
+            for did in ${DEVICE_IDS}; do
+              echo "Deleting CCO device id=${did} name=${DEVICE_NAME}"
+              curl -fsS -X DELETE "${CCO_SERVER_URL}/v2/devices/${did}" \
+                -H "X-Auth-Request-Email: ${PROXY_EMAIL}" || true
+            done

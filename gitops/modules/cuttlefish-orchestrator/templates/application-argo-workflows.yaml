@@ -1,0 +1,77 @@
+{{- /*
+Copyright 2026 Google LLC
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    https://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/ -}}
+{{- if and .Values.repo.url .Values.repo.revision }}
+{{- $pfx := include "ccoParent.prefix" . -}}
+{{- $appNs := include "ccoParent.appNamespace" . -}}
+{{- $argoNs := include "ccoParent.argocdNamespace" . -}}
+{{- $argoProj := include "ccoParent.argocdProject" . -}}
+{{- $cfg := .Values.config | default dict -}}
+{{- $cws := $cfg.cloudWorkstations | default dict -}}
+{{- $arm64 := $cfg.arm64 | default dict -}}
+{{- $imgs := $cfg.containerImages | default dict -}}
+{{- $apiCfg := .Values.api | default dict -}}
+{{- $projectID := $cfg.projectID | default "" -}}
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: {{ printf "%smod-%s-argo-workflows" $pfx .Values.moduleName }}
+  namespace: {{ $argoNs }}
+  labels:
+    app.kubernetes.io/name: {{ .Values.moduleName }}
+    horizon-sdv.io/module: {{ .Values.moduleName }}
+    horizon-sdv.io/app-role: child
+    horizon-sdv.io/expose: "false"
+    horizon-sdv.io/module-manager-managed: "true"
+  annotations:
+    argocd.argoproj.io/sync-wave: "7"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: {{ $argoProj }}
+  source:
+    repoURL: {{ .Values.repo.url | quote }}
+    targetRevision: {{ .Values.repo.revision | quote }}
+    path: gitops/modules/cuttlefish-orchestrator/argo-workflows
+    helm:
+      values: |
+        moduleName: {{ .Values.moduleName | quote }}
+        workflowNamespace: {{ printf "%sworkflows" $pfx | quote }}
+        eventsNamespace: {{ printf "%sargo-events" $pfx | quote }}
+        ccoNamespace: {{ $appNs | quote }}
+        ccoApiUrl: {{ printf "http://cuttlefish-orchestrator-api.%s.svc.cluster.local:8080" $appNs | quote }}
+        workflowImage: {{ $imgs.cuttlefishWorkflow | default "example/cuttlefish-workflow:latest" | quote }}
+        networkPolicies: {{ dig "enableNetworkPolicies" true $cfg }}
+        cloudEnvConfigMapName: "horizon-workflow-cloud-env"
+        projectId: {{ $projectID | quote }}
+        region: {{ $cfg.region | default "europe-west1" | quote }}
+        zone: {{ $cfg.zone | default "europe-west1-d" | quote }}
+        network: {{ $cws.network | default "sdv-network" | quote }}
+        subnetwork: {{ $cws.subnetwork | default "sdv-subnet" | quote }}
+        arm64Region: {{ $arm64.region | default "" | quote }}
+        arm64Zone: {{ $arm64.zone | default "" | quote }}
+        arm64Subnetwork: {{ $arm64.subnetwork | default "" | quote }}
+        artifactsBucket: {{ if $projectID }}{{ printf "%s-%scco-artifacts" $projectID $pfx | quote }}{{ else }}""{{ end }}
+        aaosBucket: {{ if $projectID }}{{ printf "%s-aaos" $projectID | quote }}{{ else }}""{{ end }}
+        hostImageProject: {{ $apiCfg.hostImageProject | default $projectID | quote }}
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: {{ printf "%sworkflows" $pfx | quote }}
+  syncPolicy:
+    automated:
+      prune: true
+    syncOptions:
+      - CreateNamespace=true
+{{- end }}

@@ -49,6 +49,8 @@ Ephemeral Cuttlefish runs on GCE via **`workloads/android/pipelines/tests/cvd_ar
 
 When **Gemini AI Review** is enabled, **`prepare-gemini-cvd`** runs **`gemini_argo_prepare_staging.sh`**, then **`gemini-review`** invokes **`workloads/common/agentic-ai/gemini/run_ai_review.sh`** (same pattern as **aaos-builder**, not a cluster **`ai-review`** template). Uploads use **`hooks/review-post-cvd.sh`** under **`…/gemini-ai-review/`**. When Gemini is off or success review is disabled, **`sync-vm-staging-if-no-ai-review`** still uploads VM artifacts to GCS.
 
+> **Companion CCO Workflow:** When the optional **`cuttlefish-orchestrator`** module is enabled, **`cco-cvd-run`** provides an additive Argo Workflow that launches 1-8 devices via CCO `/v2/devices`, attaches `adb` over `cfctl device connect`, and archives CCO bug reports to GCS without modifying `workloads-android`. See [`gitops/modules/cuttlefish-orchestrator/README.md`](../../../../gitops/modules/cuttlefish-orchestrator/README.md).
+
 ### References <a name="references"></a>
 
 - [Cuttlefish Virtual Devices](https://source.android.com/docs/devices/cuttlefish)

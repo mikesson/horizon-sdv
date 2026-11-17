@@ -163,6 +163,14 @@ locals {
       }
       platform = "linux/amd64"
     }
+    "cuttlefish-workflow" = {
+      directory       = "cuttlefish-orchestrator"
+      build_version   = "1.0.0"
+      deploy_version  = "1.0.0"
+      context_path    = abspath("${path.module}/../sdv-container-images/images/cuttlefish-orchestrator")
+      dockerfile_path = abspath("${path.module}/../sdv-container-images/images/cuttlefish-orchestrator/Dockerfile.workflow")
+      platform        = "linux/amd64"
+    }
   }
 
   # Merge Main + Sub-Envs into one map (for certificate manager domains)

@@ -36,6 +36,7 @@ config:
     storageGcsModule: example/storage-gcs-module:latest
     cuttlefishOrchestratorApi: example/cuttlefish-orchestrator-api:latest
     cuttlefishConsole: example/cuttlefish-console:latest
+    cuttlefishWorkflow: example/cuttlefish-workflow:latest
   scm:
     authMethod: none
   workloads:

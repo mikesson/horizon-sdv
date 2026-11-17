@@ -74,6 +74,7 @@ spec:
             cloudWorkstationsModule: {{ .Values.config.containerImages.cloudWorkstationsModule | quote }}
             cuttlefishOrchestratorApi: {{ .Values.config.containerImages.cuttlefishOrchestratorApi | quote }}
             cuttlefishConsole: {{ .Values.config.containerImages.cuttlefishConsole | quote }}
+            cuttlefishWorkflow: {{ .Values.config.containerImages.cuttlefishWorkflow | quote }}
           scm:
             authMethod: {{ .Values.scm.authMethod | quote }}
           workloads:

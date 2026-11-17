@@ -1,0 +1,125 @@
+# Copyright 2026 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+{{- $root := . }}
+apiVersion: argoproj.io/v1alpha1
+kind: Sensor
+metadata:
+  name: webhook-cco-host-image-build
+  namespace: {{ $root.Values.eventsNamespace | quote }}
+  labels:
+    horizon-sdv.io/module: {{ $root.Values.moduleName | quote }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "9"
+spec:
+  eventBusName: default
+  template:
+    serviceAccountName: {{ $root.Values.serviceAccountSensor | quote }}
+  dependencies:
+    - name: webhook-dep
+      eventSourceName: webhook
+      eventName: workflow-dispatch
+      filters:
+        data:
+          - path: body.workflowTemplateName
+            type: string
+            value:
+              - "cco-host-image-build"
+  triggers:
+    - template:
+        name: submit-cco-host-image-build
+        argoWorkflow:
+          operation: submit
+          source:
+            resource:
+              apiVersion: argoproj.io/v1alpha1
+              kind: Workflow
+              metadata:
+                generateName: webhook-cco-host-image-build-
+                namespace: {{ $root.Values.workflowNamespace | quote }}
+              spec:
+                serviceAccountName: {{ $root.Values.serviceAccountElevated | quote }}
+                workflowTemplateRef:
+                  name: cco-host-image-build
+                arguments:
+                  parameters:
+                    - name: horizonSubmittedFrom
+                    - name: submittedBy
+                    - name: architecture
+                    - name: imageFamily
+                    - name: imageName
+                    - name: machineType
+                    - name: zone
+                    - name: subnetwork
+                    - name: cuttlefishVersion
+                    - name: diskSizeGb
+                    - name: updateCcoMapping
+                    - name: targetMachineFamilies
+          parameters:
+            - src:
+                dependencyName: webhook-dep
+                dataKey: body.horizonSubmittedBy
+              dest: metadata.annotations.horizon-sdv\.io/submitted-by
+            - src:
+                dependencyName: webhook-dep
+                dataKey: body.horizonSubmittedFrom
+              dest: metadata.labels.horizon-sdv\.io/submitted-from
+            - src:
+                dependencyName: webhook-dep
+                dataKey: body.horizonSubmittedFrom
+              dest: spec.arguments.parameters.0.value
+            - src:
+                dependencyName: webhook-dep
+                dataKey: body.horizonSubmittedBy
+              dest: spec.arguments.parameters.1.value
+            - src:
+                dependencyName: webhook-dep
+                dataKey: body.architecture
+              dest: spec.arguments.parameters.2.value
+            - src:
+                dependencyName: webhook-dep
+                dataKey: body.imageFamily
+              dest: spec.arguments.parameters.3.value
+            - src:
+                dependencyName: webhook-dep
+                dataKey: body.imageName
+              dest: spec.arguments.parameters.4.value
+            - src:
+                dependencyName: webhook-dep
+                dataKey: body.machineType
+              dest: spec.arguments.parameters.5.value
+            - src:
+                dependencyName: webhook-dep
+                dataKey: body.zone
+              dest: spec.arguments.parameters.6.value
+            - src:
+                dependencyName: webhook-dep
+                dataKey: body.subnetwork
+              dest: spec.arguments.parameters.7.value
+            - src:
+                dependencyName: webhook-dep
+                dataKey: body.cuttlefishVersion
+              dest: spec.arguments.parameters.8.value
+            - src:
+                dependencyName: webhook-dep
+                dataKey: body.diskSizeGb
+              dest: spec.arguments.parameters.9.value
+            - src:
+                dependencyName: webhook-dep
+                dataKey: body.updateCcoMapping
+              dest: spec.arguments.parameters.10.value
+            - src:
+                dependencyName: webhook-dep
+                dataKey: body.targetMachineFamilies
+              dest: spec.arguments.parameters.11.value

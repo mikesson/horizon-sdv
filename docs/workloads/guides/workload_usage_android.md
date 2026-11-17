@@ -356,6 +356,9 @@ The virtual devices can be viewed and interacted with in _MTK Connect_ (_https:/
 
 Read more info on the [CVD Launcher](../android/tests/cvd_launcher.md) job.
 
+> [!NOTE]
+> When the optional **`cuttlefish-orchestrator`** module is enabled in Developer Portal, you can also launch managed Cuttlefish devices via the **`cco-cvd-run`** Argo Workflow or the `/cuttlefish-orchestrator/` WebRTC console (first bake a host image with **`cco-host-image-build`**).
+
 <hr width="50%"></details>
 
 
@@ -548,6 +551,9 @@ Use the [Raspberry Pi Imager](https://www.raspberrypi.com/software) to flash thi
 - Select `Build`
 
 Read more info on the [CTS Execution](../android/tests/cts_execution.md) job and read [tips](#testing-cts-tips) below.
+
+> [!NOTE]
+> When the optional **`cuttlefish-orchestrator`** module is enabled, you can alternatively run sharded CTS on CCO-managed Cuttlefish devices via the **`cco-cts-run`** Argo Workflow (using the `cuttlefish-workflow` image). Existing Jenkins and `workloads-android` pipelines remain unchanged.
 
 <hr width="50%"></details>
 

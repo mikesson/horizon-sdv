@@ -35,6 +35,7 @@ locals {
     "horizon-dev-portal"          = ["*", "proxy/**", "public/**", "src/**"]
     "cuttlefish-orchestrator-api" = ["Dockerfile", ".dockerignore", "go.mod", "go.sum", "cmd/**", "internal/**"]
     "cuttlefish-console"          = ["*", ".dockerignore", "nginx/**", "scripts/**", "src/**"]
+    "cuttlefish-workflow"         = ["Dockerfile.workflow", ".dockerignore", "go.mod", "go.sum", "cmd/**", "internal/**"]
   }
 
   # When context_path is set, skip hashing paths that match local npm/build/test artifacts (like .dockerignore).
