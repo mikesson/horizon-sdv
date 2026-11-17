@@ -510,3 +510,48 @@ func TestPlatformDrainer_CuttlefishOrchestratorDrainsDuringPlatformTeardown(t *t
 		t.Errorf("expected platformDrainNamespaces to include qa-cuttlefish-orchestrator, got %v", nss)
 	}
 }
+
+func TestClearParentSkipReconcileIfCuttlefishOrchestrator_UsesBackgroundContextWhenCallerCanceled(t *testing.T) {
+	parent := ccoArgoApp("argocd", "mod-cuttlefish-orchestrator", map[string]interface{}{"prune": true})
+	parent.SetAnnotations(map[string]string{
+		argoCDSkipReconcileAnnotationKey: "true",
+	})
+	c := ccoTestClient(interceptor.Funcs{}, parent)
+
+	canceledCtx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	clearParentSkipReconcileIfCuttlefishOrchestrator(canceledCtx, c, "argocd", cuttlefishOrchestratorModuleName)
+
+	gotParent, ok := cwsExists2(t, c, argoCDApplicationGVK, "argocd", "mod-cuttlefish-orchestrator")
+	if !ok {
+		t.Fatal("parent Application missing")
+	}
+	if _, hasSkip := gotParent.GetAnnotations()[argoCDSkipReconcileAnnotationKey]; hasSkip {
+		t.Errorf("expected skip-reconcile cleared even when caller ctx is canceled, got %v", gotParent.GetAnnotations())
+	}
+}
+
+func TestScaleDownCuttlefishOrchestratorAPI_IgnoresTerminalPods(t *testing.T) {
+	withFastCCODrain(t, 5*time.Millisecond, 50*time.Millisecond, 100*time.Millisecond)
+
+	dep := ccoAPIDeployment("cuttlefish-orchestrator", 1)
+	succeededPod := ccoAPIPod("cuttlefish-orchestrator", "cuttlefish-orchestrator-api-succeeded")
+	_ = unstructured.SetNestedField(succeededPod.Object, "Succeeded", "status", "phase")
+	failedPod := ccoAPIPod("cuttlefish-orchestrator", "cuttlefish-orchestrator-api-failed")
+	_ = unstructured.SetNestedField(failedPod.Object, "Failed", "status", "phase")
+
+	c := ccoTestClient(interceptor.Funcs{}, dep, succeededPod, failedPod)
+
+	if err := scaleDownCuttlefishOrchestratorAPI(context.Background(), c, "cuttlefish-orchestrator"); err != nil {
+		t.Fatalf("expected terminal pods to be ignored, got error: %v", err)
+	}
+
+	gotDep, ok := cwsExists2(t, c, ccoAppsDeploymentGVK, "cuttlefish-orchestrator", cuttlefishOrchestratorAPIDeploymentName)
+	if !ok {
+		t.Fatal("Deployment fixture missing")
+	}
+	if reps, ok := readNumericField(gotDep.Object, "spec", "replicas"); !ok || reps != 0 {
+		t.Errorf("expected Deployment scaled to 0, got replicas=%d (ok=%v)", reps, ok)
+	}
+}

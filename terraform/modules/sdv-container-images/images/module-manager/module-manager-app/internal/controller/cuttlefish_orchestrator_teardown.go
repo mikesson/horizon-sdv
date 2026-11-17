@@ -143,7 +143,7 @@ func clearParentSkipReconcileIfCuttlefishOrchestrator(ctx context.Context, c cli
 		return
 	}
 	parentName := ApplicationName(moduleName)
-	cleanupCtx, cancel := context.WithTimeout(ctx, resumeCuttlefishOrchestratorCleanupTimeout)
+	cleanupCtx, cancel := context.WithTimeout(context.Background(), resumeCuttlefishOrchestratorCleanupTimeout)
 	defer cancel()
 	if err := setArgoCDApplicationSkipReconcile(cleanupCtx, c, argocdNamespace, parentName, false); err != nil {
 		log.FromContext(ctx).Error(err, "clear skip-reconcile on parent Application (cuttlefish-orchestrator)",
@@ -198,12 +198,13 @@ func scaleDownCuttlefishOrchestratorAPI(ctx context.Context, c client.Client, na
 		); err != nil {
 			return fmt.Errorf("list API pods: %w", err)
 		}
-		if len(pods.Items) == 0 {
+		activePods := countActiveCCOPods(pods.Items)
+		if activePods == 0 {
 			return nil
 		}
 		if !time.Now().Before(deadline) {
 			return fmt.Errorf("timed out after %s waiting for %d API pod(s) to terminate",
-				cuttlefishOrchestratorAPIDrainTimeout, len(pods.Items))
+				cuttlefishOrchestratorAPIDrainTimeout, activePods)
 		}
 		select {
 		case <-ctx.Done():
@@ -211,6 +212,18 @@ func scaleDownCuttlefishOrchestratorAPI(ctx context.Context, c client.Client, na
 		case <-time.After(cuttlefishOrchestratorDrainPollInterval):
 		}
 	}
+}
+
+func countActiveCCOPods(pods []unstructured.Unstructured) int {
+	active := 0
+	for i := range pods {
+		phase, _, _ := unstructured.NestedString(pods[i].Object, "status", "phase")
+		if phase == "Succeeded" || phase == "Failed" {
+			continue
+		}
+		active++
+	}
+	return active
 }
 
 func runCuttlefishOrchestratorCleanupJob(ctx context.Context, c client.Client, namespace, moduleName string) error {

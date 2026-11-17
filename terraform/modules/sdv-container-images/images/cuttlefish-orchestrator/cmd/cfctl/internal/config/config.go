@@ -25,6 +25,7 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"time"
 
 	"go.yaml.in/yaml/v3"
 
@@ -267,6 +268,10 @@ func shellQuote(s string) string {
 	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
 }
 
+// lockTimeout bounds how long Update waits for concurrent serialized config
+// read-modify-write + fsync operations before returning ErrHeld.
+const lockTimeout = 5 * time.Second
+
 // Update applies fn to the config file under the config lock and saves the
 // result atomically. It reads the file only, so a CFCTL_* value is never
 // persisted. A load error, an old-format file or an fn error aborts without
@@ -281,7 +286,7 @@ func Update(fn func(f *File) error) error {
 	}
 	// Where the platform has no file lock, the write goes ahead unlocked.
 	lockPath := filepath.Join(dir, "config.lock")
-	lock, err := filelock.Acquire(lockPath)
+	lock, err := filelock.AcquireWithin(lockPath, lockTimeout)
 	switch {
 	case errors.Is(err, errors.ErrUnsupported):
 	case err != nil:

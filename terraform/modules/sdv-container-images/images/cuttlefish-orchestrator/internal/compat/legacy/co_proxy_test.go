@@ -529,3 +529,36 @@ func TestProxy_AllowsNonCreateVerbsOnOrchestratorOwnedHost(t *testing.T) {
 		})
 	}
 }
+
+func TestProxy_WebSocketNullAndDuplicateOriginRejected(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name    string
+		host    string
+		origins []string
+	}{
+		{name: "null_origin", host: "example.com", origins: []string{"null"}},
+		{name: "null_origin_empty_host", host: "", origins: []string{"null"}},
+		{name: "hostless_origin", host: "example.com", origins: []string{"about:blank"}},
+		{name: "duplicate_origin", host: "example.com", origins: []string{"http://example.com", "https://evil.example"}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ho := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+				t.Error("invalid or duplicate origin upgrade must never reach the Host Orchestrator")
+			}))
+			defer ho.Close()
+
+			req := authedReq(t, "/v1/zones/z/hosts/h1/connect_client", wsUpgradeHeaders(""))
+			req.Host = tc.host
+			for _, o := range tc.origins {
+				req.Header.Add("Origin", o)
+			}
+			rec := serveReq(newTestHandler(hostPointingAt(ho), nil), req)
+			if rec.Code != http.StatusForbidden {
+				t.Fatalf("status = %d, want 403", rec.Code)
+			}
+		})
+	}
+}

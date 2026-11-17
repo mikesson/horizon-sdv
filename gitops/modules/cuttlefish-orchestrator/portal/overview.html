@@ -115,6 +115,7 @@ limitations under the License. -->
           <li>Provision and manage virtualized Cuttlefish Android hosts on private VPC Compute Engine instances.</li>
           <li>Launch multi-display Cuttlefish virtual devices backed by Cloud Spanner fleet state and GCS artifact staging.</li>
           <li>Stream interactive Cuttlefish displays and console sessions directly in the browser via <code>/cuttlefish-orchestrator/</code>.</li>
+          <li>Execute automated Argo Workflows for bare-metal/VM host image baking (<code>cco-host-image-build</code>), ephemeral CVD launches (<code>cco-cvd-run</code>), and multi-shard CTS suites (<code>cco-cts-run</code>).</li>
         </ul>
       </div>
       <div class="card">
@@ -122,11 +123,11 @@ limitations under the License. -->
         <ul>
           <li><strong>Authentication</strong>: GKE Gateway routes <code>/cuttlefish-orchestrator/</code> through <code>oauth2-proxy</code> authenticated against Horizon Keycloak (<code>administrators</code> and <code>developers</code> groups).</li>
           <li><strong>Persistence</strong>: Cluster-mode Config Connector provisions a regional Cloud Spanner instance (100 PU) and schema v87 database, seeded idempotently at Sync Wave 4.</li>
-          <li><strong>Teardown</strong>: Argo CD <code>PreDelete</code> cleanup scales the API to zero and deletes managed GCE host VMs before removing Kubernetes and Spanner resources.</li>
+          <li><strong>Teardown</strong>: Module Manager pauses Argo CD reconciliation, scales the API deployment to zero, and runs the <code>cco-cleanup</code> Job to delete managed GCE host VMs before removing Kubernetes and Spanner resources.</li>
         </ul>
       </div>
       <div class="callout">
-        <strong>Prerequisites</strong>: Ensure the Cuttlefish host VM image family (<code>cco-host</code>) has been built in the target project (<code>workloads-android</code> / <code>storage-gcs</code> pipelines) before launching devices.
+        <strong>Prerequisites</strong>: Ensure the Cuttlefish host VM image family (<code>cco-host</code>, or <code>cco-host-arm64</code> for Axion ARM64) has been built in the target project (via <code>cco-host-image-build</code>) before launching devices.
       </div>
     </div>
   </body>

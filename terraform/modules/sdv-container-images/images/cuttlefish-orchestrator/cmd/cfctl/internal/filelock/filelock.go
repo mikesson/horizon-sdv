@@ -24,19 +24,43 @@ import (
 	"time"
 )
 
+const (
+	defaultAcquireTimeout = time.Second
+	fastPollInterval      = 5 * time.Millisecond
+	slowPollInterval      = 50 * time.Millisecond
+	fastPollWindow        = 250 * time.Millisecond
+)
+
 // ErrHeld reports that another open file holds the lock.
 var ErrHeld = errors.New("the lock is held by another process")
 
 // Acquire takes the lock on path, retrying for about a second because a
 // concurrent liveness check or config write holds it only for an instant.
 func Acquire(path string) (*os.File, error) {
-	var err error
-	for range 20 {
-		var f *os.File
+	return AcquireWithin(path, defaultAcquireTimeout)
+}
+
+// AcquireWithin takes the lock on path, retrying until timeout elapses when
+// another open file holds it.
+func AcquireWithin(path string, timeout time.Duration) (*os.File, error) {
+	f, err := TryLock(path)
+	if !errors.Is(err, ErrHeld) || timeout <= 0 {
+		return f, err
+	}
+	start := time.Now()
+	deadline := start.Add(timeout)
+	for {
+		remaining := time.Until(deadline)
+		if remaining <= 0 {
+			return nil, err
+		}
+		poll := fastPollInterval
+		if time.Since(start) >= fastPollWindow {
+			poll = slowPollInterval
+		}
+		time.Sleep(min(poll, remaining))
 		if f, err = TryLock(path); !errors.Is(err, ErrHeld) {
 			return f, err
 		}
-		time.Sleep(50 * time.Millisecond)
 	}
-	return nil, err
 }

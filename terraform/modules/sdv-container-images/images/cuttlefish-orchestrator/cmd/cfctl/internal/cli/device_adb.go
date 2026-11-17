@@ -249,7 +249,9 @@ type countingWriter struct {
 
 func (c *countingWriter) Write(p []byte) (int, error) {
 	n, err := c.w.Write(p)
-	c.n.Add(int64(n))
+	if n > 0 {
+		c.n.Add(int64(n))
+	}
 	return n, err
 }
 
@@ -265,6 +267,10 @@ func bridgeADB(ctx context.Context, client *cco.Client, deviceID, instance strin
 		return streamDialFailed(deviceID, err)
 	}
 	defer remote.Close()
+	return bridgeADBStreams(parent, cancel, deviceID, local, remote)
+}
+
+func bridgeADBStreams(parent context.Context, cancel context.CancelFunc, deviceID string, local, remote io.ReadWriteCloser) error {
 	toLocal := &countingWriter{w: local}
 
 	// Whichever direction ends first cancels the other. A half-closed tunnel
@@ -272,27 +278,31 @@ func bridgeADB(ctx context.Context, client *cco.Client, deviceID, instance strin
 	errs := make(chan copyResult, 2)
 	go func() {
 		_, err := io.Copy(remote, local)
-		cancel()
+		// Report before canceling: canceling ends the other copy, and its
+		// result must not arrive first and read as a remote close.
 		errs <- copyResult{err: err}
+		cancel()
 	}()
 	go func() {
 		_, err := io.Copy(toLocal, remote)
-		cancel()
-		// Report before closing local: the close ends the other copy, and its
-		// result must not arrive first and read as a local close.
-		// Report before closing local: the close ends the other copy, and its
-		// result must not arrive first and read as a local close.
+		// Report before canceling or closing local: either ends the other
+		// copy, and its result must not arrive first and read as a local close.
 		errs <- copyResult{fromRemote: true, err: err}
+		cancel()
 		// Unblock the other copy, which is parked in a socket read that no
 		// context cancellation reaches.
 		_ = local.Close()
 	}()
 
 	first := <-errs
+	cancel()
+	_ = remote.Close()
+	_ = local.Close()
+	<-errs
 	if toLocal.n.Load() == 0 && parent.Err() == nil {
 		return fmt.Errorf("%w for %s", errStreamSilent, deviceID)
 	}
-	if first.err != nil && !errors.Is(first.err, io.EOF) && ctx.Err() == nil {
+	if first.err != nil && !errors.Is(first.err, io.EOF) && parent.Err() == nil {
 		return fmt.Errorf("relaying ADB for %s: %w", deviceID, first.err)
 	}
 	if first.fromRemote && parent.Err() == nil {

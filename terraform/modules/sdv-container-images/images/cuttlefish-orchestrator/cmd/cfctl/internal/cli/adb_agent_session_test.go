@@ -406,7 +406,14 @@ func TestADBTunnelReportsAStreamThatCarriedNoData(t *testing.T) {
 				t.Fatal(err)
 			}
 			sessions := recordingSessions{results: make(chan error, 1)}
-			go func() { _ = serveADBTunnel(ctx, listener, client, "dev-1", "1", sessions) }()
+			served := make(chan error, 1)
+			go func() { served <- serveADBTunnel(ctx, listener, client, "dev-1", "1", sessions) }()
+			t.Cleanup(func() {
+				cancel()
+				if err := <-served; err != nil {
+					t.Errorf("serveADBTunnel() error = %v, want nil", err)
+				}
+			})
 
 			var dialer net.Dialer
 			local, err := dialer.DialContext(ctx, "tcp", listener.Addr().String())
@@ -432,11 +439,687 @@ func TestADBTunnelReportsAStreamThatCarriedNoData(t *testing.T) {
 				if got := errors.Is(err, errStreamSilent); got != tc.wantSilent {
 					t.Errorf("session result = %v, want silent %v", err, tc.wantSilent)
 				}
+				if !tc.wantSilent && err != nil {
+					t.Errorf("answered session result = %v, want nil", err)
+				}
 			case <-time.After(10 * time.Second):
 				t.Fatal("the session never ended")
 			}
 		})
 	}
+}
+
+type stubCountingWriter struct {
+	n   int
+	err error
+}
+
+func (s stubCountingWriter) Write([]byte) (int, error) {
+	return s.n, s.err
+}
+
+func TestCountingWriterCountsOnlyPositiveWrittenBytes(t *testing.T) {
+	cw := &countingWriter{w: stubCountingWriter{n: 4, err: nil}}
+	n, err := cw.Write([]byte("CNXN"))
+	if n != 4 || err != nil || cw.n.Load() != 4 {
+		t.Fatalf("full write: n=%d err=%v total=%d; want 4, nil, 4", n, err, cw.n.Load())
+	}
+
+	cw.w = stubCountingWriter{n: 2, err: io.ErrShortWrite}
+	n, err = cw.Write([]byte("OPEN"))
+	if n != 2 || !errors.Is(err, io.ErrShortWrite) || cw.n.Load() != 6 {
+		t.Fatalf("partial write: n=%d err=%v total=%d; want 2, ErrShortWrite, 6", n, err, cw.n.Load())
+	}
+
+	cw.w = stubCountingWriter{n: 0, err: net.ErrClosed}
+	n, err = cw.Write([]byte("CLSE"))
+	if n != 0 || !errors.Is(err, net.ErrClosed) || cw.n.Load() != 6 {
+		t.Fatalf("failed zero write: n=%d err=%v total=%d; want 0, ErrClosed, 6", n, err, cw.n.Load())
+	}
+
+	cw.w = stubCountingWriter{n: -1, err: errors.New("negative write")}
+	n, err = cw.Write([]byte("WRTE"))
+	if n != -1 || err == nil || cw.n.Load() != 6 {
+		t.Fatalf("negative write: n=%d err=%v total=%d; want -1, err, 6", n, err, cw.n.Load())
+	}
+}
+
+// tcpLoopbackPair opens a connected TCP client/server socket pair on loopback.
+func tcpLoopbackPair(t *testing.T) (peer *net.TCPConn, bridgeSide *net.TCPConn) {
+	t.Helper()
+	ln, err := net.ListenTCP("tcp", &net.TCPAddr{IP: net.IPv4(127, 0, 0, 1)})
+	if err != nil {
+		t.Fatalf("listening on loopback: %v", err)
+	}
+	defer ln.Close()
+
+	type acceptRes struct {
+		conn *net.TCPConn
+		err  error
+	}
+	accepted := make(chan acceptRes, 1)
+	go func() {
+		c, err := ln.AcceptTCP()
+		accepted <- acceptRes{conn: c, err: err}
+	}()
+
+	tcpAddr, ok := ln.Addr().(*net.TCPAddr)
+	if !ok {
+		t.Fatalf("unexpected listener address %T", ln.Addr())
+	}
+	client, err := net.DialTCP("tcp", nil, tcpAddr)
+	if err != nil {
+		t.Fatalf("dialing loopback: %v", err)
+	}
+	t.Cleanup(func() { _ = client.Close() })
+
+	res := <-accepted
+	if res.err != nil {
+		t.Fatalf("accepting loopback: %v", res.err)
+	}
+	t.Cleanup(func() { _ = res.conn.Close() })
+	return client, res.conn
+}
+
+// delayedWriteConn delivers the first Write payload onto the underlying conn
+// so the peer can read it and close immediately, then blocks returning from
+// Write until both Read has observed EOF and Close has been called.
+type delayedWriteConn struct {
+	net.Conn
+	ctx         context.Context
+	readEOF     chan struct{}
+	readEOFOnce sync.Once
+	closed      chan struct{}
+	closedOnce  sync.Once
+	holdFirst   sync.Once
+}
+
+func (c *delayedWriteConn) Read(p []byte) (int, error) {
+	n, err := c.Conn.Read(p)
+	if errors.Is(err, io.EOF) {
+		c.readEOFOnce.Do(func() { close(c.readEOF) })
+	}
+	return n, err
+}
+
+func (c *delayedWriteConn) Write(p []byte) (int, error) {
+	n, err := c.Conn.Write(p)
+	if err == nil && n > 0 {
+		c.holdFirst.Do(func() {
+			select {
+			case <-c.readEOF:
+			case <-c.ctx.Done():
+				return
+			}
+			select {
+			case <-c.closed:
+			case <-c.ctx.Done():
+			}
+		})
+	}
+	return n, err
+}
+
+func (c *delayedWriteConn) Close() error {
+	c.closedOnce.Do(func() { close(c.closed) })
+	return c.Conn.Close()
+}
+
+// TestBridgeADBWaitsForInFlightLocalWriteBeforeCheckingSilent deterministically
+// reproduces the interleaving where the peer reads echoed bytes and closes
+// local before countingWriter.Write returns to increment toLocal.n.
+func TestBridgeADBWaitsForInFlightLocalWriteBeforeCheckingSilent(t *testing.T) {
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+	defer cancel()
+
+	client := adbBackend(t, echoStream)
+	peer, rawLocal := tcpLoopbackPair(t)
+	local := &delayedWriteConn{
+		Conn:    rawLocal,
+		ctx:     ctx,
+		readEOF: make(chan struct{}),
+		closed:  make(chan struct{}),
+	}
+
+	bridged := make(chan error, 1)
+	go func() {
+		bridged <- bridgeADB(ctx, client, "dev-1", "1", local)
+	}()
+
+	if _, err := peer.Write([]byte("CNXN")); err != nil {
+		t.Fatalf("peer.Write: %v", err)
+	}
+	if err := peer.SetReadDeadline(time.Now().Add(5 * time.Second)); err != nil {
+		t.Fatalf("SetReadDeadline: %v", err)
+	}
+	if _, err := io.ReadFull(peer, make([]byte, 4)); err != nil {
+		t.Fatalf("peer ReadFull: %v", err)
+	}
+	_ = peer.Close()
+
+	select {
+	case err := <-bridged:
+		if err != nil {
+			t.Fatalf("bridgeADB() = %v, want nil when echoed bytes were written before local close", err)
+		}
+	case <-ctx.Done():
+		t.Fatal("timed out waiting for bridgeADB to return")
+	}
+}
+
+func TestBridgeADBClassifiesRemoteCloseAndSilentStreams(t *testing.T) {
+	t.Run("remote sends data then closes", func(t *testing.T) {
+		ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+		defer cancel()
+
+		client := adbBackend(t, func(sctx context.Context, c *websocket.Conn) {
+			typ, data, err := c.Read(sctx)
+			if err != nil {
+				return
+			}
+			_ = c.Write(sctx, typ, data)
+			c.Close(websocket.StatusNormalClosure, "done")
+		})
+		peer, local := tcpLoopbackPair(t)
+
+		bridged := make(chan error, 1)
+		go func() {
+			bridged <- bridgeADB(ctx, client, "dev-1", "1", local)
+		}()
+
+		if _, err := peer.Write([]byte("CNXN")); err != nil {
+			t.Fatalf("peer.Write: %v", err)
+		}
+		if err := peer.SetReadDeadline(time.Now().Add(5 * time.Second)); err != nil {
+			t.Fatalf("SetReadDeadline: %v", err)
+		}
+		got, err := io.ReadAll(peer)
+		if err != nil {
+			t.Fatalf("peer.ReadAll: %v", err)
+		}
+		if string(got) != "CNXN" {
+			t.Fatalf("peer read %q, want %q", got, "CNXN")
+		}
+
+		select {
+		case err := <-bridged:
+			if !errors.Is(err, errRemoteEnded) {
+				t.Fatalf("bridgeADB() = %v, want errors.Is(_, errRemoteEnded)", err)
+			}
+			if errors.Is(err, errStreamSilent) {
+				t.Fatalf("bridgeADB() = %v, unexpectedly classified answered stream as silent", err)
+			}
+		case <-ctx.Done():
+			t.Fatal("timed out waiting for bridgeADB to return")
+		}
+	})
+
+	t.Run("remote closes silently without sending data", func(t *testing.T) {
+		ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+		defer cancel()
+
+		client := adbBackend(t, func(_ context.Context, c *websocket.Conn) {
+			c.Close(websocket.StatusNormalClosure, "")
+		})
+		peer, local := tcpLoopbackPair(t)
+
+		bridged := make(chan error, 1)
+		go func() {
+			bridged <- bridgeADB(ctx, client, "dev-1", "1", local)
+		}()
+
+		if err := peer.SetReadDeadline(time.Now().Add(5 * time.Second)); err != nil {
+			t.Fatalf("SetReadDeadline: %v", err)
+		}
+		if _, err := io.ReadAll(peer); err != nil {
+			t.Fatalf("peer.ReadAll: %v", err)
+		}
+
+		select {
+		case err := <-bridged:
+			if !errors.Is(err, errStreamSilent) {
+				t.Fatalf("bridgeADB() = %v, want errors.Is(_, errStreamSilent)", err)
+			}
+		case <-ctx.Done():
+			t.Fatal("timed out waiting for bridgeADB to return")
+		}
+	})
+
+	t.Run("local half-close after data does not misreport errRemoteEnded", func(t *testing.T) {
+		ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+		defer cancel()
+
+		holdRemote := make(chan struct{})
+		client := adbBackend(t, func(sctx context.Context, c *websocket.Conn) {
+			typ, data, err := c.Read(sctx)
+			if err != nil {
+				return
+			}
+			if err := c.Write(sctx, typ, data); err != nil {
+				return
+			}
+			select {
+			case <-holdRemote:
+			case <-sctx.Done():
+			}
+		})
+		defer close(holdRemote)
+		peer, local := tcpLoopbackPair(t)
+
+		bridged := make(chan error, 1)
+		go func() {
+			bridged <- bridgeADB(ctx, client, "dev-1", "1", local)
+		}()
+
+		if _, err := peer.Write([]byte("CNXN")); err != nil {
+			t.Fatalf("peer.Write: %v", err)
+		}
+		if err := peer.SetReadDeadline(time.Now().Add(5 * time.Second)); err != nil {
+			t.Fatalf("SetReadDeadline: %v", err)
+		}
+		if _, err := io.ReadFull(peer, make([]byte, 4)); err != nil {
+			t.Fatalf("peer ReadFull: %v", err)
+		}
+		if err := peer.CloseWrite(); err != nil {
+			t.Fatalf("peer.CloseWrite: %v", err)
+		}
+
+		select {
+		case err := <-bridged:
+			if err != nil {
+				t.Fatalf("bridgeADB() = %v, want nil on local half-close after data", err)
+			}
+		case <-ctx.Done():
+			t.Fatal("timed out waiting for bridgeADB to return")
+		}
+	})
+}
+
+// teardownWriteErrConn wraps net.Conn so the first Write proceeds normally,
+// while the second Write signals inSecondWrite and blocks until ctx is
+// canceled, then returns writeErr.
+type teardownWriteErrConn struct {
+	net.Conn
+	ctx           context.Context
+	writeErr      error
+	inSecondWrite chan struct{}
+	writes        atomic.Int32
+}
+
+func (c *teardownWriteErrConn) Write(p []byte) (int, error) {
+	if c.writes.Add(1) == 1 {
+		return c.Conn.Write(p)
+	}
+	close(c.inSecondWrite)
+	<-c.ctx.Done()
+	return 0, c.writeErr
+}
+
+func TestBridgeADBPropagatesNonEOFRelayErrorsAfterData(t *testing.T) {
+	t.Run("non-EOF toLocal read error after data wraps underlying error", func(t *testing.T) {
+		ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+		defer cancel()
+
+		gotData := make(chan struct{})
+		client := adbBackend(t, func(sctx context.Context, c *websocket.Conn) {
+			if err := c.Write(sctx, websocket.MessageBinary, []byte("OKAY")); err != nil {
+				return
+			}
+			select {
+			case <-gotData:
+			case <-sctx.Done():
+				return
+			}
+			c.Close(websocket.StatusInternalError, "remote boom")
+		})
+		peer, local := tcpLoopbackPair(t)
+
+		bridged := make(chan error, 1)
+		go func() {
+			bridged <- bridgeADB(ctx, client, "dev-1", "1", local)
+		}()
+
+		if err := peer.SetReadDeadline(time.Now().Add(5 * time.Second)); err != nil {
+			t.Fatalf("SetReadDeadline: %v", err)
+		}
+		got := make([]byte, 4)
+		if _, err := io.ReadFull(peer, got); err != nil {
+			t.Fatalf("peer ReadFull: %v", err)
+		}
+		if string(got) != "OKAY" {
+			t.Fatalf("peer read %q, want %q", got, "OKAY")
+		}
+		close(gotData)
+
+		select {
+		case err := <-bridged:
+			if err == nil {
+				t.Fatal("bridgeADB() = nil, want wrapped relay error")
+			}
+			if errors.Is(err, errRemoteEnded) || errors.Is(err, errStreamSilent) {
+				t.Fatalf("bridgeADB() = %v, must not mask non-EOF read error", err)
+			}
+			if !strings.Contains(err.Error(), "relaying ADB for dev-1:") {
+				t.Fatalf("bridgeADB() = %v, want relaying ADB error prefix", err)
+			}
+			if gotStatus := websocket.CloseStatus(err); gotStatus != websocket.StatusInternalError {
+				t.Fatalf("CloseStatus(err) = %v, want %v (err: %v)", gotStatus, websocket.StatusInternalError, err)
+			}
+			if !strings.Contains(err.Error(), "remote boom") {
+				t.Fatalf("bridgeADB() = %v, want underlying close reason", err)
+			}
+		case <-ctx.Done():
+			t.Fatal("timed out waiting for bridgeADB to return")
+		}
+	})
+
+	t.Run("non-EOF toRemote error after local reset returns wrapped error", func(t *testing.T) {
+		ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+		defer cancel()
+
+		holdRemote := make(chan struct{})
+		client := adbBackend(t, func(sctx context.Context, c *websocket.Conn) {
+			if err := c.Write(sctx, websocket.MessageBinary, []byte("OKAY")); err != nil {
+				return
+			}
+			select {
+			case <-holdRemote:
+			case <-sctx.Done():
+			}
+		})
+		defer close(holdRemote)
+		peer, local := tcpLoopbackPair(t)
+
+		bridged := make(chan error, 1)
+		go func() {
+			bridged <- bridgeADB(ctx, client, "dev-1", "1", local)
+		}()
+
+		if err := peer.SetReadDeadline(time.Now().Add(5 * time.Second)); err != nil {
+			t.Fatalf("SetReadDeadline: %v", err)
+		}
+		got := make([]byte, 4)
+		if _, err := io.ReadFull(peer, got); err != nil {
+			t.Fatalf("peer ReadFull: %v", err)
+		}
+		if string(got) != "OKAY" {
+			t.Fatalf("peer read %q, want %q", got, "OKAY")
+		}
+		if err := peer.SetLinger(0); err != nil {
+			t.Fatalf("peer.SetLinger(0): %v", err)
+		}
+		_ = peer.Close()
+
+		select {
+		case err := <-bridged:
+			if err == nil {
+				t.Fatal("bridgeADB() = nil, want wrapped relay error after local TCP RST")
+			}
+			if errors.Is(err, errRemoteEnded) || errors.Is(err, errStreamSilent) {
+				t.Fatalf("bridgeADB() = %v, unexpected sentinel classification", err)
+			}
+			if !strings.Contains(err.Error(), "relaying ADB for dev-1:") {
+				t.Fatalf("bridgeADB() = %v, want relaying ADB error prefix", err)
+			}
+		case <-ctx.Done():
+			t.Fatal("timed out waiting for bridgeADB to return")
+		}
+	})
+
+	t.Run("parent context cancel suppresses teardown error", func(t *testing.T) {
+		parentCtx, parentCancel := context.WithCancel(t.Context())
+		defer parentCancel()
+		testCtx, testCancel := context.WithTimeout(t.Context(), 10*time.Second)
+		defer testCancel()
+
+		holdRemote := make(chan struct{})
+		defer close(holdRemote)
+		sendSecond := make(chan struct{})
+		client := adbBackend(t, func(sctx context.Context, c *websocket.Conn) {
+			if err := c.Write(sctx, websocket.MessageBinary, []byte("OKAY")); err != nil {
+				return
+			}
+			select {
+			case <-sendSecond:
+			case <-sctx.Done():
+				return
+			}
+			if err := c.Write(sctx, websocket.MessageBinary, []byte("MORE")); err != nil {
+				return
+			}
+			select {
+			case <-holdRemote:
+			case <-sctx.Done():
+			}
+		})
+
+		peer, rawLocal := tcpLoopbackPair(t)
+		errTeardown := errors.New("simulated teardown write failure")
+		local := &teardownWriteErrConn{
+			Conn:          rawLocal,
+			ctx:           parentCtx,
+			writeErr:      errTeardown,
+			inSecondWrite: make(chan struct{}),
+		}
+
+		bridged := make(chan error, 1)
+		go func() {
+			bridged <- bridgeADB(parentCtx, client, "dev-1", "1", local)
+		}()
+
+		if err := peer.SetReadDeadline(time.Now().Add(5 * time.Second)); err != nil {
+			t.Fatalf("SetReadDeadline: %v", err)
+		}
+		if _, err := io.ReadFull(peer, make([]byte, 4)); err != nil {
+			t.Fatalf("peer ReadFull: %v", err)
+		}
+		close(sendSecond)
+
+		select {
+		case <-local.inSecondWrite:
+		case <-testCtx.Done():
+			t.Fatal("timed out waiting for second local write")
+		}
+		parentCancel()
+
+		select {
+		case err := <-bridged:
+			if err != nil {
+				t.Fatalf("bridgeADB() = %v, want nil when parent context is canceled", err)
+			}
+		case <-testCtx.Done():
+			t.Fatal("timed out waiting for bridgeADB to return after cancel")
+		}
+	})
+}
+
+type relayTestStream struct {
+	readFn    func([]byte) (int, error)
+	writeFn   func([]byte) (int, error)
+	closeOnce sync.Once
+	closed    chan struct{}
+}
+
+func newRelayTestStream() *relayTestStream {
+	return &relayTestStream{closed: make(chan struct{})}
+}
+
+func (s *relayTestStream) Read(p []byte) (int, error) {
+	if s.readFn != nil {
+		return s.readFn(p)
+	}
+	<-s.closed
+	return 0, io.EOF
+}
+
+func (s *relayTestStream) Write(p []byte) (int, error) {
+	if s.writeFn != nil {
+		return s.writeFn(p)
+	}
+	return len(p), nil
+}
+
+func (s *relayTestStream) Close() error {
+	s.closeOnce.Do(func() { close(s.closed) })
+	return nil
+}
+
+func TestBridgeADBStreamsHandlesPostDataErrorsAndCancel(t *testing.T) {
+	t.Run("non-EOF toRemote write error after remote bytes flow", func(t *testing.T) {
+		parent := t.Context()
+		_, cancel := context.WithCancel(parent)
+		defer cancel()
+
+		errRemoteWrite := errors.New("simulated remote WebSocket write failure")
+		wroteRemoteBytes := make(chan struct{})
+
+		local := newRelayTestStream()
+		local.readFn = func(p []byte) (int, error) {
+			select {
+			case <-wroteRemoteBytes:
+			case <-local.closed:
+				return 0, net.ErrClosed
+			}
+			return copy(p, "PING"), nil
+		}
+
+		remote := newRelayTestStream()
+		var readStep atomic.Int32
+		remote.readFn = func(p []byte) (int, error) {
+			switch readStep.Add(1) {
+			case 1:
+				return copy(p, "OKAY"), nil
+			case 2:
+				close(wroteRemoteBytes)
+			}
+			<-remote.closed
+			return 0, io.EOF
+		}
+		remote.writeFn = func([]byte) (int, error) {
+			return 0, errRemoteWrite
+		}
+
+		err := bridgeADBStreams(parent, cancel, "dev-1", local, remote)
+		if !errors.Is(err, errRemoteWrite) {
+			t.Fatalf("bridgeADBStreams() = %v, want errors.Is(_, errRemoteWrite)", err)
+		}
+		if errors.Is(err, errRemoteEnded) || errors.Is(err, errStreamSilent) {
+			t.Fatalf("bridgeADBStreams() = %v, unexpected sentinel error", err)
+		}
+		if !strings.Contains(err.Error(), "relaying ADB for dev-1:") {
+			t.Fatalf("bridgeADBStreams() = %v, want relaying ADB error prefix", err)
+		}
+	})
+
+	t.Run("non-EOF toLocal read error after remote bytes flow", func(t *testing.T) {
+		parent := t.Context()
+		_, cancel := context.WithCancel(parent)
+		defer cancel()
+
+		errRemoteRead := errors.New("simulated TLS unexpected reset")
+		local := newRelayTestStream()
+		local.readFn = func([]byte) (int, error) {
+			<-local.closed
+			return 0, net.ErrClosed
+		}
+
+		remote := newRelayTestStream()
+		var step atomic.Int32
+		remote.readFn = func(p []byte) (int, error) {
+			if step.Add(1) == 1 {
+				return copy(p, "OKAY"), nil
+			}
+			return 0, errRemoteRead
+		}
+
+		err := bridgeADBStreams(parent, cancel, "dev-1", local, remote)
+		if !errors.Is(err, errRemoteRead) {
+			t.Fatalf("bridgeADBStreams() = %v, want errors.Is(_, errRemoteRead)", err)
+		}
+		if errors.Is(err, errRemoteEnded) || errors.Is(err, errStreamSilent) {
+			t.Fatalf("bridgeADBStreams() = %v, must not collapse into errRemoteEnded or errStreamSilent", err)
+		}
+		if !strings.Contains(err.Error(), "relaying ADB for dev-1:") {
+			t.Fatalf("bridgeADBStreams() = %v, want relaying ADB error prefix", err)
+		}
+	})
+
+	t.Run("parent cancel suppresses non-EOF teardown read and write errors", func(t *testing.T) {
+		parent, parentCancel := context.WithCancel(t.Context())
+		defer parentCancel()
+		ctx, cancel := context.WithCancel(parent)
+		defer cancel()
+
+		errTeardownRead := errors.New("simulated teardown read error")
+		errTeardownWrite := errors.New("simulated teardown write error")
+		wroteRemoteBytes := make(chan struct{})
+		inRemoteWrite := make(chan struct{})
+
+		local := newRelayTestStream()
+		var localReadSent atomic.Bool
+		local.readFn = func(p []byte) (int, error) {
+			if localReadSent.CompareAndSwap(false, true) {
+				select {
+				case <-wroteRemoteBytes:
+				case <-ctx.Done():
+					return 0, errTeardownRead
+				case <-local.closed:
+					return 0, errTeardownRead
+				}
+				return copy(p, "PING"), nil
+			}
+			select {
+			case <-ctx.Done():
+			case <-local.closed:
+			}
+			return 0, errTeardownRead
+		}
+
+		remote := newRelayTestStream()
+		var remoteReadStep atomic.Int32
+		remote.readFn = func(p []byte) (int, error) {
+			switch remoteReadStep.Add(1) {
+			case 1:
+				return copy(p, "OKAY"), nil
+			case 2:
+				close(wroteRemoteBytes)
+			}
+			select {
+			case <-ctx.Done():
+			case <-remote.closed:
+			}
+			return 0, errTeardownRead
+		}
+		remote.writeFn = func([]byte) (int, error) {
+			close(inRemoteWrite)
+			select {
+			case <-ctx.Done():
+			case <-remote.closed:
+			}
+			return 0, errTeardownWrite
+		}
+
+		done := make(chan error, 1)
+		go func() {
+			done <- bridgeADBStreams(parent, cancel, "dev-1", local, remote)
+		}()
+
+		select {
+		case <-inRemoteWrite:
+		case <-time.After(5 * time.Second):
+			t.Fatal("timed out waiting for inRemoteWrite")
+		}
+		parentCancel()
+
+		select {
+		case err := <-done:
+			if err != nil {
+				t.Fatalf("bridgeADBStreams() = %v, want nil on parent context cancellation", err)
+			}
+		case <-time.After(5 * time.Second):
+			t.Fatal("timed out waiting for bridgeADBStreams to return")
+		}
+	})
 }
 
 // messages strips the timestamp prefix from each logged line.

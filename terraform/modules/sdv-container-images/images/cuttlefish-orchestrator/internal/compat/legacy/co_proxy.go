@@ -197,14 +197,22 @@ func isWebSocketUpgrade(r *http.Request) bool {
 
 // sameHostOrigin reports whether the request's Origin header is absent
 // (non-browser clients) or names the same host the request was sent to,
-// mirroring websocket.Accept's default origin check.
+// matching /v2's sameOrAllowedWSOrigin rules: duplicate Origin headers and
+// opaque/hostless origins (including "null") are rejected.
 func sameHostOrigin(r *http.Request) bool {
-	origin := r.Header.Get("Origin")
-	if origin == "" {
+	origins := r.Header.Values("Origin")
+	if len(origins) == 0 {
 		return true
 	}
-	u, err := url.Parse(origin)
-	if err != nil {
+	if len(origins) > 1 {
+		return false
+	}
+	raw := strings.TrimSpace(origins[0])
+	if raw == "" {
+		return true
+	}
+	u, err := url.Parse(raw)
+	if err != nil || u.Host == "" {
 		return false
 	}
 	return strings.EqualFold(u.Host, r.Host)
