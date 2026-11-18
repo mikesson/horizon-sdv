@@ -71,7 +71,7 @@ spec:
             - name: CCO_AUTH_MODE
               value: "proxy"
             - name: CCO_TRUSTED_PROXIES
-              value: {{ join "," (.Values.config.podSourceCIDRs | default (list "10.10.0.0/16")) | quote }}
+              value: {{ join "," (without (.Values.config.podSourceCIDRs | default list) "" | default (list "10.10.0.0/16")) | quote }}
             - name: CCO_DEFAULT_USER
               value: ""
             - name: CCO_OPENAPI_SERVER_URL

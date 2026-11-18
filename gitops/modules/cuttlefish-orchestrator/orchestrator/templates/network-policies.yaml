@@ -75,13 +75,19 @@ spec:
     - Ingress
     - Egress
   ingress:
-    - ports:
-        - protocol: TCP
-          port: 80
+    # Accept Gateway/GFE LoadBalancer traffic (DNAT to pod targetPort 4180) and kubelet probes on :4180.
+    - from:
+        - ipBlock:
+            cidr: 130.211.0.0/22
+        - ipBlock:
+            cidr: 35.191.0.0/16
+{{- range (without (.Values.config.probeSourceCIDRs | default list) "" | default (list "10.1.0.0/24" "10.2.0.0/24")) }}
+        - ipBlock:
+            cidr: {{ . | quote }}
+{{- end }}
+      ports:
         - protocol: TCP
           port: 4180
-        - protocol: TCP
-          port: 44180
   egress:
     - to:
         - podSelector:
@@ -136,7 +142,7 @@ spec:
           port: 8080
     # Kubelet HTTP probes originate from node primary subnets onto isolated probe port :8081 only.
     - from:
-{{- range (.Values.config.probeSourceCIDRs | default (list "10.1.0.0/24" "10.2.0.0/24")) }}
+{{- range (without (.Values.config.probeSourceCIDRs | default list) "" | default (list "10.1.0.0/24" "10.2.0.0/24")) }}
         - ipBlock:
             cidr: {{ . | quote }}
 {{- end }}
@@ -188,7 +194,7 @@ spec:
           port: 8080
     # Kubelet HTTP probes originate from node primary subnets onto isolated probe port :8081 only.
     - from:
-{{- range (.Values.config.probeSourceCIDRs | default (list "10.1.0.0/24" "10.2.0.0/24")) }}
+{{- range (without (.Values.config.probeSourceCIDRs | default list) "" | default (list "10.1.0.0/24" "10.2.0.0/24")) }}
         - ipBlock:
             cidr: {{ . | quote }}
 {{- end }}

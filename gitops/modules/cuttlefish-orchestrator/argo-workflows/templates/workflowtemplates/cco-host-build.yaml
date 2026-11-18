@@ -345,6 +345,11 @@ spec:
                 exit 1
               }
             done
+            KERNEL_VER=$(uname -r | cut -d- -f1)
+            if ! dpkg --compare-versions "$KERNEL_VER" ge "6.12"; then
+              echo "ERROR: Kernel version $KERNEL_VER is below required 6.12" >&2
+              exit 1
+            fi
 
             # Ensure no Horizon custom_configs overrides are baked onto CCO host images.
             if [[ -d /etc/cuttlefish/custom_configs ]]; then
