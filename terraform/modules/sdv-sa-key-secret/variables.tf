@@ -39,3 +39,9 @@ variable "gke_access" {
     sa = string
   }))
 }
+
+variable "project_number" {
+  description = "Optional GCP project number (avoids deferred data.google_project lookup when module uses depends_on)"
+  type        = string
+  default     = null
+}

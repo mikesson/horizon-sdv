@@ -12,12 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-data "google_project" "project" {}
-
 resource "google_service_account" "sdv_wi_sa" {
   for_each = nonsensitive(var.wi_service_accounts)
 
-  project      = data.google_project.project.project_id
+  project      = var.project_id
   account_id   = each.value.account_id
   display_name = each.value.display_name
   description  = each.value.description
@@ -99,7 +97,7 @@ resource "terraform_data" "debug_roles_with_sa_map" {
 resource "google_project_iam_member" "sdv_wi_sa_iam_2" {
   for_each = local.roles_with_sa_map
 
-  project = data.google_project.project.id
+  project = "projects/${var.project_id}"
   role    = each.value.role
   member  = "serviceAccount:${google_service_account.sdv_wi_sa[each.value.sa_id].email}"
 
@@ -124,7 +122,7 @@ resource "google_service_account_iam_member" "sdv_wi_sa_self_roles" {
 resource "google_project_iam_member" "sdv_wi_sa_iam_conditional" {
   for_each = local.conditional_roles_map
 
-  project = data.google_project.project.id
+  project = "projects/${var.project_id}"
   role    = each.value.role
   member  = "serviceAccount:${google_service_account.sdv_wi_sa[each.value.sa_id].email}"
 

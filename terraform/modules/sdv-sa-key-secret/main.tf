@@ -12,7 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-data "google_project" "project" {}
+data "google_project" "project" {
+  count = var.project_number == null ? 1 : 0
+}
+
+locals {
+  project_number = var.project_number != null ? var.project_number : data.google_project.project[0].number
+}
 
 resource "google_service_account_key" "sa_key" {
   service_account_id = var.service_account_id
@@ -42,5 +48,5 @@ resource "google_secret_manager_secret_iam_member" "member" {
   secret_id = google_secret_manager_secret.sa_key_secret.secret_id
   role      = "roles/secretmanager.secretAccessor"
   ## ns/jenkins/jenkins-sa.
-  member = "principal://iam.googleapis.com/projects/${data.google_project.project.number}/locations/global/workloadIdentityPools/${var.project_id}.svc.id.goog/subject/ns/${each.value.ns}/sa/${each.value.sa}"
+  member = "principal://iam.googleapis.com/projects/${local.project_number}/locations/global/workloadIdentityPools/${var.project_id}.svc.id.goog/subject/ns/${each.value.ns}/sa/${each.value.sa}"
 }

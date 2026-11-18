@@ -26,6 +26,7 @@ module "sdv_secrets" {
   location        = var.sdv_location
   gcp_secrets_map = var.sdv_gcp_secrets_map
   project_id      = data.google_project.project.project_id
+  project_number  = data.google_project.project.number
 
   depends_on = [
     module.sdv_wi
@@ -491,6 +492,7 @@ module "sdv_sa_key_secret_gce_creds" {
   secret_id          = "gce-creds"
   location           = var.sdv_location
   project_id         = data.google_project.project.project_id
+  project_number     = data.google_project.project.number
 
   gke_access = concat(
     [

@@ -12,10 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-data "google_project" "project" {}
+data "google_project" "project" {
+  count = var.project_number == null ? 1 : 0
+}
 
 locals {
-  sdv_secrets = nonsensitive(var.gcp_secrets_map)
+  sdv_secrets    = nonsensitive(var.gcp_secrets_map)
+  project_number = var.project_number != null ? var.project_number : data.google_project.project[0].number
 }
 
 # Use to debug the secret values
@@ -71,7 +74,7 @@ resource "google_secret_manager_secret_iam_binding" "sdv_secret_accessor" {
   secret_id = each.value.id
   role      = "roles/secretmanager.secretAccessor"
   members = [
-    for gke_cfg in local.sdv_secrets[each.key].gke_access : "principal://iam.googleapis.com/projects/${data.google_project.project.number}/locations/global/workloadIdentityPools/${var.project_id}.svc.id.goog/subject/ns/${gke_cfg.ns}/sa/${gke_cfg.sa}"
+    for gke_cfg in local.sdv_secrets[each.key].gke_access : "principal://iam.googleapis.com/projects/${local.project_number}/locations/global/workloadIdentityPools/${var.project_id}.svc.id.goog/subject/ns/${gke_cfg.ns}/sa/${gke_cfg.sa}"
   ]
 
   depends_on = [
