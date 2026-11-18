@@ -22,7 +22,7 @@ Relative to `docs/bom/horizon-sdv-rel.3.0.0-open-source-modules.md`, Horizon SDV
 
 - **Cloud Cuttlefish Orchestrator (`cuttlefish-orchestrator`)**:
   - Added parent module chart `0.1.0` (`appVersion: "1.0.0"`), `orchestrator` subchart, and `argo-workflows` subchart.
-  - Added three first-party container images: `cuttlefish-orchestrator-api:1.0.0` (Go 1.26.9 on `gcr.io/distroless/base-debian12:nonroot`, serving `@scalar/api-reference@1.44.20` [MIT] via CDN with SRI on `/docs`), `cuttlefish-console:1.0.0` (Angular 22 SPA on `nginx:1.31.2-alpine3.23`), and `cuttlefish-workflow:1.0.0` (`cfctl` + `google-cloud-cli` + HashiCorp `packer 1.15.0` [BSL-1.1] + `hashicorp/googlecompute v1.2.4` [MPL-2.0] + `android-tools-adb` + `openjdk-17-jre-headless` on `debian:12-slim`).
+  - Added three first-party container images: `cuttlefish-orchestrator-api:1.0.0` (Go 1.26.9 on `gcr.io/distroless/base-debian12:nonroot`, serving `@scalar/api-reference@1.44.20` [MIT] via CDN with SRI on `/docs`), `cuttlefish-console:1.0.1` (Angular 22 SPA on `nginx:1.31.2-alpine3.23`), and `cuttlefish-workflow:1.0.0` (`cfctl` + `google-cloud-cli` + HashiCorp `packer 1.15.0` [BSL-1.1] + `hashicorp/googlecompute v1.2.4` [MPL-2.0] + `android-tools-adb` + `openjdk-17-jre-headless` on `debian:12-slim`).
   - Added per-module `oauth2-proxy` Helm release (`8.3.0`) for Keycloak SSO gateway authentication.
   - Detailed third-party dependency inventory (62 unique Go modules / 64 Go notice entries across `./cmd/...`, 182 unique production `name@version` npm packages across 179 unique package names and 10 SPDX licenses excluding `devOptional` `typescript@6.0.3`, runtime `@scalar/api-reference@1.44.20` [MIT] CDN dependency, and workflow/font assets) is maintained in `terraform/modules/sdv-container-images/images/cuttlefish-orchestrator/THIRD_PARTY_NOTICES.md`.
 - **Platform Core and Module Additions / Upgrades**:
@@ -104,7 +104,7 @@ Relative to `docs/bom/horizon-sdv-rel.3.0.0-open-source-modules.md`, Horizon SDV
 | Image | Tag | Base / Runtime Images | License | Notes |
 | --- | --- | --- | --- | --- |
 | `cuttlefish-orchestrator-api` | `1.0.0` | Builder: `golang:1.26.9-alpine`; Runtime: `gcr.io/distroless/base-debian12:nonroot` | Apache-2.0 | CCO REST API, Spanner DAL, WebSocket/WebRTC & host/device orchestrator; `/docs` loads `@scalar/api-reference@1.44.20` (`MIT`) from unpkg CDN w/ SRI |
-| `cuttlefish-console` | `1.0.0` | Builder: `node:24-alpine`; Runtime: `nginx:1.31.2-alpine3.23` | Apache-2.0 | Angular 22 frontend + nginx API/WebSocket reverse proxy |
+| `cuttlefish-console` | `1.0.1` | Builder: `node:24-alpine`; Runtime: `nginx:1.31.2-alpine3.23` | Apache-2.0 | Angular 22 frontend + nginx API/WebSocket reverse proxy |
 | `cuttlefish-workflow` | `1.0.0` | Builder: `golang:1.26.9-alpine`; Runtime: `debian:12-slim` | Apache-2.0 + BSL-1.1 (packer) + MPL-2.0 (hashicorp/googlecompute) + Debian DFSG / GPL-2.0-with-classpath-exception (OpenJDK 17) | `cfctl` CLI, `google-cloud-cli`, `packer 1.15.0`, `hashicorp/googlecompute v1.2.4`, `android-tools-adb`, `openjdk-17-jre-headless` |
 | `horizon-dev-portal` | `5.0.0` (`horizoncore`) | Builder: `golang:1.27.2-alpine`, `node:22-alpine`; Runtime: `gcr.io/distroless/static-debian12:nonroot` | Apache-2.0 | Developer Portal UI, Go proxy, and `horizon` CLI distribution |
 | `module-manager-app` | `0.3.7` | Builder: `golang:1.27.2-alpine`; Runtime: `alpine:3.19` | Apache-2.0 | Module lifecycle controller and teardown orchestrator |
@@ -126,7 +126,7 @@ Relative to `docs/bom/horizon-sdv-rel.3.0.0-open-source-modules.md`, Horizon SDV
 
 For the complete package-by-package software bill of materials covering:
 - **62** unique third-party Go modules (**64** entries across `cmd/orchestrator`, `cmd/cfctl`, `cmd/relayhook`, accounting for dual-licensed `github.com/go-jose/go-jose/v4` and `go.yaml.in/yaml/v3`), compiled into `cuttlefish-orchestrator-api:1.0.0` and `cfctl` inside `cuttlefish-workflow:1.0.0`,
-- **182** unique production `name@version` npm packages (**179** unique package names, excluding `devOptional` `typescript@6.0.3`; bundled into `cuttlefish-console:1.0.0`: `MIT` 161, `ISC` 9, `Apache-2.0` 3, `BSD-2-Clause` 3, `0BSD` 1, `BSD-3-Clause` 1, `CC-BY-4.0` 1, `CC0-1.0` 1, `Python-2.0` 1, `AFL-2.1 or BSD-3-Clause` 1),
+- **182** unique production `name@version` npm packages (**179** unique package names, excluding `devOptional` `typescript@6.0.3`; bundled into `cuttlefish-console:1.0.1`: `MIT` 161, `ISC` 9, `Apache-2.0` 3, `BSD-2-Clause` 3, `0BSD` 1, `BSD-3-Clause` 1, `CC-BY-4.0` 1, `CC0-1.0` 1, `Python-2.0` 1, `AFL-2.1 or BSD-3-Clause` 1),
 - Runtime CDN asset `@scalar/api-reference@1.44.20` (`MIT`, loaded with SRI on `/docs`), base images, `packer 1.15.0` (`BSL-1.1`), `hashicorp/googlecompute v1.2.4` (`MPL-2.0`), APT runtime packages in `cuttlefish-workflow:1.0.0` (including OpenJDK 17 `GPL-2.0-with-classpath-exception`), and self-hosted Google Sans, Google Sans Code, and Material Symbols `.woff2` fonts (`SIL OFL-1.1` / `Apache-2.0`),
 
 see [`terraform/modules/sdv-container-images/images/cuttlefish-orchestrator/THIRD_PARTY_NOTICES.md`](../../terraform/modules/sdv-container-images/images/cuttlefish-orchestrator/THIRD_PARTY_NOTICES.md).
