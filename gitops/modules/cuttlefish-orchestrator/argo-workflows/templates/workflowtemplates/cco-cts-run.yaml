@@ -134,6 +134,15 @@ spec:
         - - name: run-cts
             template: run-cts
     - name: run-cts
+{{- $ctsRunner := $root.Values.ctsRunner | default dict }}
+{{- if $ctsRunner.nodeSelector }}
+      nodeSelector:
+{{- toYaml $ctsRunner.nodeSelector | nindent 8 }}
+{{- end }}
+{{- if $ctsRunner.tolerations }}
+      tolerations:
+{{- toYaml $ctsRunner.tolerations | nindent 8 }}
+{{- end }}
       container:
         image: {{ $root.Values.workflowImage | quote }}
         imagePullPolicy: IfNotPresent
@@ -434,8 +443,9 @@ spec:
               echo "Archived CTS results to ${DEST_PREFIX}/"
             fi
 
-            FAILED_COUNT="$({ grep '^[[:space:]]*FAILED' /workspace/artifacts/cts-results/invocation_summary.txt || true; } | awk '{print $NF}' | tr -cd '0-9')"
+            FAILED_COUNT="$({ grep '^[[:space:]]*FAILED' /workspace/artifacts/cts-results/invocation_summary.txt || true; } | head -n1 | awk '{print $NF}' | tr -cd '0-9')"
             FAILED_COUNT="${FAILED_COUNT:-1}"
+            FAILED_COUNT="$(( 10#${FAILED_COUNT} ))"
             echo "CTS invocation FAILED count=${FAILED_COUNT} (tradefed exit=${CTS_EXIT})"
             if (( FAILED_COUNT > 0 )); then
               echo "ERROR: CTS recorded ${FAILED_COUNT} failed test case(s)" >&2

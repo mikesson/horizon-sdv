@@ -178,7 +178,7 @@ module "base" {
     "${var.sdv_gcp_zone}"
   ]
 
-  sdv_build_node_pool_machine_type   = "c2d-highcpu-112"
+  sdv_build_node_pool_machine_type   = var.sdv_build_node_pool_machine_type
   sdv_build_node_pool_max_node_count = 20
 
   sdv_openbsw_build_node_pool_machine_type   = "c2d-highcpu-8"

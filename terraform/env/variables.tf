@@ -274,6 +274,12 @@ variable "sdv_abfs_build_node_pool_version" {
   type        = string
 }
 
+variable "sdv_build_node_pool_machine_type" {
+  description = "GCE machine type for the Android build node pool (sdv-build-node-pool)."
+  type        = string
+  default     = "c2d-highcpu-112"
+}
+
 variable "sdv_cluster_version" {
   description = "Cluster control plane min_master_version (floor; live master may be newer; not a downgrade pin)."
   type        = string

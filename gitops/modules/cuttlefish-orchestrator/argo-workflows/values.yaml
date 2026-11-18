@@ -43,3 +43,12 @@ serviceAccountSensor: "sensor-submit-workflow"
 podGcStrategy: "OnWorkflowCompletion"
 workflowTtlSecondsAfterCompletion: 86400
 ctsWorkspaceStorageSize: "40Gi"
+
+ctsRunner:
+  nodeSelector:
+    workloadLabel: utility
+  tolerations:
+    - key: workloadType
+      operator: Equal
+      value: utility
+      effect: NoSchedule
