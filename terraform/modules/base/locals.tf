@@ -155,8 +155,8 @@ locals {
     }
     "cuttlefish-console" = {
       directory      = "cuttlefish-orchestrator"
-      build_version  = "1.0.0"
-      deploy_version = "1.0.0"
+      build_version  = "1.0.1"
+      deploy_version = "1.0.1"
       context_path   = abspath("${path.module}/../sdv-container-images/images/cuttlefish-orchestrator/web/cuttlefish-console")
       build_args = {
         NGINX_VERSION = local.common_nginx_version
