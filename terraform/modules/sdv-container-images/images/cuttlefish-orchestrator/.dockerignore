@@ -22,6 +22,7 @@
 
 Dockerfile
 Dockerfile*
+!Dockerfile.workflow
 .dockerignore
 cloudbuild.yaml
 .gcloudignore
