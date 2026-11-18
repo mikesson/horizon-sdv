@@ -32,6 +32,8 @@ config:
   isSubEnvironment: false
   environmentName: dev
   enableNetworkPolicies: true
+  podSourceCIDRs:
+    - "10.10.0.0/16"
   containerImages:
     storageGcsModule: example/storage-gcs-module:latest
     cuttlefishOrchestratorApi: example/cuttlefish-orchestrator-api:latest

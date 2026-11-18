@@ -174,11 +174,18 @@ When deployed as a Horizon SDV module on GKE, an external authenticating proxy
 passes caller identity via trusted `X-Auth-Request-Email` /
 `X-Auth-Request-User` headers (bridged from `X-Forwarded-*` by `cuttlefish-console`).
 
-- Requests from untrusted source CIDRs (`CCO_TRUSTED_PROXIES`) are rejected, and
+- Requests from untrusted source CIDRs (`CCO_TRUSTED_PROXIES`, scoped to GKE
+  Pod CIDRs via `podSourceCIDRs`) are rejected, and
   `NetworkPolicy/allow-cuttlefish-orchestrator-api` enforces pod-level ingress
-  isolation to `cuttlefish-console` and `<prefix>workflows`.
-- When `CCO_PROXY_DEFAULT_USER` is unset, requests missing both
+  isolation to `cuttlefish-console` and workflow pods carrying
+  `horizon-sdv.io/cuttlefish-api-client=true` in `<prefix>workflows` on `:8080`,
+  while kubelet node probes (`probeSourceCIDRs`) reach only the isolated
+  `CCO_PROBE_PORT` (`8081`) for `GET`/`HEAD` `/health` and `/ready`.
+- When `CCO_DEFAULT_USER` is unset, requests missing both
   `X-Auth-Request-Email` and `X-Auth-Request-User` fail closed with `401`.
+- When `CCO_PROBE_PORT` is non-zero (`8081` in Horizon SDV GKE), `:8080/health`
+  and `:8080/ready` require proxy authentication (`cfctl doctor` still succeeds
+  with `CFCTL_AUTH_NONE=true` and `CFCTL_PROXY_EMAIL`).
 - In-cluster Argo Workflows (`cco-host-image-build`, `cco-cvd-run`,
   `cco-cts-run`) authenticate via `CFCTL_AUTH_NONE=true` together with
   `CFCTL_PROXY_EMAIL` (sent as `X-Auth-Request-Email`).

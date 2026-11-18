@@ -88,6 +88,9 @@ spec:
             pass_user_headers = true
             # Console Nginx bridges X-Forwarded-* request headers (pass_user_headers = true);
             # Angular frontend does not inspect X-Auth-Request-* HTTP response headers.
+            # Keep skip_auth_strip_headers = true (sets PreserveRequestValue = false in v7.12.0)
+            # so client-supplied X-Forwarded-* and Authorization headers are stripped before
+            # oauth2-proxy injects authenticated user headers.
             set_xauthrequest = false
             skip_auth_strip_headers = true
             skip_provider_button = true

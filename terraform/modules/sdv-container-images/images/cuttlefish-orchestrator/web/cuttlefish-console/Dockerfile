@@ -37,6 +37,7 @@ LABEL org.opencontainers.image.title="cuttlefish-console" \
       org.opencontainers.image.licenses="Apache-2.0"
 
 ENV API_UPSTREAM=cuttlefish-orchestrator-api:8080
+ENV CCO_CONSOLE_PROBE_PORT=8081
 
 RUN rm -rf /etc/nginx/conf.d/* /usr/share/nginx/html/* && \
     mkdir -p /etc/nginx/snippets /tmp/client_temp /tmp/proxy_temp /tmp/fastcgi_temp /tmp/uwsgi_temp /tmp/scgi_temp && \
@@ -48,9 +49,9 @@ COPY --chown=101:101 nginx/snippets/ /etc/nginx/snippets/
 COPY --chmod=0755 nginx/entrypoint.sh /entrypoint.sh
 
 USER 101:101
-EXPOSE 8080
+EXPOSE 8080 8081
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
-  CMD wget -q -O /dev/null http://127.0.0.1:8080/healthz || exit 1
+  CMD wget -q -O /dev/null http://127.0.0.1:8081/healthz || exit 1
 
 ENTRYPOINT ["/entrypoint.sh"]

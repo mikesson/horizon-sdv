@@ -17,8 +17,11 @@ package config
 import (
 	"errors"
 	"fmt"
+	"net"
 	"net/netip"
+	"os"
 	"regexp"
+	"strconv"
 	"strings"
 )
 
@@ -49,6 +52,15 @@ func (c *Config) Validate() error {
 	// Auth mode gates the front door; default to iap when unset.
 	if c.Auth.Mode != "" && !c.Auth.Mode.IsValid() {
 		return fmt.Errorf("invalid auth mode %q: must be 'iap', 'network', or 'proxy'", c.Auth.Mode)
+	}
+	if c.Server.ProbePort < 0 || c.Server.ProbePort > 65535 {
+		return fmt.Errorf("invalid probe port %d (CCO_PROBE_PORT): must be between 0 and 65535", c.Server.ProbePort)
+	}
+	if c.Server.ProbePort > 0 {
+		mainPort := mainServerPort(c.Server.Address)
+		if mainPort != "" && mainPort == strconv.Itoa(c.Server.ProbePort) {
+			return fmt.Errorf("invalid probe port %d (CCO_PROBE_PORT): must differ from main server port %s", c.Server.ProbePort, mainPort)
+		}
 	}
 	if c.Auth.Mode == AuthModeProxy {
 		if c.Auth.DevMode {
@@ -145,4 +157,18 @@ func parseTrustedProxyEntry(raw string) (netip.Prefix, error) {
 	}
 	unmapped := addr.Unmap()
 	return netip.PrefixFrom(unmapped, unmapped.BitLen()), nil
+}
+
+func mainServerPort(address string) string {
+	if address != "" {
+		_, port, err := net.SplitHostPort(address)
+		if err == nil {
+			return port
+		}
+		return ""
+	}
+	if p := os.Getenv("PORT"); p != "" {
+		return p
+	}
+	return "8080"
 }

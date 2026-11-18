@@ -42,7 +42,20 @@ if ! printf '%s' "$upstream" | LC_ALL=C grep -Eq '^[]A-Za-z0-9._:[-]+$'; then
   exit 1
 fi
 
+probe_port="${CCO_CONSOLE_PROBE_PORT-8081}"
+if ! printf '%s' "$probe_port" | LC_ALL=C grep -Eq '^[1-9][0-9]*$' || [ "$probe_port" -lt 1 ] || [ "$probe_port" -gt 65535 ]; then
+  echo "CCO_CONSOLE_PROBE_PORT must be an integer between 1 and 65535" >&2
+  exit 1
+fi
+if [ "$probe_port" = "8080" ] || { [ -n "${PORT:-}" ] && [ "$probe_port" = "${PORT}" ]; }; then
+  echo "CCO_CONSOLE_PROBE_PORT (${probe_port}) must differ from the main console port" >&2
+  exit 1
+fi
+
 mkdir -p /tmp/client_temp /tmp/proxy_temp /tmp/fastcgi_temp /tmp/uwsgi_temp /tmp/scgi_temp
-sed "s|__API_UPSTREAM__|${upstream}|g" /etc/nginx/nginx.conf.template > /tmp/nginx.conf
+sed \
+  -e "s|__API_UPSTREAM__|${upstream}|g" \
+  -e "s|__PROBE_PORT__|${probe_port}|g" \
+  /etc/nginx/nginx.conf.template > /tmp/nginx.conf
 
 exec nginx -e stderr -c /tmp/nginx.conf -g "daemon off;"

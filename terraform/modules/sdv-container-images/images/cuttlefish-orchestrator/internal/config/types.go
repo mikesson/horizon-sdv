@@ -219,6 +219,12 @@ type ServerConfig struct {
 	// Address to listen on (e.g., ":8080")
 	Address string
 
+	// ProbePort optionally starts a dedicated probe HTTP listener serving only
+	// GET/HEAD /health and /ready (for example 8081 for GKE kubelet probes)
+	// while keeping /health and /ready authenticated on Address. When 0,
+	// /health and /ready remain unauthenticated on Address.
+	ProbePort int
+
 	// ReadHeaderTimeout bounds reading a request's headers (slowloris guard).
 	ReadHeaderTimeout Duration
 

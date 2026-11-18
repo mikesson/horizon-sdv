@@ -101,6 +101,12 @@ spec:
         - - name: bake-image
             template: bake-image
     - name: bake-image
+      metadata:
+        labels:
+          horizon-sdv.io/cuttlefish-api-client: "true"
+      podMetadata:
+        labels:
+          horizon-sdv.io/cuttlefish-api-client: "true"
       container:
         image: {{ $root.Values.workflowImage | quote }}
         imagePullPolicy: IfNotPresent

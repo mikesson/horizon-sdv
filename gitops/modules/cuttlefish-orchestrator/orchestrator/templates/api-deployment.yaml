@@ -56,9 +56,14 @@ spec:
             - name: http
               containerPort: 8080
               protocol: TCP
+            - name: health
+              containerPort: 8081
+              protocol: TCP
           env:
             - name: GCE_METADATA_HOST
               value: "169.254.169.252:988"
+            - name: CCO_PROBE_PORT
+              value: "8081"
             - name: CCO_DEVICE_INGRESS
               value: "private"
             - name: CCO_DEPLOYMENT
@@ -66,7 +71,7 @@ spec:
             - name: CCO_AUTH_MODE
               value: "proxy"
             - name: CCO_TRUSTED_PROXIES
-              value: "10.0.0.0/8,172.16.0.0/12,192.168.0.0/16"
+              value: {{ join "," (.Values.config.podSourceCIDRs | default (list "10.10.0.0/16")) | quote }}
             - name: CCO_DEFAULT_USER
               value: ""
             - name: CCO_OPENAPI_SERVER_URL
@@ -98,7 +103,7 @@ spec:
           readinessProbe:
             httpGet:
               path: /ready
-              port: http
+              port: health
             initialDelaySeconds: 5
             periodSeconds: 10
             timeoutSeconds: 3
@@ -106,7 +111,7 @@ spec:
           livenessProbe:
             httpGet:
               path: /health
-              port: http
+              port: health
             initialDelaySeconds: 10
             periodSeconds: 15
             timeoutSeconds: 3

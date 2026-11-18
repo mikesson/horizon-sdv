@@ -81,6 +81,10 @@ type Config struct {
 	// /v1. Nil disables it (the native API lives at /v2 regardless).
 	LegacyCOHandler *legacyfeature.COHandler
 
+	// RequireAuthForProbes enforces authentication for /health and /ready on
+	// the main server when an isolated probe port serves unauthenticated probes.
+	RequireAuthForProbes bool
+
 	AuthConfig middleware.AuthConfig
 	Logger     *slog.Logger
 }
@@ -118,7 +122,12 @@ func New(cfg Config) (http.Handler, error) {
 	// the container directly (bypassing IAP) and must stay open. Everything
 	// else, including /info and the Huma docs/openapi/schemas, requires a
 	// verified identity. This is the single source of truth for public paths.
-	publicPaths := []string{"/health", "/ready"}
+	// Authentication applies to all API routes except explicit unauthenticated
+	// probe endpoints (unless isolated to a separate probe server).
+	var publicPaths []string
+	if !cfg.RequireAuthForProbes {
+		publicPaths = []string{"/health", "/ready"}
+	}
 	r.Use(pathBasedAuth(cfg.AuthConfig, publicPaths))
 
 	// Create Huma API for OpenAPI spec generation

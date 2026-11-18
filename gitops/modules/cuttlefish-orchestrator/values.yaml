@@ -64,12 +64,15 @@ config:
   isSubEnvironment: false
   environmentName: dev
   # REQUIRED in production for CCO_AUTH_MODE=proxy header isolation: cuttlefish-orchestrator-api
-  # trusts X-Auth-Request-* headers from CCO_TRUSTED_PROXIES (Pod/VPC CIDRs), so NetworkPolicies must
-  # restrict :8080 ingress strictly to cuttlefish-console, <prefix>workflows, and probeSourceCIDRs.
+  # trusts X-Auth-Request-* headers only from CCO_TRUSTED_PROXIES (podSourceCIDRs, never node subnets),
+  # so NetworkPolicies restrict :8080 ingress strictly to cuttlefish-console and labeled
+  # cuttlefish-api-client pods in <prefix>workflows, while probeSourceCIDRs target :8081 probes only.
   enableNetworkPolicies: true
   probeSourceCIDRs:
     - 10.1.0.0/24
     - 10.2.0.0/24
+  podSourceCIDRs:
+    - 10.10.0.0/16
   cloudWorkstations:
     network: sdv-network
     subnetwork: sdv-subnet

@@ -153,16 +153,32 @@ func Run() error {
 		return err
 	}
 
-	serverErr := make(chan error, 1)
+	servers := []*http.Server{server}
+	var probeServer *http.Server
+	if cfg.Server.ProbePort > 0 {
+		probeServer = buildProbeServer(cfg, logger, f.healthHandler)
+		servers = append(servers, probeServer)
+	}
+
+	serverErr := make(chan error, 2)
 	go func() {
 		logger.Info("Starting server", slog.String("addr", server.Addr))
 		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			serverErr <- err
+			serverErr <- fmt.Errorf("main server (%s): %w", server.Addr, err)
 		}
 	}()
+	if probeServer != nil {
+		go func() {
+			logger.Info("Starting probe server", slog.String("addr", probeServer.Addr))
+			if err := probeServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+				serverErr <- fmt.Errorf("probe server (%s): %w", probeServer.Addr, err)
+			}
+		}()
+	}
 
 	select {
 	case err := <-serverErr:
+		shutdown(servers, backgroundJobs, f.auditLogger, logger)
 		return fmt.Errorf("server failed: %w", err)
 	case <-ctx.Done():
 	}
@@ -170,20 +186,25 @@ func Run() error {
 	// Go 1.26 NotifyContext cancels with a cause naming the received signal.
 	logger.Info("Shutting down...", slog.Any("cause", context.Cause(ctx)))
 	stop() // restore default signal handling: a second SIGTERM kills immediately
-	shutdown(server, backgroundJobs, f.auditLogger, logger)
+	shutdown(servers, backgroundJobs, f.auditLogger, logger)
 
 	logger.Info("Server exited")
 	return nil
 }
 
-// shutdown drains the server, joins the background jobs, and flushes audit
+// shutdown drains all HTTP servers, joins the background jobs, and flushes audit
 // entries, in that order, before the deferred client closes run.
-func shutdown(server *http.Server, j jobs, auditLogger *audit.Logger, logger *slog.Logger) {
+func shutdown(servers []*http.Server, j jobs, auditLogger *audit.Logger, logger *slog.Logger) {
 	// 1. Stop accepting new requests and drain in-flight ones.
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	if err := server.Shutdown(shutdownCtx); err != nil {
-		logger.Error("Server forced to shutdown", slog.Any("error", err))
+	for _, server := range servers {
+		if server == nil {
+			continue
+		}
+		if err := server.Shutdown(shutdownCtx); err != nil {
+			logger.Error("Server forced to shutdown", slog.String("addr", server.Addr), slog.Any("error", err))
+		}
 	}
 
 	// 2. Join the background jobs (worker pool first, see jobs.stop).

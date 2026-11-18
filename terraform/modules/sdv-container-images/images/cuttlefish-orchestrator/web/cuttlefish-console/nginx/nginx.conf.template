@@ -66,13 +66,13 @@ http {
 
         include /etc/nginx/snippets/security-headers.conf;
 
-        # 1. Exact unauthenticated probe endpoint (K8s probes / GKE HealthCheckPolicy)
+        # 1. Fail closed on main port: kubelet probes target __PROBE_PORT__ so
+        # unauthenticated /healthz never shares :8080 with proxy/SPA traffic
+        # or falls through to location / index.html.
         location = /healthz {
             access_log off;
             include /etc/nginx/snippets/security-headers.conf;
-            add_header Content-Type "text/plain; charset=utf-8" always;
-            add_header Cache-Control "no-store" always;
-            return 200 "ok\n";
+            return 404;
         }
 
         # 2. Canonical trailing slash on /cuttlefish-orchestrator (evaluated before server rewrite match)
@@ -244,6 +244,25 @@ http {
             include /etc/nginx/snippets/security-headers.conf;
             add_header Cache-Control "no-store, no-cache, must-revalidate" always;
             try_files $uri /index.html;
+        }
+    }
+
+    # Dedicated unauthenticated probe server for kubelet readiness/liveness checks.
+    server {
+        listen __PROBE_PORT__;
+        server_name _;
+
+        location = /healthz {
+            access_log off;
+            include /etc/nginx/snippets/security-headers.conf;
+            add_header Content-Type "text/plain; charset=utf-8" always;
+            add_header Cache-Control "no-store" always;
+            return 200 "ok\n";
+        }
+
+        location / {
+            include /etc/nginx/snippets/security-headers.conf;
+            return 404;
         }
     }
 }

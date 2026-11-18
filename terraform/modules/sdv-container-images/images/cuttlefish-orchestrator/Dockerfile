@@ -36,6 +36,6 @@ COPY --from=builder --chown=nonroot:nonroot /out/cloud-orchestrator /app/cloud-o
 COPY --from=builder --chown=nonroot:nonroot /out/cfctl /app/cfctl
 
 USER nonroot:nonroot
-EXPOSE 8080
+EXPOSE 8080 8081
 
 ENTRYPOINT ["/app/cloud-orchestrator"]

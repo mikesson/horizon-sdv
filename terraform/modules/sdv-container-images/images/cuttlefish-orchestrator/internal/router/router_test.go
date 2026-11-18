@@ -15,11 +15,16 @@
 package router
 
 import (
+	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
+	adminfeature "cloud-cuttlefish-orchestrator/internal/features/admin"
+	devicefeature "cloud-cuttlefish-orchestrator/internal/features/device"
+	storagefeature "cloud-cuttlefish-orchestrator/internal/features/storage"
 	"cloud-cuttlefish-orchestrator/internal/middleware"
 )
 
@@ -124,4 +129,100 @@ func TestDocsHandler(t *testing.T) {
 			t.Errorf("docs page missing %q", want)
 		}
 	}
+}
+
+func TestRouter_RequireAuthForProbes(t *testing.T) {
+	t.Parallel()
+
+	proxies, err := middleware.ParseTrustedProxies([]string{"10.10.0.0/16"})
+	if err != nil {
+		t.Fatalf("ParseTrustedProxies: %v", err)
+	}
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+
+	newTestRouter := func(requireAuth bool) http.Handler {
+		t.Helper()
+		r, err := New(Config{
+			DeviceHandler:        devicefeature.NewDeviceHandler(nil, nil, nil, nil),
+			StorageHandler:       storagefeature.NewStorageHandler(nil),
+			HealthHandler:        adminfeature.NewHealthHandler("test"),
+			RequireAuthForProbes: requireAuth,
+			AuthConfig: middleware.AuthConfig{
+				Mode:           middleware.AccessModeProxy,
+				TrustedProxies: proxies,
+			},
+			Logger: logger,
+		})
+		if err != nil {
+			t.Fatalf("New router: %v", err)
+		}
+		return r
+	}
+
+	t.Run("require_auth_true_gates_probes_and_preserves_routes", func(t *testing.T) {
+		t.Parallel()
+		handler := newTestRouter(true)
+
+		for _, path := range []string{"/health", "/ready"} {
+			// Unauthenticated probe on :8080 must fail closed (401).
+			req := httptest.NewRequest(http.MethodGet, path, nil)
+			req.RemoteAddr = "10.10.1.53:12345"
+			rec := httptest.NewRecorder()
+			handler.ServeHTTP(rec, req)
+			if rec.Code != http.StatusUnauthorized {
+				t.Errorf("unauthenticated GET %s: got %d, want 401", path, rec.Code)
+			}
+
+			// Spoofed identity header from outside Pod CIDR must fail closed (401).
+			nodeReq := httptest.NewRequest(http.MethodGet, path, nil)
+			nodeReq.RemoteAddr = "10.1.0.42:12345"
+			nodeReq.Header.Set("X-Auth-Request-Email", "attacker@example.com")
+			nodeRec := httptest.NewRecorder()
+			handler.ServeHTTP(nodeRec, nodeReq)
+			if nodeRec.Code != http.StatusUnauthorized {
+				t.Errorf("untrusted-CIDR GET %s: got %d, want 401", path, nodeRec.Code)
+			}
+
+			// Authenticated caller (e.g. cfctl doctor) from trusted Pod CIDR succeeds (200).
+			authReq := httptest.NewRequest(http.MethodGet, path, nil)
+			authReq.RemoteAddr = "10.10.1.53:12345"
+			authReq.Header.Set("X-Auth-Request-Email", "cfctl@example.com")
+			authRec := httptest.NewRecorder()
+			handler.ServeHTTP(authRec, authReq)
+			if authRec.Code != http.StatusOK {
+				t.Errorf("authenticated GET %s: got %d, want 200", path, authRec.Code)
+			}
+		}
+
+		// OpenAPI spec still exposes /health and /ready for authenticated clients.
+		specReq := httptest.NewRequest(http.MethodGet, "/openapi.json", nil)
+		specReq.RemoteAddr = "10.10.1.53:12345"
+		specReq.Header.Set("X-Auth-Request-Email", "cfctl@example.com")
+		specRec := httptest.NewRecorder()
+		handler.ServeHTTP(specRec, specReq)
+		if specRec.Code != http.StatusOK {
+			t.Fatalf("GET /openapi.json: got %d, want 200", specRec.Code)
+		}
+		specBody := specRec.Body.String()
+		for _, wantPath := range []string{`"/health"`, `"/ready"`} {
+			if !strings.Contains(specBody, wantPath) {
+				t.Errorf("openapi.json missing %s when RequireAuthForProbes=true", wantPath)
+			}
+		}
+	})
+
+	t.Run("require_auth_false_keeps_probes_public", func(t *testing.T) {
+		t.Parallel()
+		handler := newTestRouter(false)
+
+		for _, path := range []string{"/health", "/ready"} {
+			req := httptest.NewRequest(http.MethodGet, path, nil)
+			req.RemoteAddr = "10.1.0.42:12345"
+			rec := httptest.NewRecorder()
+			handler.ServeHTTP(rec, req)
+			if rec.Code != http.StatusOK {
+				t.Errorf("public GET %s: got %d, want 200", path, rec.Code)
+			}
+		}
+	})
 }

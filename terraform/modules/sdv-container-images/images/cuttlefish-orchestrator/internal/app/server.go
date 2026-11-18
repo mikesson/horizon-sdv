@@ -17,6 +17,7 @@ package app
 import (
 	"cmp"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -25,10 +26,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/danielgtaylor/huma/v2"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 
 	legacyfeature "cloud-cuttlefish-orchestrator/internal/compat/legacy"
 	"cloud-cuttlefish-orchestrator/internal/config"
+	adminfeature "cloud-cuttlefish-orchestrator/internal/features/admin"
 	"cloud-cuttlefish-orchestrator/internal/middleware"
 	"cloud-cuttlefish-orchestrator/internal/router"
 )
@@ -54,6 +57,7 @@ func buildServer(cfg *config.Config, logger *slog.Logger, f *featureSet, legacyC
 		HostImageConfigHandler: f.hostImageConfigHandler,
 		RelayHandler:           f.relayHandler,
 		LegacyCOHandler:        legacyCO,
+		RequireAuthForProbes:   cfg.Server.ProbePort > 0,
 		AuthConfig:             authConfig,
 		Logger:                 logger,
 	}
@@ -75,6 +79,59 @@ func buildServer(cfg *config.Config, logger *slog.Logger, f *featureSet, legacyC
 		ReadHeaderTimeout: time.Duration(cfg.Server.ReadHeaderTimeout),
 		IdleTimeout:       time.Duration(cfg.Server.IdleTimeout),
 	}, nil
+}
+
+// buildProbeServer composes an isolated HTTP listener serving only GET and HEAD
+// requests for /health and /ready on CCO_PROBE_PORT. No SPA or API routes are
+// registered, ensuring kubelet probes are strictly separated from authenticated
+// main API traffic.
+func buildProbeServer(cfg *config.Config, logger *slog.Logger, healthHandler *adminfeature.HealthHandler) *http.Server {
+	mux := http.NewServeMux()
+	handleProbe := func(fn func(context.Context, *adminfeature.HealthInput) (*adminfeature.HealthOutput, error)) http.HandlerFunc {
+		return func(w http.ResponseWriter, r *http.Request) {
+			out, err := fn(r.Context(), &adminfeature.HealthInput{})
+			if err != nil {
+				status := http.StatusServiceUnavailable
+				var se huma.StatusError
+				if errors.As(err, &se) {
+					status = se.GetStatus()
+				}
+				w.Header().Set("Content-Type", "application/json")
+				w.Header().Set("Cache-Control", "no-store")
+				w.WriteHeader(status)
+				if r.Method != http.MethodHead {
+					_ = json.NewEncoder(w).Encode(map[string]string{"status": "unavailable"})
+				}
+				return
+			}
+
+			body, err := json.Marshal(out.Body)
+			if err != nil {
+				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+				return
+			}
+			w.Header().Set("Content-Type", "application/json")
+			w.Header().Set("Cache-Control", "no-store")
+			w.WriteHeader(http.StatusOK)
+			if r.Method != http.MethodHead {
+				_, _ = w.Write(body)
+			}
+		}
+	}
+
+	if healthHandler != nil {
+		mux.HandleFunc("GET /health", handleProbe(healthHandler.GetHealth))
+		mux.HandleFunc("GET /ready", handleProbe(healthHandler.GetReady))
+	}
+
+	return &http.Server{
+		Addr:              fmt.Sprintf(":%d", cfg.Server.ProbePort),
+		Handler:           middleware.Recovery(logger)(mux),
+		ReadHeaderTimeout: cmp.Or(time.Duration(cfg.Server.ReadHeaderTimeout), 10*time.Second),
+		ReadTimeout:       5 * time.Second,
+		WriteTimeout:      5 * time.Second,
+		IdleTimeout:       cmp.Or(time.Duration(cfg.Server.IdleTimeout), 120*time.Second),
+	}
 }
 
 // listenAddr resolves the listen address from config, the Cloud Run PORT env

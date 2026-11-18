@@ -24,6 +24,10 @@ config:
   probeSourceCIDRs:
     - "10.1.0.0/24"
     - "10.2.0.0/24"
+  # GKE Pod secondary CIDR ranges (used by CCO_TRUSTED_PROXIES; never includes node subnets).
+  # Overridden by Terraform via root GitOps -> MODULE_CONFIG (pods_range / arm64_pods_range).
+  podSourceCIDRs:
+    - "10.10.0.0/16"
   # Helm chart version pins for Argo CD Applications (upstream chart versions / revisions).
   chartVersions:
     keycloak:

@@ -56,9 +56,14 @@ spec:
             - name: http
               containerPort: 8080
               protocol: TCP
+            - name: health
+              containerPort: 8081
+              protocol: TCP
           env:
             - name: PORT
               value: "8080"
+            - name: CCO_CONSOLE_PROBE_PORT
+              value: "8081"
             - name: API_UPSTREAM
               value: "cuttlefish-orchestrator-api:8080"
           volumeMounts:
@@ -71,14 +76,14 @@ spec:
           readinessProbe:
             httpGet:
               path: /healthz
-              port: http
+              port: health
             initialDelaySeconds: 2
             periodSeconds: 10
             timeoutSeconds: 3
           livenessProbe:
             httpGet:
               path: /healthz
-              port: http
+              port: health
             initialDelaySeconds: 5
             periodSeconds: 15
             timeoutSeconds: 3

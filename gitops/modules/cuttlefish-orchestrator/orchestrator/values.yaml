@@ -37,11 +37,13 @@ config:
   namespacePrefix: ""
   isSubEnvironment: false
   environmentName: dev
-  # REQUIRED in production for CCO_AUTH_MODE=proxy header isolation (CCO_TRUSTED_PROXIES Pod/VPC CIDRs).
+  # REQUIRED in production for CCO_AUTH_MODE=proxy header isolation (CCO_TRUSTED_PROXIES Pod CIDRs).
   enableNetworkPolicies: true
   probeSourceCIDRs:
     - 10.1.0.0/24
     - 10.2.0.0/24
+  podSourceCIDRs:
+    - 10.10.0.0/16
   cloudWorkstations:
     network: sdv-network
     subnetwork: sdv-subnet

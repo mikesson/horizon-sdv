@@ -126,7 +126,7 @@ The `argo-workflows/` child chart exposes three additive `WorkflowTemplate`s (`h
 
 ## Security Notes
 
-- **`enableNetworkPolicies: true` is required in production.** `cuttlefish-orchestrator-api` runs in `CCO_AUTH_MODE=proxy` with `CCO_TRUSTED_PROXIES` covering cluster Pod and VPC CIDRs (`10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`). `NetworkPolicy/allow-cuttlefish-orchestrator-api` restricts `:8080` ingress strictly to `cuttlefish-console`, workflow pods in `<prefix>workflows`, and `probeSourceCIDRs`.
+- **`enableNetworkPolicies: true` is required in production.** `cuttlefish-orchestrator-api` runs in `CCO_AUTH_MODE=proxy` with `CCO_TRUSTED_PROXIES` restricted strictly to cluster Pod CIDRs (`podSourceCIDRs`, e.g. `10.10.0.0/16`, never node subnets or broad RFC1918 ranges). `NetworkPolicy/allow-cuttlefish-orchestrator-api` restricts `:8080` ingress strictly to `cuttlefish-console` and workflow pods in `<prefix>workflows` carrying `horizon-sdv.io/cuttlefish-api-client: "true"`, while `probeSourceCIDRs` target only dedicated kubelet probe port `:8081` (`CCO_PROBE_PORT=8081` on API, `CCO_CONSOLE_PROBE_PORT=8081` on Console).
 - **In-cluster Workflow authentication**: `cco-host-image-build` (when `updateCcoMapping=true`), `cco-cvd-run`, and `cco-cts-run` talk to `http://cuttlefish-orchestrator-api.<ccoNamespace>.svc.cluster.local:8080` using `CFCTL_AUTH_NONE=true` and explicit `CFCTL_PROXY_EMAIL` / `X-Auth-Request-Email` headers (fail-closed if empty), allowed on egress by `NetworkPolicy/allow-workflow-pods-egress-to-cco-api`.
 - **Shell parameter safety**: WorkflowTemplates pass all user/workflow parameters strictly through container `env:` variables rather than direct `{{workflow.parameters.*}}` expansion inside shell scripts.
 - **No KCC/CNRM resources in `<prefix>workflows`**: Spanner resources are confined to `<prefix>cuttlefish-orchestrator`.
@@ -149,9 +149,9 @@ Disabling `cuttlefish-orchestrator` in the Developer Portal triggers Module Mana
 | Value Key | Default / Source | Purpose |
 | :--- | :--- | :--- |
 | `config.enableNetworkPolicies` | `true` | Enables parent/child NetworkPolicies in `<prefix>cuttlefish-orchestrator` and `<prefix>workflows`. |
-| `config.containerImages.cuttlefishOrchestratorApi` | Injected by Terraform via `MODULE_CONFIG` | API server image (`cuttlefish-orchestrator-api:1.0.0`). |
-| `config.containerImages.cuttlefishConsole` | Injected by Terraform via `MODULE_CONFIG` | Angular console Nginx image (`cuttlefish-console:1.0.1`). |
-| `config.containerImages.cuttlefishWorkflow` | Injected by Terraform via `MODULE_CONFIG` | Argo workflow runner image (`cuttlefish-workflow:1.0.0`). |
+| `config.containerImages.cuttlefishOrchestratorApi` | Injected by Terraform via `MODULE_CONFIG` | API server image (`cuttlefish-orchestrator-api:1.0.1`). |
+| `config.containerImages.cuttlefishConsole` | Injected by Terraform via `MODULE_CONFIG` | Angular console Nginx image (`cuttlefish-console:1.0.2`). |
+| `config.containerImages.cuttlefishWorkflow` | Injected by Terraform via `MODULE_CONFIG` | Argo workflow runner image (`cuttlefish-workflow:1.0.1`). |
 | `config.arm64.zone` / `config.arm64.subnetwork` | Injected by Terraform via `MODULE_CONFIG` | Optional ARM64 zone/subnetwork for `c4a-*` `cco-host-image-build` and `c4a` hosts. |
 | `api.hostImageProject` | `""` (falls back to `config.projectID`) | Project hosting `cco-host` / `cco-host-arm64` GCE image families. |
 | `spanner.processingUnits` | `100` | KCC `SpannerInstance` processing units (`100` for cost-efficient dev/regional deploy). |

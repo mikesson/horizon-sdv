@@ -427,6 +427,8 @@ module "sdv_gke_apps" {
   sdv_network                   = var.sdv_network
   nodes_range                   = var.nodes_range
   arm64_nodes_range             = var.arm64_nodes_range
+  pods_range                    = var.pods_range
+  arm64_pods_range              = var.arm64_pods_range
 
   connect_gateway_url = local.connect_gateway_url
 }

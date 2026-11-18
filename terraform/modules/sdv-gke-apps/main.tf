@@ -526,6 +526,11 @@ resource "kubectl_manifest" "argocd_application" {
 %{if var.enable_arm64_dedicated_subnet~}
                 - ${var.arm64_nodes_range}
 %{endif~}
+              podSourceCIDRs:
+                - ${var.pods_range}
+%{if var.enable_arm64_dedicated_subnet~}
+                - ${var.arm64_pods_range}
+%{endif~}
               useStaticDnsARecords: ${var.use_static_dns_a_records}
               clusterName: ${var.sdv_cluster_name}
               gcpComputeSaEmail: ${var.gcp_compute_sa_email}

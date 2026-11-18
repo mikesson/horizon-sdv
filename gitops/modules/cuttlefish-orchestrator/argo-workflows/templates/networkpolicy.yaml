@@ -24,9 +24,8 @@ metadata:
     argocd.argoproj.io/sync-wave: "7"
 spec:
   podSelector:
-    matchExpressions:
-      - key: workflows.argoproj.io/workflow
-        operator: Exists
+    matchLabels:
+      horizon-sdv.io/cuttlefish-api-client: "true"
   policyTypes:
     - Egress
   egress:

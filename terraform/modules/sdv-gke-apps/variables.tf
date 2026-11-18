@@ -151,6 +151,18 @@ variable "arm64_nodes_range" {
   default     = "10.2.0.0/24"
 }
 
+variable "pods_range" {
+  description = "GKE Pod secondary CIDR range. Passed to GitOps MODULE_CONFIG podSourceCIDRs."
+  type        = string
+  default     = "10.10.0.0/16"
+}
+
+variable "arm64_pods_range" {
+  description = "ARM64 GKE Pod secondary CIDR range. Included in podSourceCIDRs when enable_arm64_dedicated_subnet is true."
+  type        = string
+  default     = "10.20.0.0/16"
+}
+
 variable "images" {
   description = "A map of images to deploy. The key is the image name and the value is an object containing its build directory and version."
   type = map(object({

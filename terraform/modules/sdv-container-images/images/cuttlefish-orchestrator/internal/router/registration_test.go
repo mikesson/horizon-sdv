@@ -42,8 +42,9 @@ var chiOnlyHandlers = map[string]string{
 
 // nonHandlerFields are the Config fields that carry no handler at all.
 var nonHandlerFields = map[string]bool{
-	"AuthConfig": true,
-	"Logger":     true,
+	"AuthConfig":           true,
+	"Logger":               true,
+	"RequireAuthForProbes": true,
 }
 
 // TestNewDoesNotPanicOnRealRegistrations guards the whole class of Huma

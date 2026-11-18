@@ -69,6 +69,12 @@ spec:
             - {{ . | quote }}
             {{- end }}
           {{- end }}
+          {{- with .Values.config.podSourceCIDRs }}
+          podSourceCIDRs:
+            {{- range . }}
+            - {{ . | quote }}
+            {{- end }}
+          {{- end }}
           containerImages:
             storageGcsModule: {{ .Values.config.containerImages.storageGcsModule | quote }}
             cloudWorkstationsModule: {{ .Values.config.containerImages.cloudWorkstationsModule | quote }}

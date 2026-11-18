@@ -14,7 +14,10 @@
 
 package config
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestValidate_ProxyModeRejectsDevModeAndBroadPrefixesAndZones(t *testing.T) {
 	t.Parallel()
@@ -83,4 +86,153 @@ func TestValidate_ProxyModeRejectsDevModeAndBroadPrefixesAndZones(t *testing.T) 
 			}
 		})
 	}
+}
+
+func TestValidate_ProbePort(t *testing.T) {
+	t.Run("default_disabled_is_valid", func(t *testing.T) {
+		cfg := baseValidConfig()
+		cfg.Server.Address = ":8080"
+		cfg.Server.ProbePort = 0
+		if err := cfg.Validate(); err != nil {
+			t.Fatalf("Validate() unexpected error: %v", err)
+		}
+	})
+
+	t.Run("distinct_probe_port_is_valid", func(t *testing.T) {
+		cfg := baseValidConfig()
+		cfg.Server.Address = ":8080"
+		cfg.Server.ProbePort = 8081
+		if err := cfg.Validate(); err != nil {
+			t.Fatalf("Validate() unexpected error: %v", err)
+		}
+	})
+
+	invalidCases := []struct {
+		name      string
+		address   string
+		portEnv   string
+		probePort int
+		wantErr   string
+	}{
+		{
+			name:      "negative_port",
+			address:   ":8080",
+			probePort: -1,
+			wantErr:   "between 0 and 65535",
+		},
+		{
+			name:      "above_65535",
+			address:   ":8080",
+			probePort: 65536,
+			wantErr:   "between 0 and 65535",
+		},
+		{
+			name:      "collides_with_server_address",
+			address:   ":8080",
+			probePort: 8080,
+			wantErr:   "must differ from main server port",
+		},
+		{
+			name:      "collides_with_host_qualified_address",
+			address:   "0.0.0.0:9090",
+			probePort: 9090,
+			wantErr:   "must differ from main server port",
+		},
+		{
+			name:      "collides_with_PORT_env_fallback",
+			address:   "",
+			portEnv:   "9091",
+			probePort: 9091,
+			wantErr:   "must differ from main server port",
+		},
+		{
+			name:      "collides_with_default_8080_when_address_empty",
+			address:   "",
+			portEnv:   "",
+			probePort: 8080,
+			wantErr:   "must differ from main server port",
+		},
+	}
+
+	for _, tc := range invalidCases {
+		t.Run(tc.name, func(t *testing.T) {
+			if tc.address == "" {
+				t.Setenv("PORT", tc.portEnv)
+			}
+			cfg := baseValidConfig()
+			cfg.Server.Address = tc.address
+			cfg.Server.ProbePort = tc.probePort
+			err := cfg.Validate()
+			if err == nil {
+				t.Fatalf("Validate() succeeded with address=%q PORT=%q probePort=%d, want error %q", tc.address, tc.portEnv, tc.probePort, tc.wantErr)
+			}
+			if !strings.Contains(err.Error(), tc.wantErr) {
+				t.Fatalf("Validate() err = %q, want substring %q", err.Error(), tc.wantErr)
+			}
+		})
+	}
+
+	t.Run("valid_when_address_empty_and_different_PORT_env", func(t *testing.T) {
+		t.Setenv("PORT", "9090")
+		cfg := baseValidConfig()
+		cfg.Server.Address = ""
+		cfg.Server.ProbePort = 8081
+		if err := cfg.Validate(); err != nil {
+			t.Fatalf("Validate() unexpected error: %v", err)
+		}
+	})
+}
+
+func TestLoad_ProbePortFromEnv(t *testing.T) {
+	setMinimalEnv := func(t *testing.T) {
+		t.Helper()
+		t.Setenv("CCO_DEVICE_INGRESS", "public")
+		t.Setenv("CCO_AUTH_MODE", "iap")
+		t.Setenv("CCO_SPANNER_PROJECT", "proj")
+		t.Setenv("CCO_SPANNER_INSTANCE", "inst")
+		t.Setenv("CCO_SPANNER_DATABASE", "db")
+		t.Setenv("CCO_PROJECT_ID", "proj")
+		t.Setenv("CCO_HOST_IMAGE_PROJECT", "images")
+		t.Setenv("CCO_DEPLOYMENT", "cco")
+	}
+
+	t.Run("default_zero", func(t *testing.T) {
+		setMinimalEnv(t)
+		t.Setenv("CCO_PROBE_PORT", "")
+		cfg, err := Load()
+		if err != nil {
+			t.Fatalf("Load() unexpected error: %v", err)
+		}
+		if cfg.Server.ProbePort != 0 {
+			t.Fatalf("ProbePort = %d, want 0", cfg.Server.ProbePort)
+		}
+	})
+
+	t.Run("configured_8081", func(t *testing.T) {
+		setMinimalEnv(t)
+		t.Setenv("CCO_PROBE_PORT", "8081")
+		cfg, err := Load()
+		if err != nil {
+			t.Fatalf("Load() unexpected error: %v", err)
+		}
+		if cfg.Server.ProbePort != 8081 {
+			t.Fatalf("ProbePort = %d, want 8081", cfg.Server.ProbePort)
+		}
+	})
+
+	t.Run("non_numeric_rejected", func(t *testing.T) {
+		setMinimalEnv(t)
+		t.Setenv("CCO_PROBE_PORT", "notaport")
+		if _, err := Load(); err == nil {
+			t.Fatal("Load() accepted non-integer CCO_PROBE_PORT, want error")
+		}
+	})
+
+	t.Run("collision_rejected_on_load", func(t *testing.T) {
+		setMinimalEnv(t)
+		t.Setenv("CCO_PROBE_PORT", "8080")
+		if _, err := Load(); err == nil {
+			t.Fatal("Load() accepted colliding CCO_PROBE_PORT=8080, want error")
+		}
+	})
 }

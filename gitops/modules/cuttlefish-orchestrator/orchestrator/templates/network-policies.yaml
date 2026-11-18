@@ -134,16 +134,15 @@ spec:
       ports:
         - protocol: TCP
           port: 8080
-{{- if .Values.config.probeSourceCIDRs }}
+    # Kubelet HTTP probes originate from node primary subnets onto isolated probe port :8081 only.
     - from:
-{{- range .Values.config.probeSourceCIDRs }}
+{{- range (.Values.config.probeSourceCIDRs | default (list "10.1.0.0/24" "10.2.0.0/24")) }}
         - ipBlock:
             cidr: {{ . | quote }}
 {{- end }}
       ports:
         - protocol: TCP
-          port: 8080
-{{- end }}
+          port: 8081
   egress:
     - to:
         - podSelector:
@@ -181,19 +180,21 @@ spec:
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: {{ printf "%sworkflows" $pfx | quote }}
+          podSelector:
+            matchLabels:
+              horizon-sdv.io/cuttlefish-api-client: "true"
       ports:
         - protocol: TCP
           port: 8080
-{{- if .Values.config.probeSourceCIDRs }}
+    # Kubelet HTTP probes originate from node primary subnets onto isolated probe port :8081 only.
     - from:
-{{- range .Values.config.probeSourceCIDRs }}
+{{- range (.Values.config.probeSourceCIDRs | default (list "10.1.0.0/24" "10.2.0.0/24")) }}
         - ipBlock:
             cidr: {{ . | quote }}
 {{- end }}
       ports:
         - protocol: TCP
-          port: 8080
-{{- end }}
+          port: 8081
   egress:
     - to:
         - ipBlock:

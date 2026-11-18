@@ -133,6 +133,7 @@ func (c *Config) applyEnv() error {
 func (c *Config) envBindings() []envBinding {
 	return []envBinding{
 		{"CCO_DEVICE_INGRESS", setString((*string)(&c.DeviceIngress))},
+		{"CCO_PROBE_PORT", setInt(&c.Server.ProbePort)},
 		{"CCO_DEPLOYMENT", setString(&c.Deployment)},
 		{"CCO_AUTH_MODE", setString((*string)(&c.Auth.Mode))},
 		{"CCO_IAP_AUDIENCE", setString(&c.Auth.IAPAudience)},

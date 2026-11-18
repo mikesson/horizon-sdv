@@ -134,6 +134,12 @@ spec:
         - - name: run-cts
             template: run-cts
     - name: run-cts
+      metadata:
+        labels:
+          horizon-sdv.io/cuttlefish-api-client: "true"
+      podMetadata:
+        labels:
+          horizon-sdv.io/cuttlefish-api-client: "true"
 {{- $ctsRunner := $root.Values.ctsRunner | default dict }}
 {{- if $ctsRunner.nodeSelector }}
       nodeSelector:
@@ -466,6 +472,12 @@ spec:
             optional: true
 
     - name: cleanup-device
+      metadata:
+        labels:
+          horizon-sdv.io/cuttlefish-api-client: "true"
+      podMetadata:
+        labels:
+          horizon-sdv.io/cuttlefish-api-client: "true"
       container:
         image: {{ $root.Values.workflowImage | quote }}
         imagePullPolicy: IfNotPresent
