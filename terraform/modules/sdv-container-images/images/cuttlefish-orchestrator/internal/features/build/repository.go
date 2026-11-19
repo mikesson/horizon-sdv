@@ -91,6 +91,45 @@ func (r *BuildRepository) GetByBuildID(ctx context.Context, buildID string) (*bu
 	return bRow.ToDomain(), nil
 }
 
+// GetByAndroidBuild retrieves a registered Android build matching (buildID, target, branch).
+func (r *BuildRepository) GetByAndroidBuild(ctx context.Context, buildID, target, branch string) (*build.Build, error) {
+	query := `SELECT ` + buildColumnsSQL + ` FROM builds WHERE android_build_id = @build_id AND target = @target`
+	params := map[string]any{
+		"build_id": buildID,
+		"target":   target,
+	}
+	if branch == "" {
+		query += ` AND (branch IS NULL OR branch = '')`
+	} else {
+		query += ` AND branch = @branch`
+		params["branch"] = branch
+	}
+	query += ` LIMIT 1`
+
+	stmt := spanner.Statement{
+		SQL:    query,
+		Params: params,
+	}
+
+	iter := r.client.Single().Query(ctx, stmt)
+	defer iter.Stop()
+
+	row, err := iter.Next()
+	if errors.Is(err, iterator.Done) {
+		return nil, &build.NotFoundError{ID: buildID}
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to get build by android build tuple: %w", err)
+	}
+
+	var bRow models.BuildRow
+	if err := row.ToStruct(&bRow); err != nil {
+		return nil, fmt.Errorf("failed to scan build row: %w", err)
+	}
+
+	return bRow.ToDomain(), nil
+}
+
 // GetByFingerprint retrieves a build by its artifact fingerprint.
 func (r *BuildRepository) GetByFingerprint(ctx context.Context, fingerprint string) (*build.Build, error) {
 	stmt := spanner.Statement{

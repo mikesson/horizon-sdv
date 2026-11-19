@@ -19,6 +19,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"regexp"
 	"strconv"
 
 	"github.com/go-chi/chi/v5"
@@ -28,6 +29,10 @@ import (
 	"cloud-cuttlefish-orchestrator/internal/platform/hoclient"
 	"cloud-cuttlefish-orchestrator/internal/web"
 )
+
+const maxSignalingBodyBytes = 1 << 20
+
+var validConnIDPattern = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
 
 // SignalingHandler proxies WebRTC signaling to host orchestrators.
 type SignalingHandler struct {
@@ -95,6 +100,10 @@ func (h *SignalingHandler) CreateConnection(w http.ResponseWriter, r *http.Reque
 func (h *SignalingHandler) ForwardMessage(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	connID := chi.URLParam(r, "connId")
+	if !validConnIDPattern.MatchString(connID) {
+		web.RespondError(w, web.NewBadRequestError("Invalid connection ID"))
+		return
+	}
 
 	target, err := resolveHostClient(r.Context(), h.deviceRepo, h.hostRepo, h.hoClientFactory, id)
 	if err != nil {
@@ -105,8 +114,17 @@ func (h *SignalingHandler) ForwardMessage(w http.ResponseWriter, r *http.Request
 
 	// The frontend sends the raw signaling message; hoclient wraps it in the
 	// {payload: msg} envelope the operator's /:forward endpoint expects.
+	r.Body = http.MaxBytesReader(w, r.Body, maxSignalingBodyBytes)
 	var msg map[string]any
 	if err := json.NewDecoder(r.Body).Decode(&msg); err != nil {
+		if _, ok := errors.AsType[*http.MaxBytesError](err); ok {
+			web.RespondError(w, &web.AppError{
+				Type:    "payload_too_large",
+				Message: "Signaling message exceeds maximum size",
+				Code:    http.StatusRequestEntityTooLarge,
+			})
+			return
+		}
 		// A malformed body is the client's fault, so this logs at Warn. The
 		// response says nothing about the decode error, which makes this log
 		// line the only record of what arrived.
@@ -160,6 +178,10 @@ func (h *SignalingHandler) logForwardedMessage(deviceID string, msg map[string]a
 func (h *SignalingHandler) GetMessages(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	connID := chi.URLParam(r, "connId")
+	if !validConnIDPattern.MatchString(connID) {
+		web.RespondError(w, web.NewBadRequestError("Invalid connection ID"))
+		return
+	}
 
 	target, err := resolveHostClient(r.Context(), h.deviceRepo, h.hostRepo, h.hoClientFactory, id)
 	if err != nil {

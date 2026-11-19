@@ -122,7 +122,7 @@ func (s *BuildService) Count(ctx context.Context, filter buildDomain.ListFilter)
 // The operation is idempotent: registering an existing BuildID returns the existing record.
 func (s *BuildService) Register(ctx context.Context, req buildDomain.CreateRequest) (*buildDomain.Build, error) {
 	if req.BuildID != "" {
-		existing, err := s.repo.GetByBuildID(ctx, req.BuildID)
+		existing, err := s.repo.GetByAndroidBuild(ctx, req.BuildID, req.Target, req.Branch)
 		if err == nil {
 			return existing, nil
 		}

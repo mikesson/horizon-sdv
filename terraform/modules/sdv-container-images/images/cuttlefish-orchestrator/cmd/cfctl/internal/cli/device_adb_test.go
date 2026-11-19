@@ -16,6 +16,7 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -308,5 +309,86 @@ func TestE2E_DeviceConnectTimesOutOffline(t *testing.T) {
 	}
 	if out != "" {
 		t.Errorf("stdout = %q, want nothing", out)
+	}
+}
+
+type raceStream struct {
+	readFn  func([]byte) (int, error)
+	writeFn func([]byte) (int, error)
+	closeFn func() error
+}
+
+func (s *raceStream) Read(p []byte) (int, error)  { return s.readFn(p) }
+func (s *raceStream) Write(p []byte) (int, error) { return s.writeFn(p) }
+func (s *raceStream) Close() error                { return s.closeFn() }
+
+func TestBridgeADBStreams_WriteCloseWinsRaceReturnsErrRemoteEnded(t *testing.T) {
+	t.Parallel()
+	parent := t.Context()
+	_, cancel := context.WithCancel(parent)
+	defer cancel()
+
+	remoteReadSecond := make(chan struct{})
+	remoteClosed := make(chan struct{})
+	var closeRemoteOnce sync.Once
+	closeRemote := func() error {
+		closeRemoteOnce.Do(func() { close(remoteClosed) })
+		return nil
+	}
+
+	localClosed := make(chan struct{})
+	var closeLocalOnce sync.Once
+	closeLocal := func() error {
+		closeLocalOnce.Do(func() { close(localClosed) })
+		return nil
+	}
+
+	var remoteReadCalls int
+	remote := &raceStream{
+		readFn: func(p []byte) (int, error) {
+			remoteReadCalls++
+			if remoteReadCalls == 1 {
+				n := copy(p, []byte("CNXN"))
+				return n, nil
+			}
+			if remoteReadCalls == 2 {
+				close(remoteReadSecond)
+			}
+			<-remoteClosed
+			return 0, io.EOF
+		},
+		writeFn: func(_ []byte) (int, error) {
+			return 0, cco.ErrStreamClosed
+		},
+		closeFn: closeRemote,
+	}
+
+	var localReadCalls int
+	local := &raceStream{
+		readFn: func(p []byte) (int, error) {
+			localReadCalls++
+			if localReadCalls == 1 {
+				// Guarantee remote->local delivered bytes and parked in Read before
+				// local->remote writes and hits cco.ErrStreamClosed first.
+				select {
+				case <-remoteReadSecond:
+				case <-localClosed:
+					return 0, net.ErrClosed
+				}
+				n := copy(p, []byte("PING"))
+				return n, nil
+			}
+			<-localClosed
+			return 0, net.ErrClosed
+		},
+		writeFn: func(p []byte) (int, error) {
+			return len(p), nil
+		},
+		closeFn: closeLocal,
+	}
+
+	err := bridgeADBStreams(parent, cancel, testDeviceID, local, remote)
+	if !errors.Is(err, errRemoteEnded) {
+		t.Fatalf("bridgeADBStreams() error = %v, want errRemoteEnded", err)
 	}
 }

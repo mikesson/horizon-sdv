@@ -148,6 +148,66 @@ func TestBuildRepository_GetByBuildID(t *testing.T) {
 	})
 }
 
+func TestBuildRepository_GetByAndroidBuild(t *testing.T) {
+	t.Parallel()
+	db := spannertest.MustNewTestDB(t)
+	ctx := t.Context()
+
+	repo := buildfeature.NewBuildRepository(db.Client)
+
+	buildsToCreate := []*build.Build{
+		{
+			ID:      "build-ab-x86-a15",
+			Name:    "x86 A15",
+			BuildID: "AB999888",
+			Target:  "aosp_cf_x86_64_only_phone-userdebug",
+			Branch:  "aosp-android15",
+			Source:  build.SourceAB,
+		},
+		{
+			ID:      "build-ab-arm-a15",
+			Name:    "arm64 A15",
+			BuildID: "AB999888",
+			Target:  "aosp_cf_arm64_only_phone-userdebug",
+			Branch:  "aosp-android15",
+			Source:  build.SourceAB,
+		},
+		{
+			ID:      "build-ab-x86-nobranch",
+			Name:    "x86 no branch",
+			BuildID: "AB999888",
+			Target:  "aosp_cf_x86_64_only_phone-userdebug",
+			Branch:  "",
+			Source:  build.SourceAB,
+		},
+	}
+	for _, item := range buildsToCreate {
+		if err := repo.Create(ctx, item); err != nil {
+			t.Fatalf("Create %s failed: %v", item.ID, err)
+		}
+	}
+
+	gotArm, err := repo.GetByAndroidBuild(ctx, "AB999888", "aosp_cf_arm64_only_phone-userdebug", "aosp-android15")
+	if err != nil {
+		t.Fatalf("GetByAndroidBuild(arm) failed: %v", err)
+	}
+	if gotArm.ID != "build-ab-arm-a15" {
+		t.Errorf("gotArm.ID = %q, want build-ab-arm-a15", gotArm.ID)
+	}
+
+	gotNoBranch, err := repo.GetByAndroidBuild(ctx, "AB999888", "aosp_cf_x86_64_only_phone-userdebug", "")
+	if err != nil {
+		t.Fatalf("GetByAndroidBuild(empty branch) failed: %v", err)
+	}
+	if gotNoBranch.ID != "build-ab-x86-nobranch" {
+		t.Errorf("gotNoBranch.ID = %q, want build-ab-x86-nobranch", gotNoBranch.ID)
+	}
+
+	if _, err := repo.GetByAndroidBuild(ctx, "AB999888", "aosp_cf_arm64_only_phone-userdebug", "aosp-main"); err == nil {
+		t.Error("expected not-found for different branch")
+	}
+}
+
 // TestBuildRepository_GetByFingerprint covers the fingerprint round-trip
 // Register's URL-build dedup depends on.
 func TestBuildRepository_GetByFingerprint(t *testing.T) {

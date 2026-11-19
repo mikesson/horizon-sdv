@@ -134,6 +134,116 @@ func (c *ccoFakeCatalog) GetPath(_ context.Context, _ string) (string, error) {
 	return "gitops/modules/cuttlefish-orchestrator", nil
 }
 
+func TestWaitForCleanupJobCompletion_EdgeCases(t *testing.T) {
+	const (
+		ns      = "cuttlefish-orchestrator"
+		jobName = "cco-cleanup-edge"
+	)
+
+	t.Run("failed_condition_with_reason_and_message", func(t *testing.T) {
+		withFastCCODrain(t, 5*time.Millisecond, 500*time.Millisecond, 500*time.Millisecond)
+		job := &unstructured.Unstructured{}
+		job.SetGroupVersionKind(ccoBatchJobGVK)
+		job.SetNamespace(ns)
+		job.SetName(jobName)
+		job.Object["status"] = map[string]interface{}{
+			"conditions": []interface{}{
+				map[string]interface{}{
+					"type":    "Failed",
+					"status":  "True",
+					"reason":  "BackoffLimitExceeded",
+					"message": "quota cleanup exited 1",
+				},
+			},
+		}
+		c := ccoTestClient(interceptor.Funcs{}, job)
+		err := waitForCleanupJobCompletion(t.Context(), c, ns, jobName)
+		if !errContains(err, "BackoffLimitExceeded") || !errContains(err, "quota cleanup exited 1") {
+			t.Fatalf("expected BackoffLimitExceeded details in error, got %v", err)
+		}
+	})
+
+	t.Run("bare_failed_condition_without_reason", func(t *testing.T) {
+		withFastCCODrain(t, 5*time.Millisecond, 500*time.Millisecond, 500*time.Millisecond)
+		job := &unstructured.Unstructured{}
+		job.SetGroupVersionKind(ccoBatchJobGVK)
+		job.SetNamespace(ns)
+		job.SetName(jobName)
+		job.Object["status"] = map[string]interface{}{
+			"conditions": []interface{}{
+				map[string]interface{}{"type": "Failed", "status": "True"},
+			},
+		}
+		c := ccoTestClient(interceptor.Funcs{}, job)
+		err := waitForCleanupJobCompletion(t.Context(), c, ns, jobName)
+		if !errContains(err, "failed") {
+			t.Fatalf("expected failed error, got %v", err)
+		}
+	})
+
+	t.Run("timeout_when_job_never_completes", func(t *testing.T) {
+		withFastCCODrain(t, 5*time.Millisecond, 500*time.Millisecond, 30*time.Millisecond)
+		job := &unstructured.Unstructured{}
+		job.SetGroupVersionKind(ccoBatchJobGVK)
+		job.SetNamespace(ns)
+		job.SetName(jobName)
+		c := ccoTestClient(interceptor.Funcs{}, job)
+		err := waitForCleanupJobCompletion(t.Context(), c, ns, jobName)
+		if !errContains(err, "timed out") {
+			t.Fatalf("expected timeout error, got %v", err)
+		}
+	})
+
+	t.Run("context_cancellation_aborts_wait", func(t *testing.T) {
+		withFastCCODrain(t, 20*time.Millisecond, 500*time.Millisecond, 5*time.Second)
+		job := &unstructured.Unstructured{}
+		job.SetGroupVersionKind(ccoBatchJobGVK)
+		job.SetNamespace(ns)
+		job.SetName(jobName)
+		c := ccoTestClient(interceptor.Funcs{}, job)
+		ctx, cancel := context.WithCancel(t.Context())
+		cancel()
+		err := waitForCleanupJobCompletion(ctx, c, ns, jobName)
+		if err == nil {
+			t.Fatal("expected context cancellation error")
+		}
+	})
+
+	t.Run("missing_job_returns_not_found_error", func(t *testing.T) {
+		withFastCCODrain(t, 5*time.Millisecond, 500*time.Millisecond, 500*time.Millisecond)
+		c := ccoTestClient(interceptor.Funcs{})
+		err := waitForCleanupJobCompletion(t.Context(), c, ns, jobName)
+		if !errContains(err, "not found") {
+			t.Fatalf("expected Get NotFound error, got %v", err)
+		}
+	})
+}
+
+func TestReadNumericField(t *testing.T) {
+	cases := []struct {
+		name   string
+		obj    map[string]interface{}
+		want   int64
+		wantOK bool
+	}{
+		{name: "int64", obj: map[string]interface{}{"n": int64(7)}, want: 7, wantOK: true},
+		{name: "int32", obj: map[string]interface{}{"n": int32(5)}, want: 5, wantOK: true},
+		{name: "int", obj: map[string]interface{}{"n": int(3)}, want: 3, wantOK: true},
+		{name: "float64", obj: map[string]interface{}{"n": float64(9)}, want: 9, wantOK: true},
+		{name: "string_non_numeric", obj: map[string]interface{}{"n": "9"}, want: 0, wantOK: false},
+		{name: "nil_value", obj: map[string]interface{}{"n": nil}, want: 0, wantOK: false},
+		{name: "missing_field", obj: map[string]interface{}{"other": int64(1)}, want: 0, wantOK: false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, ok := readNumericField(tc.obj, "n")
+			if got != tc.want || ok != tc.wantOK {
+				t.Fatalf("readNumericField(%v) = (%d, %v), want (%d, %v)", tc.obj, got, ok, tc.want, tc.wantOK)
+			}
+		})
+	}
+}
+
 func TestDrainCuttlefishOrchestratorModule_NoOpForOtherModules(t *testing.T) {
 	c := ccoTestClient(interceptor.Funcs{
 		Get: func(context.Context, client.WithWatch, client.ObjectKey, client.Object, ...client.GetOption) error {

@@ -17,6 +17,7 @@ package hoclient
 import (
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync"
 	"testing"
 
@@ -70,4 +71,87 @@ func TestGetDisplaysRefusesACVDIDThatNamesNoInstance(t *testing.T) {
 	_, err = client.GetDisplays(t.Context(), "cvddeadbeef/alpha")
 	require.NoError(t, err)
 	assert.Equal(t, []string{"/cvds/cvddeadbeef/alpha/displays"}, rec.served())
+}
+
+func newRawPathHO(t *testing.T) (*recordingHO, Client) {
+	t.Helper()
+	rec := &recordingHO{}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		rec.mu.Lock()
+		rec.paths = append(rec.paths, r.RequestURI)
+		rec.mu.Unlock()
+		switch {
+		case r.Method == http.MethodGet && strings.HasSuffix(r.URL.Path, "/messages"):
+			w.Write([]byte(`[{"type":"offer"}]`))
+		case r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/:bugreport"):
+			w.Write([]byte(`{"name":"op-bug"}`))
+		case r.URL.Path == "/operations/op-bug/:wait":
+			w.Write([]byte(`"bug-1"`))
+		case r.URL.Path == "/operations/op-1/:wait":
+			w.Write([]byte(`{"snapshot_id":"snap-1","screenshot_bytes":"cHg=","screenshot_mime_type":"image/png"}`))
+		case r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/displays"):
+			w.Write([]byte(`{"display_number":1}`))
+		default:
+			w.Write([]byte(`{"name":"op-1","displays":[],"screen_recordings":[]}`))
+		}
+	}))
+	t.Cleanup(srv.Close)
+	return rec, NewFactory(probeTestConfig()).ClientForHost(srv.URL)
+}
+
+func TestPathEscapeInSignalingAndOperations(t *testing.T) {
+	t.Parallel()
+
+	t.Run("signaling_conn_id_escapes_fragment_and_traversal", func(t *testing.T) {
+		t.Parallel()
+		rec, client := newRawPathHO(t)
+
+		require.NoError(t, client.ForwardSignalingMessage(t.Context(), "a#frag", map[string]any{"sdp": "x"}))
+		require.NoError(t, client.ForwardSignalingMessage(t.Context(), "../../cvds", map[string]any{"sdp": "x"}))
+		_, err := client.GetSignalingMessages(t.Context(), "a#frag", 0)
+		require.NoError(t, err)
+		_, err = client.GetSignalingMessages(t.Context(), "../../cvds", 3)
+		require.NoError(t, err)
+
+		assert.Equal(t, []string{
+			"/polled_connections/a%23frag/:forward",
+			"/polled_connections/..%2F..%2Fcvds/:forward",
+			"/polled_connections/a%23frag/messages?start=0",
+			"/polled_connections/..%2F..%2Fcvds/messages?start=3",
+		}, rec.served())
+	})
+
+	t.Run("cvd_and_display_paths_escape_dynamic_segments", func(t *testing.T) {
+		t.Parallel()
+		rec, client := newRawPathHO(t)
+
+		require.NoError(t, client.DeleteCVD(t.Context(), "grp#1"))
+		require.NoError(t, client.StartCVD(t.Context(), "grp#1", "inst/1"))
+		require.NoError(t, client.StopCVDGroup(t.Context(), "grp#1"))
+		_, err := client.GetDisplays(t.Context(), "grp#1/inst#2")
+		require.NoError(t, err)
+		_, err = client.AddDisplay(t.Context(), "grp", "inst#2", &DisplayAddRequest{Width: 720, Height: 1280})
+		require.NoError(t, err)
+		require.NoError(t, client.RemoveDisplay(t.Context(), "grp", "inst#2", 1))
+		_, err = client.CreateSnapshot(t.Context(), "grp#1", "inst#2", "s1")
+		require.NoError(t, err)
+		_, err = client.CreateBugreport(t.Context(), "grp#1", false)
+		require.NoError(t, err)
+		_, err = client.ListScreenRecordings(t.Context(), "grp#1", "inst#2")
+		require.NoError(t, err)
+		_, err = client.GetDisplayScreenshot(t.Context(), "grp#1", "inst#2", 0)
+		require.NoError(t, err)
+
+		paths := rec.served()
+		assert.Contains(t, paths, "/cvds/grp%231")
+		assert.Contains(t, paths, "/cvds/grp%231/inst%2F1/:start")
+		assert.Contains(t, paths, "/cvds/grp%231/:stop")
+		assert.Contains(t, paths, "/cvds/grp%231/inst%232/displays")
+		assert.Contains(t, paths, "/cvds/grp/inst%232/displays")
+		assert.Contains(t, paths, "/cvds/grp/inst%232/displays/1")
+		assert.Contains(t, paths, "/cvds/grp%231/inst%232/snapshots")
+		assert.Contains(t, paths, "/cvds/grp%231/:bugreport")
+		assert.Contains(t, paths, "/cvds/grp%231/inst%232/screen_recordings")
+		assert.Contains(t, paths, "/cvds/grp%231/inst%232/displays/0/:screenshot")
+	})
 }

@@ -32,6 +32,11 @@ import (
 // route. An ADB packet carries up to a 1 MiB payload plus a 24-byte header.
 const adbReadLimit = 2 * 1024 * 1024
 
+// ErrStreamClosed reports that the remote ADB stream closed normally during a
+// write. Returning a distinct sentinel instead of io.EOF lets callers tell a
+// closed remote writer apart from a clean local EOF.
+var ErrStreamClosed = errors.New("ADB stream closed")
+
 // DialADB opens one instance's ADB stream through the orchestrator. The stream
 // carries the ADB wire protocol verbatim and needs no network route to the
 // host, which may have no public address.
@@ -108,7 +113,7 @@ func (s *wsByteStream) Read(p []byte) (int, error) {
 func (s *wsByteStream) Write(p []byte) (int, error) {
 	if err := s.conn.Write(s.ctx, websocket.MessageBinary, p); err != nil {
 		if isStreamEnd(err) {
-			return 0, io.EOF
+			return 0, ErrStreamClosed
 		}
 		return 0, fmt.Errorf("writing the ADB stream: %w", err)
 	}

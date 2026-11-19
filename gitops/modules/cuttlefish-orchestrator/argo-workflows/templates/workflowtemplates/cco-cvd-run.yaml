@@ -433,10 +433,6 @@ spec:
         command: ["/bin/bash", "-ceuo", "pipefail"]
         args:
           - |
-            if [[ "${KEEP_DEVICE}" == "true" ]]; then
-              echo "keepDevice=true; retaining CCO device for inspection"
-              exit 0
-            fi
             PROXY_EMAIL="${SUBMITTED_BY:-argo-workflow@horizon-sdv.local}"
             if [[ -n "${DEVICE_NAME_PARAM}" ]]; then
               DEVICE_NAME="${DEVICE_NAME_PARAM}"
@@ -447,6 +443,18 @@ spec:
               --data-urlencode "name=${DEVICE_NAME}" \
               -H "X-Auth-Request-Email: ${PROXY_EMAIL}" || echo '{"items":[]}')"
             DEVICE_IDS="$(printf '%s' "${DEVICES_JSON}" | jq -r '.items[]?.id // empty')"
+            if [[ "${KEEP_DEVICE}" == "true" ]]; then
+              PINNED_UNTIL="$(date -u -d "@$(( $(date -u +%s) + 86400 ))" '+%Y-%m-%dT%H:%M:%SZ')"
+              PIN_PAYLOAD="$(jq -n --arg until "${PINNED_UNTIL}" '{reason: "long_running_ci", pinned_until: $until}')"
+              for did in ${DEVICE_IDS}; do
+                echo "keepDevice=true; pinning retained CCO device id=${did} name=${DEVICE_NAME} until=${PINNED_UNTIL}"
+                curl -fsS -X POST "${CCO_SERVER_URL}/v2/devices/${did}/pin" \
+                  -H "X-Auth-Request-Email: ${PROXY_EMAIL}" \
+                  -H "Content-Type: application/json" \
+                  -d "${PIN_PAYLOAD}"
+              done
+              exit 0
+            fi
             for did in ${DEVICE_IDS}; do
               echo "Deleting CCO device id=${did} name=${DEVICE_NAME}"
               curl -fsS -X DELETE "${CCO_SERVER_URL}/v2/devices/${did}" \

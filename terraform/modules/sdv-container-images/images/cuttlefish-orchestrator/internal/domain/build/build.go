@@ -420,6 +420,9 @@ type Repository interface {
 	// GetByBuildID retrieves a build by Android build ID
 	GetByBuildID(ctx context.Context, buildID string) (*Build, error)
 
+	// GetByAndroidBuild retrieves a registered Android build matching (buildID, target, branch).
+	GetByAndroidBuild(ctx context.Context, buildID, target, branch string) (*Build, error)
+
 	// GetByFingerprint retrieves a build by its artifact fingerprint.
 	GetByFingerprint(ctx context.Context, fingerprint string) (*Build, error)
 

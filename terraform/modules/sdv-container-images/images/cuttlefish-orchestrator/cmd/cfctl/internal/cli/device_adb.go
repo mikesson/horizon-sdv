@@ -302,6 +302,9 @@ func bridgeADBStreams(parent context.Context, cancel context.CancelFunc, deviceI
 	if toLocal.n.Load() == 0 && parent.Err() == nil {
 		return fmt.Errorf("%w for %s", errStreamSilent, deviceID)
 	}
+	if errors.Is(first.err, cco.ErrStreamClosed) && parent.Err() == nil {
+		return fmt.Errorf("%w for %s", errRemoteEnded, deviceID)
+	}
 	if first.err != nil && !errors.Is(first.err, io.EOF) && parent.Err() == nil {
 		return fmt.Errorf("relaying ADB for %s: %w", deviceID, first.err)
 	}

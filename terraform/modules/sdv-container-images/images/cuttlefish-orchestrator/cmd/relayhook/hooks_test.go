@@ -298,3 +298,79 @@ func TestValidateOrchestratorRefusesPlaintext(t *testing.T) {
 		t.Errorf("validateOrchestrator() = %q, %v; want trailing slash trimmed", got, err)
 	}
 }
+
+func TestRequireLoopbackIPv6AndEdgeAddresses(t *testing.T) {
+	t.Parallel()
+	for _, addr := range []string{"[::1]:0", "[::1]:3001", "[0:0:0:0:0:0:0:1]:3001", "127.0.0.1:0", "127.0.0.2:3001"} {
+		if err := requireLoopback(addr); err != nil {
+			t.Errorf("requireLoopback(%q) = %v, want nil", addr, err)
+		}
+	}
+	for _, addr := range []string{"", "::1", "not-a-host-port", "[::]:3001", "0.0.0.0:3001", "localhost:3001", "example.com:3001"} {
+		if err := requireLoopback(addr); err == nil {
+			t.Errorf("requireLoopback(%q) = nil, want error", addr)
+		}
+	}
+}
+
+func TestHookService_LoopbackGRPCRoundTripEventsAndPassword(t *testing.T) {
+	t.Parallel()
+
+	now := time.Unix(1_769_000_000, 0)
+	f := newFakeOrchestrator(t, []byte("super-secret"), now.Add(time.Hour))
+	hook := newTestHook(t, f, now, 5*time.Minute)
+
+	conn := serveHooksLoopback(t, hook)
+	client := turnrs.NewTurnHooksServiceClient(conn)
+
+	id := &turnrs.Identifier{
+		Source:    "192.0.2.1:5000",
+		External:  "198.51.100.1:3478",
+		Interface: "eth0",
+		Transport: turnrs.Transport_TRANSPORT_UDP,
+	}
+	const user = "1769003600:u@e.com:dev-1"
+
+	pwResp, err := client.GetPassword(t.Context(), request(user, turnrs.PasswordAlgorithm_PASSWORD_ALGORITHM_MD5))
+	if err != nil {
+		t.Fatalf("GetPassword over gRPC failed: %v", err)
+	}
+	if len(pwResp.GetPassword()) == 0 {
+		t.Fatal("GetPassword returned empty key")
+	}
+
+	if _, err := client.OnAllocatedEvent(t.Context(), &turnrs.TurnAllocatedEvent{
+		Id:       id,
+		Username: user,
+		Port:     49152,
+	}); err != nil {
+		t.Fatalf("OnAllocatedEvent over gRPC failed: %v", err)
+	}
+	if _, err := client.OnChannelBindEvent(t.Context(), &turnrs.TurnChannelBindEvent{
+		Id:       id,
+		Username: user,
+		Channel:  0x4000,
+	}); err != nil {
+		t.Fatalf("OnChannelBindEvent over gRPC failed: %v", err)
+	}
+	if _, err := client.OnCreatePermissionEvent(t.Context(), &turnrs.TurnCreatePermissionEvent{
+		Id:       id,
+		Username: user,
+		Ports:    []int32{5000, 5001},
+	}); err != nil {
+		t.Fatalf("OnCreatePermissionEvent over gRPC failed: %v", err)
+	}
+	if _, err := client.OnRefreshEvent(t.Context(), &turnrs.TurnRefreshEvent{
+		Id:       id,
+		Username: user,
+		Lifetime: 600,
+	}); err != nil {
+		t.Fatalf("OnRefreshEvent over gRPC failed: %v", err)
+	}
+	if _, err := client.OnDestroyEvent(t.Context(), &turnrs.TurnDestroyEvent{
+		Id:       id,
+		Username: user,
+	}); err != nil {
+		t.Fatalf("OnDestroyEvent over gRPC failed: %v", err)
+	}
+}

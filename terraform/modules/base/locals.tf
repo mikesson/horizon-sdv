@@ -148,15 +148,15 @@ locals {
     }
     "cuttlefish-orchestrator-api" = {
       directory      = "cuttlefish-orchestrator"
-      build_version  = "1.0.3"
-      deploy_version = "1.0.3"
+      build_version  = "1.0.4"
+      deploy_version = "1.0.4"
       context_path   = abspath("${path.module}/../sdv-container-images/images/cuttlefish-orchestrator")
       platform       = "linux/amd64"
     }
     "cuttlefish-console" = {
       directory      = "cuttlefish-orchestrator"
-      build_version  = "1.0.3"
-      deploy_version = "1.0.3"
+      build_version  = "1.0.4"
+      deploy_version = "1.0.4"
       context_path   = abspath("${path.module}/../sdv-container-images/images/cuttlefish-orchestrator/web/cuttlefish-console")
       build_args = {
         NGINX_VERSION = local.common_nginx_version
@@ -165,8 +165,8 @@ locals {
     }
     "cuttlefish-workflow" = {
       directory       = "cuttlefish-orchestrator"
-      build_version   = "1.0.3"
-      deploy_version  = "1.0.3"
+      build_version   = "1.0.4"
+      deploy_version  = "1.0.4"
       context_path    = abspath("${path.module}/../sdv-container-images/images/cuttlefish-orchestrator")
       dockerfile_path = abspath("${path.module}/../sdv-container-images/images/cuttlefish-orchestrator/Dockerfile.workflow")
       platform        = "linux/amd64"

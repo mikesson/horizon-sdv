@@ -112,6 +112,32 @@ func TestADBStreamReportsCloseAsEOF(t *testing.T) {
 	}
 }
 
+func TestADBStreamWriteCloseReturnsErrStreamClosed(t *testing.T) {
+	t.Parallel()
+	closed := make(chan struct{})
+	client := adbTestServer(t, func(_ context.Context, c *websocket.Conn) {
+		_ = c.Close(websocket.StatusNormalClosure, "done")
+		close(closed)
+	})
+
+	stream, err := client.DialADB(t.Context(), "dev-1", "inst")
+	if err != nil {
+		t.Fatalf("DialADB() error = %v", err)
+	}
+	defer stream.Close()
+	<-closed
+
+	_, _ = stream.Read(make([]byte, 16))
+
+	_, werr := stream.Write([]byte("OPEN"))
+	if !errors.Is(werr, ErrStreamClosed) {
+		t.Fatalf("Write() error = %v, want ErrStreamClosed", werr)
+	}
+	if errors.Is(werr, io.EOF) {
+		t.Fatalf("Write() returned io.EOF (%v); must return non-EOF ErrStreamClosed", werr)
+	}
+}
+
 // A refused upgrade must surface the server's status, since the dial error
 // alone cannot tell a missing device from an authentication failure.
 func TestDialADBSurfacesTheHandshakeStatus(t *testing.T) {

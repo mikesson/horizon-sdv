@@ -226,7 +226,13 @@ spec:
               echo "ERROR: shardCount must be between 1 and 8 (got ${SHARD_COUNT})" >&2
               exit 1
             fi
+            if ! [[ "${CTS_TIMEOUT_MINUTES}" =~ ^[0-9]+$ ]] || (( CTS_TIMEOUT_MINUTES < 1 )); then
+              echo "ERROR: ctsTimeoutMinutes must be a positive integer (got ${CTS_TIMEOUT_MINUTES})" >&2
+              exit 1
+            fi
             [[ -n "${CTS_DOWNLOAD_URL}" ]] || { echo "ERROR: ctsDownloadUrl is required" >&2; exit 1; }
+
+            PINNED_UNTIL="$(date -u -d "@$(( $(date -u +%s) + (CTS_TIMEOUT_MINUTES + 30) * 60 ))" '+%Y-%m-%dT%H:%M:%SZ')"
 
             if [[ -n "${DEVICE_NAME_PARAM}" ]]; then
               DEVICE_NAME="${DEVICE_NAME_PARAM}"
@@ -293,11 +299,15 @@ spec:
               --arg reg_build "${REGISTERED_BUILD_ID}" \
               --arg branch "${BUILD_BRANCH}" \
               --arg target "${BUILD_TARGET}" \
+              --arg pinned_until "${PINNED_UNTIL}" \
               --argjson shards "${SHARD_COUNT}" \
               '
               {
                 name: $name,
                 gpu_mode: $gpu_mode,
+                pinned: true,
+                pinned_reason: "long_running_ci",
+                pinned_until: $pinned_until,
                 requirements: (
                   {
                     interaction: "headless",
@@ -508,7 +518,7 @@ spec:
         args:
           - |
             if [[ "${KEEP_DEVICE}" == "true" ]]; then
-              echo "keepDevice=true; retaining CCO device for inspection"
+              echo "keepDevice=true; retaining pinned CCO device for inspection"
               exit 0
             fi
             PROXY_EMAIL="${SUBMITTED_BY:-argo-workflow@horizon-sdv.local}"
@@ -522,7 +532,9 @@ spec:
               -H "X-Auth-Request-Email: ${PROXY_EMAIL}" || echo '{"items":[]}')"
             DEVICE_IDS="$(printf '%s' "${DEVICES_JSON}" | jq -r '.items[]?.id // empty')"
             for did in ${DEVICE_IDS}; do
-              echo "Deleting CCO device id=${did} name=${DEVICE_NAME}"
+              echo "Unpinning and deleting CCO device id=${did} name=${DEVICE_NAME}"
+              curl -fsS -X POST "${CCO_SERVER_URL}/v2/devices/${did}/unpin" \
+                -H "X-Auth-Request-Email: ${PROXY_EMAIL}" || true
               curl -fsS -X DELETE "${CCO_SERVER_URL}/v2/devices/${did}" \
                 -H "X-Auth-Request-Email: ${PROXY_EMAIL}" || true
             done

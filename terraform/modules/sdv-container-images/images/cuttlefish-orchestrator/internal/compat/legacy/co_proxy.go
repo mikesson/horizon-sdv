@@ -21,6 +21,7 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"path"
 	"strings"
 	"time"
 
@@ -126,7 +127,8 @@ func (h *COHandler) proxyToHost(w http.ResponseWriter, r *http.Request) {
 	// logs and verbs against CVDs that already have rows keep proxying, which
 	// is how the live smoke reaches a CCO host's logs and how its drift check
 	// starts a CVD behind CCO's back on purpose.
-	if isCVDCreate(r.Method, decodedTail) && !hostVM.ForeignCVDs {
+	canonicalTail := path.Clean(decodedTail)
+	if isCVDCreate(r.Method, canonicalTail) && !hostVM.ForeignCVDs {
 		h.writeError(w, http.StatusForbidden,
 			"cannot create CVDs on an orchestrator-owned host through /v1")
 		return
@@ -163,7 +165,7 @@ func (h *COHandler) proxyToHost(w http.ResponseWriter, r *http.Request) {
 // instance that already exists, so this is the only verb that can leave a CVD
 // on a host with no device row behind it.
 func isCVDCreate(method, tail string) bool {
-	return method == http.MethodPost && strings.TrimSuffix(tail, "/") == "/cvds"
+	return method == http.MethodPost && path.Clean(tail) == "/cvds"
 }
 
 // proxyErrorStatus maps a reverse-proxy transport failure to the status the

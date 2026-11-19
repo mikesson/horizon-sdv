@@ -475,6 +475,41 @@ func TestProxy_RefusesCVDCreateOnOrchestratorOwnedHost(t *testing.T) {
 	}
 }
 
+func TestProxy_RefusesCVDCreateBypassVariantsOnOrchestratorOwnedHost(t *testing.T) {
+	t.Parallel()
+	paths := []struct {
+		name string
+		path string
+	}{
+		{name: "trailing_double_slash", path: "/v1/zones/z/hosts/h1/cvds//"},
+		{name: "leading_double_slash", path: "/v1/zones/z/hosts/h1//cvds"},
+		{name: "dot_segment", path: "/v1/zones/z/hosts/h1/./cvds"},
+		{name: "dotdot_traversal", path: "/v1/zones/z/hosts/h1/foo/../cvds"},
+	}
+
+	for _, tc := range paths {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			var reached bool
+			ho := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				reached = true
+				_, _ = io.WriteString(w, `{"name":"op-1"}`)
+			}))
+			defer ho.Close()
+
+			rec := serve(t, newTestHandler(foreignHostPointingAt(ho, false), nil),
+				http.MethodPost, tc.path, "{}")
+
+			if rec.Code != http.StatusForbidden {
+				t.Fatalf("%s: status = %d, want 403", tc.path, rec.Code)
+			}
+			if reached {
+				t.Errorf("%s: request reached host orchestrator", tc.path)
+			}
+		})
+	}
+}
+
 func TestProxy_AllowsCVDCreateOnForeignHost(t *testing.T) {
 	t.Parallel()
 	var gotPath string

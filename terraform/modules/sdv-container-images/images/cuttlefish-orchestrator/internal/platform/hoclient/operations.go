@@ -358,7 +358,7 @@ func (c *HostClient) DeleteCVD(ctx context.Context, cvdID string) error {
 	attrs := []attribute.KeyValue{attribute.String("cvd.id", cvdID)}
 	return c.traced(ctx, "hoclient.DeleteCVD", attrs, func(ctx context.Context) error {
 		var op Operation
-		if err := c.doRequestWithRetry(ctx, http.MethodDelete, "/cvds/"+cvdID, nil, &op); err != nil {
+		if err := c.doRequestWithRetry(ctx, http.MethodDelete, "/cvds/"+url.PathEscape(cvdID), nil, &op); err != nil {
 			return err
 		}
 		trace.SpanFromContext(ctx).SetAttributes(attribute.String("operation.name", op.Name))
@@ -433,7 +433,7 @@ func (c *HostClient) CreateSnapshot(ctx context.Context, group, name, snapshotID
 	attrs := append(cvdAttrs(group, name), attribute.String("snapshot.id", snapshotID))
 	var resp CreateSnapshotResponse
 	err := c.traced(ctx, "hoclient.CreateSnapshot", attrs, func(ctx context.Context) error {
-		path := fmt.Sprintf("/cvds/%s/%s/snapshots", group, name)
+		path := fmt.Sprintf("/cvds/%s/%s/snapshots", url.PathEscape(group), url.PathEscape(name))
 		var op Operation
 		if err := c.doRequestWithRetry(ctx, http.MethodPost, path, CreateSnapshotRequest{SnapshotID: snapshotID}, &op); err != nil {
 			return err
@@ -490,7 +490,7 @@ func (c *HostClient) CreateBugreport(ctx context.Context, group string, includeA
 	}
 	var bugreportID string
 	err := c.traced(ctx, "hoclient.CreateBugreport", attrs, func(ctx context.Context) error {
-		path := fmt.Sprintf("/cvds/%s/:bugreport", group)
+		path := fmt.Sprintf("/cvds/%s/:bugreport", url.PathEscape(group))
 		if includeADB {
 			path += "?include_adb_bugreport=true"
 		}
@@ -541,7 +541,7 @@ func (c *HostClient) StopScreenRecording(ctx context.Context, group, name string
 func (c *HostClient) ListScreenRecordings(ctx context.Context, group, name string) ([]string, error) {
 	var resp ScreenRecordingsResponse
 	err := c.traced(ctx, "hoclient.ListScreenRecordings", cvdAttrs(group, name), func(ctx context.Context) error {
-		path := fmt.Sprintf("/cvds/%s/%s/screen_recordings", group, name)
+		path := fmt.Sprintf("/cvds/%s/%s/screen_recordings", url.PathEscape(group), url.PathEscape(name))
 		if err := c.doRequestWithRetry(ctx, http.MethodGet, path, nil, &resp); err != nil {
 			return err
 		}
@@ -556,7 +556,7 @@ func (c *HostClient) ListScreenRecordings(ctx context.Context, group, name strin
 
 // DownloadScreenRecording streams a screen recording from the host.
 func (c *HostClient) DownloadScreenRecording(ctx context.Context, group, name, recording string) (io.ReadCloser, error) {
-	path := fmt.Sprintf("/cvds/%s/%s/screen_recordings/%s", group, name, url.PathEscape(recording))
+	path := fmt.Sprintf("/cvds/%s/%s/screen_recordings/%s", url.PathEscape(group), url.PathEscape(name), url.PathEscape(recording))
 	return c.streamFile(ctx, path)
 }
 
@@ -576,7 +576,7 @@ func (c *HostClient) GetDisplayScreenshot(ctx context.Context, group, name strin
 	attrs := append(cvdAttrs(group, name), attribute.Int("display.number", displayNumber))
 	var resp DisplayScreenshotResponse
 	err := c.traced(ctx, "hoclient.GetDisplayScreenshot", attrs, func(ctx context.Context) error {
-		path := fmt.Sprintf("/cvds/%s/%s/displays/%d/:screenshot", group, name, displayNumber)
+		path := fmt.Sprintf("/cvds/%s/%s/displays/%d/:screenshot", url.PathEscape(group), url.PathEscape(name), displayNumber)
 		var op Operation
 		if err := c.doRequestWithRetry(ctx, http.MethodGet, path, nil, &op); err != nil {
 			return err
@@ -639,7 +639,7 @@ var (
 // operation under that verb's budget.
 func (c *HostClient) lifecycleCVD(ctx context.Context, group, name string, v lifecycleVerb) error {
 	return c.traced(ctx, v.spanName, cvdAttrs(group, name), func(ctx context.Context) error {
-		path := fmt.Sprintf("/cvds/%s/%s/%s", group, name, v.verb)
+		path := fmt.Sprintf("/cvds/%s/%s/%s", url.PathEscape(group), url.PathEscape(name), v.verb)
 		var op Operation
 		if err := c.doRequestWithRetry(ctx, http.MethodPost, path, v.body, &op); err != nil {
 			return err
@@ -654,7 +654,7 @@ func (c *HostClient) lifecycleCVD(ctx context.Context, group, name string, v lif
 // one. The same verb spelling addresses two different actions.
 func (c *HostClient) lifecycleCVDGroup(ctx context.Context, group string, v lifecycleVerb) error {
 	return c.traced(ctx, v.spanName, cvdAttrs(group, ""), func(ctx context.Context) error {
-		path := fmt.Sprintf("/cvds/%s/%s", group, v.verb)
+		path := fmt.Sprintf("/cvds/%s/%s", url.PathEscape(group), v.verb)
 		var op Operation
 		if err := c.doRequestWithRetry(ctx, http.MethodPost, path, v.body, &op); err != nil {
 			return err
@@ -679,7 +679,7 @@ func (c *HostClient) GetDisplays(ctx context.Context, cvdID string) (*ListDispla
 	}
 	var resp ListDisplaysResponse
 	err := c.traced(ctx, "hoclient.GetDisplays", cvdAttrs(group, name), func(ctx context.Context) error {
-		path := fmt.Sprintf("/cvds/%s/%s/displays", group, name)
+		path := fmt.Sprintf("/cvds/%s/%s/displays", url.PathEscape(group), url.PathEscape(name))
 		if err := c.doRequestWithRetry(ctx, http.MethodGet, path, nil, &resp); err != nil {
 			return err
 		}
@@ -700,7 +700,7 @@ func (c *HostClient) AddDisplay(ctx context.Context, group, name string, req *Di
 	)
 	var resp DisplayAddResponse
 	err := c.traced(ctx, "hoclient.AddDisplay", attrs, func(ctx context.Context) error {
-		path := fmt.Sprintf("/cvds/%s/%s/displays", group, name)
+		path := fmt.Sprintf("/cvds/%s/%s/displays", url.PathEscape(group), url.PathEscape(name))
 		if err := c.doRequestWithRetry(ctx, http.MethodPost, path, req, &resp); err != nil {
 			return err
 		}
@@ -717,7 +717,7 @@ func (c *HostClient) AddDisplay(ctx context.Context, group, name string, req *Di
 func (c *HostClient) RemoveDisplay(ctx context.Context, group, name string, displayNumber int) error {
 	attrs := append(cvdAttrs(group, name), attribute.Int("display.number", displayNumber))
 	return c.traced(ctx, "hoclient.RemoveDisplay", attrs, func(ctx context.Context) error {
-		path := fmt.Sprintf("/cvds/%s/%s/displays/%d", group, name, displayNumber)
+		path := fmt.Sprintf("/cvds/%s/%s/displays/%d", url.PathEscape(group), url.PathEscape(name), displayNumber)
 		return c.doRequestWithRetry(ctx, http.MethodDelete, path, nil, nil)
 	})
 }
@@ -742,7 +742,7 @@ func (c *HostClient) ForwardSignalingMessage(ctx context.Context, connID string,
 	return c.traced(ctx, "hoclient.ForwardSignalingMessage", attrs, func(ctx context.Context) error {
 		// The operator expects {payload: msg}
 		wrapper := map[string]any{"payload": msg}
-		return c.doRequestWithRetry(ctx, http.MethodPost, "/polled_connections/"+connID+"/:forward", wrapper, nil)
+		return c.doRequestWithRetry(ctx, http.MethodPost, "/polled_connections/"+url.PathEscape(connID)+"/:forward", wrapper, nil)
 	})
 }
 
@@ -754,7 +754,7 @@ func (c *HostClient) GetSignalingMessages(ctx context.Context, connID string, st
 	}
 	var msgs []any
 	err := c.traced(ctx, "hoclient.GetSignalingMessages", attrs, func(ctx context.Context) error {
-		path := fmt.Sprintf("/polled_connections/%s/messages?start=%d", connID, start)
+		path := fmt.Sprintf("/polled_connections/%s/messages?start=%d", url.PathEscape(connID), start)
 		if err := c.doRequestWithRetry(ctx, http.MethodGet, path, nil, &msgs); err != nil {
 			return err
 		}

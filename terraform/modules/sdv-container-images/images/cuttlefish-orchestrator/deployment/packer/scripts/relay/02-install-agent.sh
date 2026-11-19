@@ -19,7 +19,7 @@
 set -euo pipefail
 
 export DEBIAN_FRONTEND=noninteractive
-GO_VERSION=1.26.5
+GO_VERSION=1.26.9
 
 curl -fsSL "https://go.dev/dl/go${GO_VERSION}.linux-amd64.tar.gz" -o /tmp/go.tar.gz
 rm -rf /usr/local/go
@@ -31,7 +31,7 @@ cd /tmp/cco
 # the agent imports.
 echo "${CCO_REVISION:-unknown}" > /etc/cco-relayhook-revision
 
-CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /usr/local/bin/relayhook ./cmd/relayhook
+CGO_ENABLED=0 GOTOOLCHAIN=local go build -trimpath -ldflags="-s -w" -o /usr/local/bin/relayhook ./cmd/relayhook
 chmod 0755 /usr/local/bin/relayhook
 
 useradd --system --no-create-home --shell /usr/sbin/nologin relayhook

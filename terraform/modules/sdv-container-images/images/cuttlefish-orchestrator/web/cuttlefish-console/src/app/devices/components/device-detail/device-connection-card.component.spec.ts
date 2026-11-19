@@ -85,4 +85,19 @@ describe('DeviceConnectionCardComponent Host Orchestrator access', () => {
       'gcloud compute start-iap-tunnel cf-test-host 2080 --zone=europe-west4-a'
     );
   });
+
+  it('classifies RFC1918 172.16.0.0/12 boundaries accurately without matching 172.15 or 172.32', () => {
+    for (const privIp of ['172.16.0.1', '172.31.255.1', '192.168.1.5']) {
+      const root = render(makeDevice({hostIp: privIp, hostExternalIp: ''}));
+      expect(root.textContent).toContain(
+        'gcloud compute start-iap-tunnel cf-test-host 2080 --zone=europe-west4-a'
+      );
+    }
+
+    for (const pubIp of ['172.15.255.1', '172.32.0.1']) {
+      const root = render(makeDevice({hostIp: pubIp, hostExternalIp: pubIp}));
+      expect(root.textContent).not.toContain('start-iap-tunnel');
+      expect(root.innerHTML).toContain(pubIp);
+    }
+  });
 });

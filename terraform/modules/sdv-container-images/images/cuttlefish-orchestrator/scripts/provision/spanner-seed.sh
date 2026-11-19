@@ -21,7 +21,7 @@
 #
 # Usage: ./spanner-seed.sh <project_id> <instance_name> <database_name> [schema_file]
 
-set -e
+set -euo pipefail
 
 PROJECT_ID="${1:?Error: project_id required}"
 INSTANCE="${2:?Error: instance_name required}"
@@ -61,7 +61,7 @@ trap 'rm -rf "$TEMP_DIR"' EXIT
 # --ddl="..." string via xargs+eval, which mangled the quoting and silently
 # left the database empty (the failure was hidden by `|| true`). CREATE ... IF
 # NOT EXISTS keeps re-runs idempotent; any real DDL error now aborts the script
-# (set -e) instead of being swallowed.
+# (set -euo pipefail) instead of being swallowed.
 echo "=== Applying DDL statements ==="
 awk '
     /^[[:space:]]*--/ { next }
@@ -112,10 +112,22 @@ if [[ "$DML_COUNT" -gt 0 ]]; then
         stmt="${stmt%;*}"
 
         echo "  Inserting: $(echo "$stmt" | cut -c1-60)..."
-        gcloud spanner databases execute-sql "$DATABASE" \
+        if dml_output=$(gcloud spanner databases execute-sql "$DATABASE" \
             --project="$PROJECT_ID" \
             --instance="$INSTANCE" \
-            --sql="$stmt" 2>&1 | grep -v "already exists" || true
+            --sql="$stmt" 2>&1); then
+            if [[ -n "$dml_output" ]]; then
+                echo "$dml_output"
+            fi
+        else
+            rc=$?
+            if [[ "$dml_output" =~ AlreadyExists|ALREADY_EXISTS|"already exists" ]]; then
+                echo "  Row already exists; skipping"
+            else
+                echo "Error applying seed DML: $dml_output" >&2
+                exit "$rc"
+            fi
+        fi
     done < "$TEMP_DIR/dml.sql"
 
     echo "Seed data applied successfully"
@@ -125,4 +137,4 @@ fi
 
 echo ""
 echo "=== Database seeding complete ==="
-echo "Verify with: gcloud spanner databases execute-sql $DATABASE --instance=$INSTANCE --sql=\"SELECT COUNT(*) FROM machine_types\""
+echo "Verify with: gcloud spanner databases execute-sql $DATABASE --instance=$INSTANCE --sql=\"SELECT COUNT(*) FROM machine_families\""

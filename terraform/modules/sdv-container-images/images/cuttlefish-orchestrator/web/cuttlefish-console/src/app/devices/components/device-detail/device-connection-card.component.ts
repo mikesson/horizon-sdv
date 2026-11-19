@@ -319,7 +319,19 @@ export class DeviceConnectionCardComponent {
   }
 
   isPrivateIP(ip: string): boolean {
-    return ip.startsWith('10.') || ip.startsWith('192.168.') || ip.startsWith('172.');
+    if (ip.startsWith('10.') || ip.startsWith('192.168.')) {
+      return true;
+    }
+    if (ip.startsWith('172.')) {
+      const parts = ip.split('.');
+      const second = parts[1] ?? '';
+      if (parts.length !== 4 || !/^\d+$/.test(second)) {
+        return false;
+      }
+      const octet = Number.parseInt(second, 10);
+      return octet >= 16 && octet <= 31;
+    }
+    return false;
   }
 
   copyToClipboard(text: string): void {

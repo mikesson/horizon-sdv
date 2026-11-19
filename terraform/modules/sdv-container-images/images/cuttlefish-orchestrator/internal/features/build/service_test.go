@@ -64,6 +64,18 @@ func (m *mockBuildRepo) GetByBuildID(ctx context.Context, buildID string) (*buil
 	return nil, &buildDomain.NotFoundError{ID: buildID}
 }
 
+func (m *mockBuildRepo) GetByAndroidBuild(ctx context.Context, buildID, target, branch string) (*buildDomain.Build, error) {
+	if m.getByBuildIDErr != nil {
+		return nil, m.getByBuildIDErr
+	}
+	for _, b := range m.builds {
+		if b.BuildID == buildID && b.Target == target && b.Branch == branch {
+			return b, nil
+		}
+	}
+	return nil, &buildDomain.NotFoundError{ID: buildID}
+}
+
 func (m *mockBuildRepo) GetByFingerprint(ctx context.Context, fingerprint string) (*buildDomain.Build, error) {
 	for _, b := range m.builds {
 		if b.Fingerprint == fingerprint {
@@ -274,6 +286,65 @@ func TestBuildService_Register_ExistingBuild(t *testing.T) {
 	// Should return the existing build
 	if b.ID != existingBuild.ID {
 		t.Errorf("got build ID %s, want existing ID %s", b.ID, existingBuild.ID)
+	}
+}
+
+func TestBuildService_Register_SameBuildIDDifferentTarget(t *testing.T) {
+	t.Parallel()
+	repo := newMockBuildRepo()
+	svc, _ := NewBuildService(repo)
+
+	first, err := svc.Register(t.Context(), buildDomain.CreateRequest{
+		Name:    "x86_64 Build",
+		BuildID: "12345678",
+		Target:  "aosp_cf_x86_64_only_phone-userdebug",
+		Branch:  "aosp-android15",
+		Source:  buildDomain.SourceAB,
+	})
+	if err != nil {
+		t.Fatalf("first Register failed: %v", err)
+	}
+
+	diffTarget, err := svc.Register(t.Context(), buildDomain.CreateRequest{
+		Name:    "arm64 Build",
+		BuildID: "12345678",
+		Target:  "aosp_cf_arm64_only_phone-userdebug",
+		Branch:  "aosp-android15",
+		Source:  buildDomain.SourceAB,
+	})
+	if err != nil {
+		t.Fatalf("second Register (different target) failed: %v", err)
+	}
+	if diffTarget.ID == first.ID {
+		t.Errorf("expected distinct build for different target with same build_id, both got %s", first.ID)
+	}
+
+	diffBranch, err := svc.Register(t.Context(), buildDomain.CreateRequest{
+		Name:    "x86_64 Main Branch",
+		BuildID: "12345678",
+		Target:  "aosp_cf_x86_64_only_phone-userdebug",
+		Branch:  "aosp-main",
+		Source:  buildDomain.SourceAB,
+	})
+	if err != nil {
+		t.Fatalf("third Register (different branch) failed: %v", err)
+	}
+	if diffBranch.ID == first.ID || diffBranch.ID == diffTarget.ID {
+		t.Errorf("expected distinct build for different branch with same build_id, got %s", diffBranch.ID)
+	}
+
+	sameTuple, err := svc.Register(t.Context(), buildDomain.CreateRequest{
+		Name:    "Duplicate x86_64 Build",
+		BuildID: "12345678",
+		Target:  "aosp_cf_x86_64_only_phone-userdebug",
+		Branch:  "aosp-android15",
+		Source:  buildDomain.SourceAB,
+	})
+	if err != nil {
+		t.Fatalf("fourth Register (matching tuple) failed: %v", err)
+	}
+	if sameTuple.ID != first.ID {
+		t.Errorf("expected deduplicated build ID %s, got %s", first.ID, sameTuple.ID)
 	}
 }
 
