@@ -271,6 +271,12 @@ describe('DeviceActionsService', () => {
     service.connectAdb(makeDevice({hostIp: '34.1.2.3', adbPort: 6520}));
     expect(writeText).toHaveBeenLastCalledWith('adb connect 34.1.2.3:6520');
 
+    service.connectAdb(makeDevice({hostIp: '172.32.10.5', adbPort: 6520}));
+    expect(writeText).toHaveBeenLastCalledWith('adb connect 172.32.10.5:6520');
+
+    service.connectAdb(makeDevice({hostIp: '172.20.1.5', adbPort: 6520}));
+    expect(writeText).toHaveBeenLastCalledWith('adb connect localhost:6520');
+
     vi.unstubAllGlobals();
   });
 

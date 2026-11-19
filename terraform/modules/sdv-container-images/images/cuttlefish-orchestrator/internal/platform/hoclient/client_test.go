@@ -590,19 +590,45 @@ func TestCallBudgetExpiryDuringBackoffKeepsLastError(t *testing.T) {
 // and later calls fail fast instead of re-dialing the corpse.
 func TestCanceledCallsStillTripBreaker(t *testing.T) {
 	t.Parallel()
+	srv := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+	srv.Close() // Port immediately refuses connections without waiting on remote/reserved ports.
+
 	config := DefaultClientConfig()
 	config.FallbackPorts = nil
 	config.MaxRetries = 3
 	config.RetryDelay = 10 * time.Second // The caller's cancel lands mid-backoff.
 	config.CallBudget = -1               // The caller's own deadline is the abort under test.
 
-	client := NewHostClient("http://127.0.0.1:1", config) // Refused instantly.
+	client := NewHostClient(srv.URL, config)
 	client.breaker = newCircuitBreaker(3, time.Minute)
 
 	for i := range 3 {
-		ctx, cancel := context.WithTimeout(t.Context(), 50*time.Millisecond)
-		_, err := client.ListCVDs(ctx)
+		ctx, cancel := context.WithCancel(t.Context())
+		errCh := make(chan error, 1)
+		go func() {
+			_, err := client.ListCVDs(ctx)
+			errCh <- err
+		}()
+
+		// Wait until attempt 0 fails and records its port failure before canceling
+		// mid-backoff, eliminating 50ms wall-clock races under heavy -race load.
+		deadline := time.Now().Add(5 * time.Second)
+		for {
+			client.breaker.mu.Lock()
+			failures := client.breaker.failures
+			client.breaker.mu.Unlock()
+			if failures >= i+1 {
+				break
+			}
+			if time.Now().After(deadline) {
+				cancel()
+				t.Fatalf("call %d: timed out waiting for port failure to record (failures=%d)", i, failures)
+			}
+			time.Sleep(time.Millisecond)
+		}
 		cancel()
+
+		err := <-errCh
 		if err == nil {
 			t.Fatalf("call %d: expected error", i)
 		}

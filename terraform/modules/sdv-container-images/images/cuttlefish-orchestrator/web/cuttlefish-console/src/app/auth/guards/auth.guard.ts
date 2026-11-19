@@ -14,11 +14,10 @@
  * limitations under the License.
  */
 
-import {inject} from '@angular/core';
+import {computed, inject} from '@angular/core';
 import {toObservable} from '@angular/core/rxjs-interop';
 import type {CanActivateFn} from '@angular/router';
 import {Router} from '@angular/router';
-import {combineLatest} from 'rxjs';
 import {filter, map, take} from 'rxjs/operators';
 import {AuthStore} from '../store/auth.signal-store';
 
@@ -26,35 +25,28 @@ import {AuthStore} from '../store/auth.signal-store';
  * Guard that requires authentication.
  *
  * FLOW:
- * 1. Uses combineLatest to synchronize isLoading and isAuthenticated states.
+ * 1. Derives a single atomic computed signal `{isLoading, isAuthenticated}` so
+ *    synchronous signal updates never trigger split emissions across observables.
  * 2. Waits for `isLoading` to become false (initial auth check complete).
- * 3. Checks `isAuthenticated` status from the SAME emission.
- * 4. Redirects to /unauthorized if no identity could be established.
+ * 3. Redirects to /unauthorized if no identity could be established.
  *
  * Cloud Run IAP performs login at the edge, so an unauthenticated browser
  * normally never reaches the SPA. Landing here without an identity means
  * /v2/me failed (e.g. backend unavailable), so we show the unauthorized
  * page rather than redirect-looping through IAP.
- *
- * NOTE: Using combineLatest ensures we check both values from the same state update,
- * avoiding race conditions where isLoading becomes false but isAuthenticated
- * hasn't been updated yet in the observable.
  */
 export const authGuard: CanActivateFn = () => {
   const authStore = inject(AuthStore);
   const router = inject(Router);
 
-  const isLoading = toObservable(authStore.isLoading);
-  const isAuthenticated = toObservable(authStore.isAuthenticated);
+  const authState = computed(() => ({
+    isLoading: authStore.isLoading(),
+    isAuthenticated: authStore.isAuthenticated(),
+  }));
 
-  return combineLatest([isLoading, isAuthenticated]).pipe(
-    filter(([isLoading]) => !isLoading),
+  return toObservable(authState).pipe(
+    filter(state => !state.isLoading),
     take(1),
-    map(([, isAuthenticated]) => {
-      if (!isAuthenticated) {
-        return router.createUrlTree(['/unauthorized']);
-      }
-      return true;
-    })
+    map(state => (state.isAuthenticated ? true : router.createUrlTree(['/unauthorized'])))
   );
 };

@@ -436,6 +436,8 @@ func (h *DeviceHandler) ListDevices(ctx context.Context, input *ListDevicesInput
 	}
 	if input.Name != "" {
 		filter.Name = &input.Name
+		// Strong read avoids Spanner bounded staleness on immediate create -> list/cleanup lookups by name.
+		filter.Strong = true
 	}
 	if input.Status != "" {
 		s := device.Status(input.Status)

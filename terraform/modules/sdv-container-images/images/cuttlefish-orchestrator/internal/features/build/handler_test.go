@@ -15,15 +15,21 @@
 package buildfeature
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
+	"net/http/httptest"
 	"sort"
 	"testing"
 	"time"
 
 	"github.com/danielgtaylor/huma/v2"
+	"github.com/danielgtaylor/huma/v2/adapters/humachi"
+	"github.com/go-chi/chi/v5"
 
+	"cloud-cuttlefish-orchestrator/internal/domain/auth"
 	buildDomain "cloud-cuttlefish-orchestrator/internal/domain/build"
 	"cloud-cuttlefish-orchestrator/internal/web"
 )
@@ -189,4 +195,254 @@ func TestBuildHandler_ListBuilds_MalformedToken(t *testing.T) {
 	if repo.lastFilter != nil {
 		t.Fatal("the rejection must precede any repository read")
 	}
+}
+
+type stubHandlerUploadStore struct {
+	exists       bool
+	existsErr    error
+	sessionURL   string
+	startErr     error
+	lastBucket   string
+	lastObject   string
+	lastMIMEType string
+	lastSize     int64
+}
+
+func (f *stubHandlerUploadStore) ObjectExists(_ context.Context, bucket, name string) (bool, error) {
+	f.lastBucket = bucket
+	f.lastObject = name
+	if f.existsErr != nil {
+		return false, f.existsErr
+	}
+	return f.exists, nil
+}
+
+func (f *stubHandlerUploadStore) StartResumableUpload(_ context.Context, bucket, name, contentType string, sizeBytes int64) (string, error) {
+	f.lastBucket = bucket
+	f.lastObject = name
+	f.lastMIMEType = contentType
+	f.lastSize = sizeBytes
+	if f.startErr != nil {
+		return "", f.startErr
+	}
+	return f.sessionURL, nil
+}
+
+func mountBuildRouter(svc *BuildService, principal *auth.Principal) chi.Router {
+	r := chi.NewRouter()
+	if principal != nil {
+		r.Use(func(next http.Handler) http.Handler {
+			return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+				next.ServeHTTP(w, req.WithContext(auth.ContextWithPrincipal(req.Context(), principal)))
+			})
+		})
+	}
+	api := humachi.New(r, huma.DefaultConfig("Test Build API", "1.0.0"))
+	NewBuildHandler(svc).Register(api)
+	return r
+}
+
+func TestBuildHandler_CRUDAndUploadRoutes(t *testing.T) {
+	t.Parallel()
+
+	const testBuildUUID = "11111111-2222-3333-4444-555555555555"
+	const sha256Hex = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+
+	t.Run("Create, Get, Update, and Delete build round-trip via HTTP", func(t *testing.T) {
+		repo := newMockBuildRepo()
+		svc, err := NewBuildService(repo)
+		if err != nil {
+			t.Fatalf("NewBuildService: %v", err)
+		}
+		router := mountBuildRouter(svc, &auth.Principal{Email: "dev@example.com"})
+
+		// Create URL build.
+		createBody := `{
+			"name": "aaos-trunk",
+			"source": "url",
+			"artifact_specs": [
+				{"type": "gcs", "url": "gs://bucket/aosp_cf-img.zip", "role": "default_build"},
+				{"type": "gcs", "url": "gs://bucket/cvd-host_package.tar.gz", "role": "host_package"}
+			],
+			"description": "initial build"
+		}`
+		req := httptest.NewRequest(http.MethodPost, "/v2/builds", bytes.NewBufferString(createBody))
+		req.Header.Set("Content-Type", "application/json")
+		rec := httptest.NewRecorder()
+		router.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("POST /v2/builds status=%d body=%s", rec.Code, rec.Body.String())
+		}
+		var created buildDomain.Build
+		if err := json.NewDecoder(rec.Body).Decode(&created); err != nil {
+			t.Fatalf("decode created build: %v", err)
+		}
+		if created.ID == "" || created.CreatedBy == nil || *created.CreatedBy != "dev@example.com" || created.Name != "aaos-trunk" {
+			t.Fatalf("unexpected created build: %+v", created)
+		}
+
+		// Get existing & missing builds.
+		getReq := httptest.NewRequest(http.MethodGet, "/v2/builds/"+created.ID, nil)
+		getRec := httptest.NewRecorder()
+		router.ServeHTTP(getRec, getReq)
+		if getRec.Code != http.StatusOK {
+			t.Fatalf("GET /v2/builds/{id} status=%d body=%s", getRec.Code, getRec.Body.String())
+		}
+
+		missingReq := httptest.NewRequest(http.MethodGet, "/v2/builds/"+testBuildUUID, nil)
+		missingRec := httptest.NewRecorder()
+		router.ServeHTTP(missingRec, missingReq)
+		if missingRec.Code != http.StatusNotFound {
+			t.Fatalf("GET missing status=%d, want 404", missingRec.Code)
+		}
+
+		// Update build mutable fields + replacement artifact specs.
+		patchBody := `{
+			"name": "aaos-trunk-v2",
+			"description": "updated build",
+			"is_default": true,
+			"artifact_specs": [
+				{"type": "https", "url": "https://storage.googleapis.com/bucket/aosp_cf-img-v2.zip", "role": "default_build"},
+				{"type": "https", "url": "https://storage.googleapis.com/bucket/cvd-host_package-v2.tar.gz", "role": "host_package"}
+			]
+		}`
+		patchReq := httptest.NewRequest(http.MethodPatch, "/v2/builds/"+created.ID, bytes.NewBufferString(patchBody))
+		patchReq.Header.Set("Content-Type", "application/json")
+		patchRec := httptest.NewRecorder()
+		router.ServeHTTP(patchRec, patchReq)
+		if patchRec.Code != http.StatusOK {
+			t.Fatalf("PATCH /v2/builds/{id} status=%d body=%s", patchRec.Code, patchRec.Body.String())
+		}
+		var updated buildDomain.Build
+		if err := json.NewDecoder(patchRec.Body).Decode(&updated); err != nil {
+			t.Fatalf("decode updated build: %v", err)
+		}
+		if updated.Name != "aaos-trunk-v2" || !updated.IsDefault || len(updated.ArtifactSpecs) != 2 {
+			t.Fatalf("unexpected updated build: %+v", updated)
+		}
+
+		// Delete build.
+		delReq := httptest.NewRequest(http.MethodDelete, "/v2/builds/"+created.ID, nil)
+		delRec := httptest.NewRecorder()
+		router.ServeHTTP(delRec, delReq)
+		if delRec.Code != http.StatusNoContent {
+			t.Fatalf("DELETE /v2/builds/{id} status=%d, want 204", delRec.Code)
+		}
+		if _, exists := repo.builds[created.ID]; exists {
+			t.Fatal("build still present in repo after DELETE")
+		}
+	})
+
+	t.Run("CreateBuild and StartBuildUpload require principal", func(t *testing.T) {
+		svc, err := NewBuildService(newMockBuildRepo())
+		if err != nil {
+			t.Fatalf("NewBuildService: %v", err)
+		}
+		router := mountBuildRouter(svc, nil)
+
+		req := httptest.NewRequest(http.MethodPost, "/v2/builds", bytes.NewBufferString(`{"name":"b","source":"android_build","build_id":"123","target":"cf_x86_64_phone-userdebug"}`))
+		req.Header.Set("Content-Type", "application/json")
+		rec := httptest.NewRecorder()
+		router.ServeHTTP(rec, req)
+		if rec.Code != http.StatusUnauthorized {
+			t.Fatalf("POST /v2/builds without principal=%d, want 401", rec.Code)
+		}
+
+		upReq := httptest.NewRequest(http.MethodPost, "/v2/builds/uploads", bytes.NewBufferString(`{"file_name":"img.zip","size_bytes":100,"sha256":"`+sha256Hex+`"}`))
+		upReq.Header.Set("Content-Type", "application/json")
+		upRec := httptest.NewRecorder()
+		router.ServeHTTP(upRec, upReq)
+		if upRec.Code != http.StatusUnauthorized {
+			t.Fatalf("POST /v2/builds/uploads without principal=%d, want 401", upRec.Code)
+		}
+	})
+
+	t.Run("StartBuildUpload handles unconfigured staging, existing object, and minted session", func(t *testing.T) {
+		noStageSvc, err := NewBuildService(newMockBuildRepo())
+		if err != nil {
+			t.Fatalf("NewBuildService: %v", err)
+		}
+		noStageRouter := mountBuildRouter(noStageSvc, &auth.Principal{Email: "dev@example.com"})
+		upBody := `{"file_name":"img.zip","size_bytes":1024,"sha256":"` + sha256Hex + `","content_type":"application/zip"}`
+
+		req503 := httptest.NewRequest(http.MethodPost, "/v2/builds/uploads", bytes.NewBufferString(upBody))
+		req503.Header.Set("Content-Type", "application/json")
+		rec503 := httptest.NewRecorder()
+		noStageRouter.ServeHTTP(rec503, req503)
+		if rec503.Code != http.StatusServiceUnavailable {
+			t.Fatalf("unconfigured StartBuildUpload status=%d, want 503", rec503.Code)
+		}
+
+		store := &stubHandlerUploadStore{exists: true}
+		stageSvc, err := NewBuildService(newMockBuildRepo(), WithUploadStaging(store, "staging-bkt"))
+		if err != nil {
+			t.Fatalf("NewBuildService: %v", err)
+		}
+		stageRouter := mountBuildRouter(stageSvc, &auth.Principal{Email: "dev@example.com"})
+
+		reqExists := httptest.NewRequest(http.MethodPost, "/v2/builds/uploads", bytes.NewBufferString(upBody))
+		reqExists.Header.Set("Content-Type", "application/json")
+		recExists := httptest.NewRecorder()
+		stageRouter.ServeHTTP(recExists, reqExists)
+		if recExists.Code != http.StatusCreated {
+			t.Fatalf("existing StartBuildUpload status=%d body=%s", recExists.Code, recExists.Body.String())
+		}
+		var outExists struct {
+			ObjectURL     string `json:"object_url"`
+			SessionURL    string `json:"session_url"`
+			AlreadyExists bool   `json:"already_exists"`
+		}
+		if err := json.NewDecoder(recExists.Body).Decode(&outExists); err != nil {
+			t.Fatalf("decode upload output: %v", err)
+		}
+		if !outExists.AlreadyExists || outExists.SessionURL != "" || outExists.ObjectURL == "" {
+			t.Fatalf("unexpected already-exists payload: %+v", outExists)
+		}
+
+		store.exists = false
+		store.sessionURL = "https://upload.example.com/session/abc"
+		reqNew := httptest.NewRequest(http.MethodPost, "/v2/builds/uploads", bytes.NewBufferString(upBody))
+		reqNew.Header.Set("Content-Type", "application/json")
+		recNew := httptest.NewRecorder()
+		stageRouter.ServeHTTP(recNew, reqNew)
+		if recNew.Code != http.StatusCreated {
+			t.Fatalf("new session StartBuildUpload status=%d body=%s", recNew.Code, recNew.Body.String())
+		}
+		var outNew struct {
+			ObjectURL     string `json:"object_url"`
+			SessionURL    string `json:"session_url"`
+			AlreadyExists bool   `json:"already_exists"`
+		}
+		if err := json.NewDecoder(recNew.Body).Decode(&outNew); err != nil {
+			t.Fatalf("decode upload output: %v", err)
+		}
+		if outNew.AlreadyExists || outNew.SessionURL != store.sessionURL {
+			t.Fatalf("unexpected minted session payload: %+v", outNew)
+		}
+	})
+
+	t.Run("DeleteBuild and UpdateBuild surface repository not-found and error codes", func(t *testing.T) {
+		repo := newMockBuildRepo()
+		svc, err := NewBuildService(repo)
+		if err != nil {
+			t.Fatalf("NewBuildService: %v", err)
+		}
+		router := mountBuildRouter(svc, &auth.Principal{Email: "dev@example.com"})
+
+		patchReq := httptest.NewRequest(http.MethodPatch, "/v2/builds/"+testBuildUUID, bytes.NewBufferString(`{"name":"new"}`))
+		patchReq.Header.Set("Content-Type", "application/json")
+		patchRec := httptest.NewRecorder()
+		router.ServeHTTP(patchRec, patchReq)
+		if patchRec.Code != http.StatusNotFound {
+			t.Fatalf("PATCH missing status=%d, want 404", patchRec.Code)
+		}
+
+		repo.deleteErr = errors.New("spanner failure")
+		delReq := httptest.NewRequest(http.MethodDelete, "/v2/builds/"+testBuildUUID, nil)
+		delRec := httptest.NewRecorder()
+		router.ServeHTTP(delRec, delReq)
+		if delRec.Code != http.StatusInternalServerError {
+			t.Fatalf("DELETE error status=%d, want 500", delRec.Code)
+		}
+	})
 }

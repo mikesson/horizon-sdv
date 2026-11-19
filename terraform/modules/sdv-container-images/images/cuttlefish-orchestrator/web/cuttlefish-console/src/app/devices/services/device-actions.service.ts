@@ -21,7 +21,7 @@ import {Router} from '@angular/router';
 import {AuthStore} from '../../auth/store/auth.signal-store';
 import type {ConfirmDialogData} from '../../shared/components';
 import {ConfirmDialogComponent} from '../../shared/components';
-import {foreignCreatorWarning} from '../../shared/utils';
+import {foreignCreatorWarning, isPrivateIPv4} from '../../shared/utils';
 import type {ExtendDialogResult} from '../components/lifecycle/extend-dialog.component';
 import {ExtendDialogComponent} from '../components/lifecycle/extend-dialog.component';
 import type {PinDialogResult} from '../components/lifecycle/pin-dialog.component';
@@ -297,6 +297,6 @@ export class DeviceActionsService {
   }
 
   private isPrivateIP(ip: string): boolean {
-    return ip.startsWith('10.') || ip.startsWith('192.168.') || ip.startsWith('172.');
+    return isPrivateIPv4(ip);
   }
 }

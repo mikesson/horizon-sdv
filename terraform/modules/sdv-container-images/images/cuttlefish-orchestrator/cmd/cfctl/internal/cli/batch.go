@@ -128,21 +128,28 @@ func (c *BatchCreateCmd) runWait(ctx context.Context, cli *CLI, client *cco.Clie
 		return fmt.Errorf("listing batch devices: %w", err)
 	}
 	if cli.JSON {
-		return printJSON(members)
-	}
-	if err := printBatchMembers(members); err != nil {
-		return err
+		if err := printJSON(members); err != nil {
+			return err
+		}
+	} else {
+		if err := printBatchMembers(members); err != nil {
+			return err
+		}
 	}
 	switch settled.Status {
 	case cco.BatchStatusReady:
-		output.Success("Batch ready: %d/%d running", settled.Running, settled.Total)
+		if !cli.JSON {
+			output.Success("Batch ready: %d/%d running", settled.Running, settled.Total)
+		}
 	case cco.BatchStatusFailed:
 		// The atomic policy tore the batch down, so CI must get a non-zero exit.
 		return fmt.Errorf("batch %s: %w", batchID, &cco.WaitFailedError{
 			State: cco.BatchStatusFailed, Target: cco.BatchStatusReady, Detail: settled.FailureReason,
 		})
 	default:
-		output.Warn("Batch %s: %d/%d running", settled.Status, settled.Running, settled.Total)
+		if !cli.JSON {
+			output.Warn("Batch %s: %d/%d running", settled.Status, settled.Running, settled.Total)
+		}
 	}
 	return nil
 }

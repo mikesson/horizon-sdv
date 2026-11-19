@@ -99,4 +99,50 @@ describe('authGuard', () => {
     expect(result instanceof UrlTree).toBe(true);
     expect(router.serializeUrl(result as UrlTree)).toBe('/unauthorized');
   });
+
+  it('resolves to true when initial loading completes with authenticated user', async () => {
+    const userSubject = new Subject<User>();
+    authService.loadCurrentUser.mockReturnValue(userSubject.asObservable());
+
+    const store = TestBed.inject(AuthStore);
+    store.loadUser();
+    expect(store.isLoading()).toBe(true);
+
+    let settled = false;
+    const pending = runGuard().then(val => {
+      settled = true;
+      return val;
+    });
+    TestBed.flushEffects();
+    await Promise.resolve();
+    expect(settled).toBe(false);
+
+    userSubject.next({email: 'dev@example.com'});
+    TestBed.flushEffects();
+
+    const result = await pending;
+    expect(settled).toBe(true);
+    expect(result).toBe(true);
+  });
+
+  it('allows activation on synchronous loading-to-authenticated signal transition', async () => {
+    const userSubject = new Subject<User>();
+    authService.loadCurrentUser.mockReturnValue(userSubject.asObservable());
+
+    const store = TestBed.inject(AuthStore);
+    store.loadUser();
+    expect(store.isLoading()).toBe(true);
+    expect(store.isAuthenticated()).toBe(false);
+
+    const pending = runGuard();
+    TestBed.flushEffects();
+
+    // Mutate both isLoading (true->false) and isAuthenticated (false->true) synchronously.
+    store.setUser({email: 'sync@example.com'});
+    TestBed.flushEffects();
+
+    const result = await pending;
+    expect(result).toBe(true);
+    expect(result instanceof UrlTree).toBe(false);
+  });
 });

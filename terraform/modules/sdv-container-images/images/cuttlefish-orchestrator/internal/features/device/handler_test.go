@@ -238,6 +238,20 @@ func TestDeviceHandler_ListDevices(t *testing.T) {
 		require.NotNil(t, got)
 		require.NotNil(t, got.Name)
 		assert.Equal(t, "ci-001", *got.Name)
+		assert.True(t, got.Strong, "name-filtered list must use strong read for read-after-write consistency")
+	})
+
+	t.Run("unfiltered list keeps default stale-read setting", func(t *testing.T) {
+		f := newHandlerAPI(t)
+		api, deviceRepo := f.api, f.deviceRepo
+
+		resp := api.Get("/v2/devices")
+		assert.Equal(t, 200, resp.Code)
+
+		got := deviceRepo.LastListFilter
+		require.NotNil(t, got)
+		assert.Nil(t, got.Name)
+		assert.False(t, got.Strong)
 	})
 
 	t.Run("mine resolves to the caller", func(t *testing.T) {

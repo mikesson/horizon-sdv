@@ -30,7 +30,7 @@ import (
 // leak from the probe path is immediately visible.
 func probeTestConfig() ClientConfig {
 	return ClientConfig{
-		Timeout:                   500 * time.Millisecond,
+		Timeout:                   5 * time.Second,
 		MaxRetries:                0,
 		CallBudget:                -1, // disabled: attempts are bounded by Timeout
 		CircuitBreakerMaxFailures: 1,

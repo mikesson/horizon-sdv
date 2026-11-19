@@ -26,7 +26,6 @@ metadata:
     argocd.argoproj.io/sync-wave: "8"
 spec:
   entrypoint: main
-  onExit: cleanup-device
   archiveLogs: true
   serviceAccountName: {{ $root.Values.serviceAccountWorkflow | quote }}
   securityContext:
@@ -133,6 +132,15 @@ spec:
       steps:
         - - name: run-cts
             template: run-cts
+            hooks:
+              exit:
+                template: cleanup-device
+                arguments:
+                  parameters:
+                    - name: device-id
+                      value: '{{ "{{" }}steps.run-cts.outputs.parameters.device-id{{ "}}" }}'
+                    - name: device-create-attempted
+                      value: '{{ "{{" }}steps.run-cts.outputs.parameters.device-create-attempted{{ "}}" }}'
     - name: run-cts
       metadata:
         labels:
@@ -230,9 +238,11 @@ spec:
               echo "ERROR: ctsTimeoutMinutes must be a positive integer (got ${CTS_TIMEOUT_MINUTES})" >&2
               exit 1
             fi
+            : > /tmp/device-id
+            printf 'false' > /tmp/device-create-attempted
             [[ -n "${CTS_DOWNLOAD_URL}" ]] || { echo "ERROR: ctsDownloadUrl is required" >&2; exit 1; }
 
-            PINNED_UNTIL="$(date -u -d "@$(( $(date -u +%s) + (CTS_TIMEOUT_MINUTES + 30) * 60 ))" '+%Y-%m-%dT%H:%M:%SZ')"
+            PINNED_UNTIL="$(date -u -d "@$(( $(date -u +%s) + (CTS_TIMEOUT_MINUTES + 90) * 60 ))" '+%Y-%m-%dT%H:%M:%SZ')"
 
             if [[ -n "${DEVICE_NAME_PARAM}" ]]; then
               DEVICE_NAME="${DEVICE_NAME_PARAM}"
@@ -333,11 +343,13 @@ spec:
                 } else {mode: "simple"} end
               )')"
 
+            printf 'true' > /tmp/device-create-attempted
             DEVICE_RESP="$(curl -fsS -X POST "${CCO_SERVER_URL}/v2/devices" \
               -H "X-Auth-Request-Email: ${PROXY_EMAIL}" \
               -H "Content-Type: application/json" \
               -d "${DEVICE_PAYLOAD}")"
             DEVICE_ID="$(printf '%s' "${DEVICE_RESP}" | jq -er '.id')"
+            printf '%s' "${DEVICE_ID}" > /tmp/device-id
             echo "Created CTS device name=${DEVICE_NAME} id=${DEVICE_ID} shards=${SHARD_COUNT}"
 
             cleanup_adb() {
@@ -424,6 +436,14 @@ spec:
             [[ -z "${CTS_MAX_TESTCASE_RUN_COUNT}" ]] || tf_args+=(--max-testcase-run-count "${CTS_MAX_TESTCASE_RUN_COUNT}")
             tf_args+=(--reboot-at-last-retry)
 
+            REFRESHED_PINNED_UNTIL="$(date -u -d "@$(( $(date -u +%s) + (CTS_TIMEOUT_MINUTES + 30) * 60 ))" '+%Y-%m-%dT%H:%M:%SZ')"
+            REFRESHED_PIN_PAYLOAD="$(jq -n --arg until "${REFRESHED_PINNED_UNTIL}" '{reason: "long_running_ci", pinned_until: $until}')"
+            echo "Refreshing CTS device pin id=${DEVICE_ID} until=${REFRESHED_PINNED_UNTIL}"
+            curl -fsS -X POST "${CCO_SERVER_URL}/v2/devices/${DEVICE_ID}/pin" \
+              -H "X-Auth-Request-Email: ${PROXY_EMAIL}" \
+              -H "Content-Type: application/json" \
+              -d "${REFRESHED_PIN_PAYLOAD}"
+
             CTS_EXIT=0
             timeout "${CTS_TIMEOUT_MINUTES}m" "${TF_HOME}/tools/cts-tradefed" "${tf_args[@]}" || CTS_EXIT=$?
 
@@ -476,12 +496,27 @@ spec:
           emptyDir:
             sizeLimit: {{ $root.Values.ctsWorkspaceStorageSize | quote }}
       outputs:
+        parameters:
+          - name: device-id
+            valueFrom:
+              path: /tmp/device-id
+              default: ""
+          - name: device-create-attempted
+            valueFrom:
+              path: /tmp/device-create-attempted
+              default: "false"
         artifacts:
           - name: cts-results
             path: /workspace/artifacts/cts-results
             optional: true
 
     - name: cleanup-device
+      inputs:
+        parameters:
+          - name: device-id
+            default: ""
+          - name: device-create-attempted
+            default: "false"
       metadata:
         labels:
           horizon-sdv.io/cuttlefish-api-client: "true"
@@ -514,25 +549,49 @@ spec:
             value: '{{ "{{" }}workflow.parameters.deviceName{{ "}}" }}'
           - name: KEEP_DEVICE
             value: '{{ "{{" }}workflow.parameters.keepDevice{{ "}}" }}'
+          - name: DEVICE_ID_PARAM
+            value: '{{ "{{" }}inputs.parameters.device-id{{ "}}" }}'
+          - name: DEVICE_CREATE_ATTEMPTED
+            value: '{{ "{{" }}inputs.parameters.device-create-attempted{{ "}}" }}'
         command: ["/bin/bash", "-ceuo", "pipefail"]
         args:
           - |
-            if [[ "${KEEP_DEVICE}" == "true" ]]; then
-              echo "keepDevice=true; retaining pinned CCO device for inspection"
+            PROXY_EMAIL="${SUBMITTED_BY:-argo-workflow@horizon-sdv.local}"
+            DEVICE_IDS=""
+            if [[ -n "${DEVICE_ID_PARAM}" ]]; then
+              DEVICE_IDS="${DEVICE_ID_PARAM}"
+            elif [[ "${DEVICE_CREATE_ATTEMPTED}" == "true" ]]; then
+              if [[ -n "${DEVICE_NAME_PARAM}" ]]; then
+                DEVICE_NAME="${DEVICE_NAME_PARAM}"
+              else
+                DEVICE_NAME="$(printf 'cts-%s' "${WORKFLOW_NAME}" | tr '[:upper:]_' '[:lower:]-' | cut -c1-63 | sed 's/-$//')"
+              fi
+              DEVICES_JSON="$(curl -fsS --get "${CCO_SERVER_URL}/v2/devices" \
+                --data-urlencode "name=${DEVICE_NAME}" \
+                -H "X-Auth-Request-Email: ${PROXY_EMAIL}" || echo '{"items":[]}')"
+              DEVICE_IDS="$(printf '%s' "${DEVICES_JSON}" | jq -r '.items[]?.id // empty')"
+            else
+              echo "No device creation attempted and no device ID recorded; skipping cleanup"
               exit 0
             fi
-            PROXY_EMAIL="${SUBMITTED_BY:-argo-workflow@horizon-sdv.local}"
-            if [[ -n "${DEVICE_NAME_PARAM}" ]]; then
-              DEVICE_NAME="${DEVICE_NAME_PARAM}"
-            else
-              DEVICE_NAME="$(printf 'cts-%s' "${WORKFLOW_NAME}" | tr '[:upper:]_' '[:lower:]-' | cut -c1-63 | sed 's/-$//')"
+            if [[ -z "${DEVICE_IDS}" ]]; then
+              echo "No matching CCO device found to clean up"
+              exit 0
             fi
-            DEVICES_JSON="$(curl -fsS --get "${CCO_SERVER_URL}/v2/devices" \
-              --data-urlencode "name=${DEVICE_NAME}" \
-              -H "X-Auth-Request-Email: ${PROXY_EMAIL}" || echo '{"items":[]}')"
-            DEVICE_IDS="$(printf '%s' "${DEVICES_JSON}" | jq -r '.items[]?.id // empty')"
+            if [[ "${KEEP_DEVICE}" == "true" ]]; then
+              PINNED_UNTIL="$(date -u -d "@$(( $(date -u +%s) + 86400 ))" '+%Y-%m-%dT%H:%M:%SZ')"
+              PIN_PAYLOAD="$(jq -n --arg until "${PINNED_UNTIL}" '{reason: "long_running_ci", pinned_until: $until}')"
+              for did in ${DEVICE_IDS}; do
+                echo "keepDevice=true; pinning retained CCO device id=${did} until=${PINNED_UNTIL}"
+                curl -fsS -X POST "${CCO_SERVER_URL}/v2/devices/${did}/pin" \
+                  -H "X-Auth-Request-Email: ${PROXY_EMAIL}" \
+                  -H "Content-Type: application/json" \
+                  -d "${PIN_PAYLOAD}"
+              done
+              exit 0
+            fi
             for did in ${DEVICE_IDS}; do
-              echo "Unpinning and deleting CCO device id=${did} name=${DEVICE_NAME}"
+              echo "Unpinning and deleting CCO device id=${did}"
               curl -fsS -X POST "${CCO_SERVER_URL}/v2/devices/${did}/unpin" \
                 -H "X-Auth-Request-Email: ${PROXY_EMAIL}" || true
               curl -fsS -X DELETE "${CCO_SERVER_URL}/v2/devices/${did}" \

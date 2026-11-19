@@ -149,9 +149,9 @@ Disabling `cuttlefish-orchestrator` in the Developer Portal triggers Module Mana
 | Value Key | Default / Source | Purpose |
 | :--- | :--- | :--- |
 | `config.enableNetworkPolicies` | `true` | Enables parent/child NetworkPolicies in `<prefix>cuttlefish-orchestrator` and `<prefix>workflows`. |
-| `config.containerImages.cuttlefishOrchestratorApi` | Injected by Terraform via `MODULE_CONFIG` | API server image (`cuttlefish-orchestrator-api:1.0.4`). |
-| `config.containerImages.cuttlefishConsole` | Injected by Terraform via `MODULE_CONFIG` | Angular console Nginx image (`cuttlefish-console:1.0.4`). |
-| `config.containerImages.cuttlefishWorkflow` | Injected by Terraform via `MODULE_CONFIG` | Argo workflow runner image (`cuttlefish-workflow:1.0.4`). |
+| `config.containerImages.cuttlefishOrchestratorApi` | Injected by Terraform via `MODULE_CONFIG` | API server image (`cuttlefish-orchestrator-api:1.0.5`). |
+| `config.containerImages.cuttlefishConsole` | Injected by Terraform via `MODULE_CONFIG` | Angular console Nginx image (`cuttlefish-console:1.0.5`). |
+| `config.containerImages.cuttlefishWorkflow` | Injected by Terraform via `MODULE_CONFIG` | Argo workflow runner image (`cuttlefish-workflow:1.0.5`). |
 | `config.arm64.zone` / `config.arm64.subnetwork` | Injected by Terraform via `MODULE_CONFIG` | Optional ARM64 zone/subnetwork for `c4a-*` `cco-host-image-build` and `c4a` hosts. |
 | `api.hostImageProject` | `""` (falls back to `config.projectID`) | Project hosting `cco-host` / `cco-host-arm64` GCE image families. |
 | `spanner.processingUnits` | `100` | KCC `SpannerInstance` processing units (`100` for cost-efficient dev/regional deploy). |

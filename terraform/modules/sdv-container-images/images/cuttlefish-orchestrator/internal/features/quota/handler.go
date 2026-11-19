@@ -106,27 +106,37 @@ func (h *QuotaHandler) GetPlatformQuota(ctx context.Context, _ *GetPlatformQuota
 }
 
 // UpdatePlatformQuota updates the global quota limit.
+//
+// The response is built from the pre-update snapshot combined with the newly
+// persisted limit rather than issuing a post-write Get; otherwise a transient
+// read failure after SetLimit commits could fail the HTTP request and skip the
+// audit entry for an already-persisted limit change.
 func (h *QuotaHandler) UpdatePlatformQuota(ctx context.Context, input *UpdatePlatformQuotaInput) (*UpdatePlatformQuotaOutput, error) {
+	if input.Body.MaxHosts < 0 {
+		return nil, huma.Error400BadRequest("max_hosts must be non-negative")
+	}
+
 	previous, err := h.service.Get(ctx, quota.ScopePlatform, quota.GlobalScopeID)
 	if err != nil {
 		return nil, web.MapError(err)
 	}
+	if previous == nil {
+		return nil, web.MapError(&quota.NotFoundError{Scope: quota.ScopePlatform, ScopeID: quota.GlobalScopeID})
+	}
 
+	maxBefore := previous.MaxHosts
 	if err := h.service.SetLimit(ctx, quota.ScopePlatform, quota.GlobalScopeID, input.Body.MaxHosts); err != nil {
 		return nil, web.MapError(err)
 	}
 
-	q, err := h.service.Get(ctx, quota.ScopePlatform, quota.GlobalScopeID)
-	if err != nil {
-		return nil, web.MapError(err)
-	}
-
 	audit.LogChange(ctx, h.auditLogger, audit.ActionQuotaUpdate, audit.ResourceQuota, quota.GlobalScopeID, map[string]any{
-		"max_hosts_before": previous.MaxHosts,
+		"max_hosts_before": maxBefore,
 		"max_hosts_after":  input.Body.MaxHosts,
 	})
 
-	return &UpdatePlatformQuotaOutput{Body: toQuotaResponse(q)}, nil
+	updated := *previous
+	updated.MaxHosts = input.Body.MaxHosts
+	return &UpdatePlatformQuotaOutput{Body: toQuotaResponse(&updated)}, nil
 }
 
 // toQuotaResponse converts a domain Quota to a QuotaResponse.

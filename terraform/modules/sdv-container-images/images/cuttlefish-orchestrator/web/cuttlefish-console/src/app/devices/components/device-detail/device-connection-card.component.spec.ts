@@ -99,5 +99,10 @@ describe('DeviceConnectionCardComponent Host Orchestrator access', () => {
       expect(root.textContent).not.toContain('start-iap-tunnel');
       expect(root.innerHTML).toContain(pubIp);
     }
+
+    for (const malformed of ['10.999.0.1', '192.168.1', '172.16.300.1']) {
+      const root = render(makeDevice({hostIp: malformed, hostExternalIp: ''}));
+      expect(root.textContent).not.toContain('This device is on a private network');
+    }
   });
 });

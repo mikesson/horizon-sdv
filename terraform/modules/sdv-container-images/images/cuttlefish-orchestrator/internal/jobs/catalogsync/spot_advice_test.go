@@ -110,3 +110,152 @@ func TestNewRefusesWithoutEveryDep(t *testing.T) {
 	require.ErrorAs(t, err, &cfgErr)
 	assert.Equal(t, "SpotAdvice", cfgErr.Field, "the prober alone must not enable the loop")
 }
+
+type recordingAdviceStore struct {
+	upserted []*gcecatalog.SpotAdvice
+	err      error
+}
+
+func (s *recordingAdviceStore) UpsertCells(_ context.Context, cells []*gcecatalog.SpotAdvice) error {
+	if s.err != nil {
+		return s.err
+	}
+	s.upserted = append(s.upserted, cells...)
+	return nil
+}
+
+func (s *recordingAdviceStore) ListCells(context.Context) ([]*gcecatalog.SpotAdvice, error) {
+	return s.upserted, nil
+}
+
+type stubMachineTypes struct {
+	types      []*machinetype.MachineType
+	err        error
+	lastFilter machinetype.ListFilter
+}
+
+func (s *stubMachineTypes) List(_ context.Context, filter machinetype.ListFilter) ([]*machinetype.MachineType, error) {
+	s.lastFilter = filter
+	if s.err != nil {
+		return nil, s.err
+	}
+	return s.types, nil
+}
+
+type stubEnabledZones struct {
+	zones []string
+	err   error
+}
+
+func (s *stubEnabledZones) ListEnabledZones(context.Context) ([]string, error) {
+	if s.err != nil {
+		return nil, s.err
+	}
+	return s.zones, nil
+}
+
+func TestSyncSpotAdvice(t *testing.T) {
+	t.Parallel()
+
+	t.Run("happy path probes enabled cells and upserts to store", func(t *testing.T) {
+		prober := &fakeProber{
+			cells: map[string]*gcecatalog.SpotAdvice{
+				"europe-west4-a/n1-standard-8": {
+					Zone:              "europe-west4-a",
+					MachineType:       "n1-standard-8",
+					Obtainability:     0.85,
+					UptimeTierSeconds: 7200,
+				},
+			},
+		}
+		store := &recordingAdviceStore{}
+		mt := &stubMachineTypes{
+			types: []*machinetype.MachineType{
+				{ID: "n1-standard-8"},
+				{ID: "c4a-highmem-96-metal"},
+			},
+		}
+		zones := &stubEnabledZones{zones: []string{"europe-west4-a"}}
+
+		s, err := New(Config{
+			ProjectID:              "test-project",
+			SpotAdviceSyncInterval: time.Minute,
+		}, slog.Default(), WithSpotAdvice(prober, store, mt, zones))
+		require.NoError(t, err)
+		assert.True(t, s.spotAdviceConfigured())
+
+		require.NoError(t, s.syncSpotAdvice(t.Context()))
+		require.NotNil(t, mt.lastFilter.IsEnabled)
+		assert.True(t, *mt.lastFilter.IsEnabled)
+		assert.Equal(t, MaxProbedShapes, mt.lastFilter.Limit)
+		require.Len(t, store.upserted, 1)
+		assert.Equal(t, "europe-west4-a", store.upserted[0].Zone)
+		assert.Equal(t, "n1-standard-8", store.upserted[0].MachineType)
+		assert.InDelta(t, 0.85, store.upserted[0].Obtainability, 1e-9)
+	})
+
+	t.Run("zones error aborts before listing machine types or storing", func(t *testing.T) {
+		store := &recordingAdviceStore{}
+		mt := &stubMachineTypes{types: []*machinetype.MachineType{{ID: "n1-standard-8"}}}
+		zones := &stubEnabledZones{err: errors.New("zones query failed")}
+
+		s, err := New(Config{
+			ProjectID:              "test-project",
+			SpotAdviceSyncInterval: time.Minute,
+		}, slog.Default(), WithSpotAdvice(&fakeProber{}, store, mt, zones))
+		require.NoError(t, err)
+
+		err = s.syncSpotAdvice(t.Context())
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "listing enabled zones")
+		assert.Empty(t, store.upserted)
+		assert.Zero(t, mt.lastFilter.Limit)
+	})
+
+	t.Run("machineTypes error aborts before storing", func(t *testing.T) {
+		store := &recordingAdviceStore{}
+		mt := &stubMachineTypes{err: errors.New("catalog unavailable")}
+		zones := &stubEnabledZones{zones: []string{"europe-west4-a"}}
+
+		s, err := New(Config{
+			ProjectID:              "test-project",
+			SpotAdviceSyncInterval: time.Minute,
+		}, slog.Default(), WithSpotAdvice(&fakeProber{}, store, mt, zones))
+		require.NoError(t, err)
+
+		err = s.syncSpotAdvice(t.Context())
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "listing machine types")
+		assert.Empty(t, store.upserted)
+	})
+
+	t.Run("store error returns contextual error", func(t *testing.T) {
+		prober := &fakeProber{
+			cells: map[string]*gcecatalog.SpotAdvice{
+				"europe-west4-a/n1-standard-8": {Zone: "europe-west4-a", MachineType: "n1-standard-8", Obtainability: 0.7},
+			},
+		}
+		store := &recordingAdviceStore{err: errors.New("spanner write aborted")}
+		mt := &stubMachineTypes{types: []*machinetype.MachineType{{ID: "n1-standard-8"}}}
+		zones := &stubEnabledZones{zones: []string{"europe-west4-a"}}
+
+		s, err := New(Config{
+			ProjectID:              "test-project",
+			SpotAdviceSyncInterval: time.Minute,
+		}, slog.Default(), WithSpotAdvice(prober, store, mt, zones))
+		require.NoError(t, err)
+
+		err = s.syncSpotAdvice(t.Context())
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "storing spot advice")
+	})
+
+	t.Run("spotAdviceConfigured is false when unwired and New rejects unwired dependencies", func(t *testing.T) {
+		assert.False(t, (&Service{}).spotAdviceConfigured())
+
+		_, err := New(Config{ProjectID: "test-project", SpotAdviceSyncInterval: time.Minute}, slog.Default())
+		var cfgErr *ConfigError
+		require.ErrorAs(t, err, &cfgErr)
+		assert.Equal(t, "SpotAdvice", cfgErr.Field)
+	})
+}

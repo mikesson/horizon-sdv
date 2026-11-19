@@ -246,3 +246,135 @@ func TestWaitHost_ContextCancelInterrupts(t *testing.T) {
 		t.Error("cancellation must interrupt the poll wait")
 	}
 }
+
+func TestWaitBatch_TransitionsFromProvisioning(t *testing.T) {
+	t.Parallel()
+	var polls atomic.Int64
+	c := waitTestClient(t, "/v2/batches/b-1", func(w http.ResponseWriter, poll int) {
+		polls.Store(int64(poll))
+		if poll < 3 {
+			fmt.Fprint(w, `{"batch_id":"b-1","status":"provisioning","total":2,"running":1}`)
+			return
+		}
+		fmt.Fprint(w, `{"batch_id":"b-1","status":"ready","total":2,"running":2,"ready":2}`)
+	})
+
+	got, err := c.WaitBatch(t.Context(), "b-1")
+	if err != nil {
+		t.Fatalf("WaitBatch: %v", err)
+	}
+	if got.Status != BatchStatusReady || got.Running != 2 || polls.Load() != 3 {
+		t.Errorf("got status=%q running=%d polls=%d, want ready/2/3", got.Status, got.Running, polls.Load())
+	}
+}
+
+func TestWaitBatch_ReturnsFailedWithoutWaitingFurther(t *testing.T) {
+	t.Parallel()
+	var polls atomic.Int64
+	c := waitTestClient(t, "/v2/batches/b-fail", func(w http.ResponseWriter, poll int) {
+		polls.Store(int64(poll))
+		fmt.Fprint(w, `{"batch_id":"b-fail","status":"failed","failure_reason":"atomic timeout","total":2,"failed":2}`)
+	})
+
+	got, err := c.WaitBatch(t.Context(), "b-fail")
+	if err != nil {
+		t.Fatalf("WaitBatch: %v", err)
+	}
+	if got.Status != BatchStatusFailed || got.FailureReason != "atomic timeout" || polls.Load() != 1 {
+		t.Errorf("got=%+v polls=%d", got, polls.Load())
+	}
+}
+
+func TestWaitBatch_Client4xxFailsFast(t *testing.T) {
+	t.Parallel()
+	var polls atomic.Int64
+	c := waitTestClient(t, "/v2/batches/missing", func(w http.ResponseWriter, poll int) {
+		polls.Store(int64(poll))
+		w.WriteHeader(http.StatusNotFound)
+		fmt.Fprint(w, `{"title":"Not Found","status":404}`)
+	})
+
+	_, err := c.WaitBatch(t.Context(), "missing")
+	if err == nil {
+		t.Fatal("expected 404 error")
+	}
+	if polls.Load() != 1 {
+		t.Errorf("polls = %d, want 1", polls.Load())
+	}
+}
+
+func TestWaitBatch_ContextCancelInterrupts(t *testing.T) {
+	t.Parallel()
+	c := waitTestClient(t, "/v2/batches/b-slow", func(w http.ResponseWriter, _ int) {
+		fmt.Fprint(w, `{"batch_id":"b-slow","status":"provisioning","total":2}`)
+	})
+	c.pollInterval = time.Hour
+
+	ctx, cancel := context.WithCancel(t.Context())
+	go func() {
+		time.Sleep(10 * time.Millisecond)
+		cancel()
+	}()
+
+	_, err := c.WaitBatch(ctx, "b-slow")
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("err = %v, want context.Canceled", err)
+	}
+}
+
+func TestWaitBatchDeleted_WaitsUntilNotFound(t *testing.T) {
+	t.Parallel()
+	var polls atomic.Int64
+	c := waitTestClient(t, "/v2/batches/b-del", func(w http.ResponseWriter, poll int) {
+		polls.Store(int64(poll))
+		if poll < 3 {
+			fmt.Fprint(w, `{"batch_id":"b-del","status":"deleting"}`)
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+		fmt.Fprint(w, `{"title":"Not Found","status":404}`)
+	})
+
+	if err := c.WaitBatchDeleted(t.Context(), "b-del"); err != nil {
+		t.Fatalf("WaitBatchDeleted: %v", err)
+	}
+	if polls.Load() != 3 {
+		t.Errorf("polls = %d, want 3", polls.Load())
+	}
+}
+
+func TestWaitBatchDeleted_Client4xxFailsFast(t *testing.T) {
+	t.Parallel()
+	var polls atomic.Int64
+	c := waitTestClient(t, "/v2/batches/b-forbid", func(w http.ResponseWriter, poll int) {
+		polls.Store(int64(poll))
+		w.WriteHeader(http.StatusForbidden)
+		fmt.Fprint(w, `{"title":"Forbidden","status":403}`)
+	})
+
+	if err := c.WaitBatchDeleted(t.Context(), "b-forbid"); err == nil {
+		t.Fatal("expected 403 error")
+	}
+	if polls.Load() != 1 {
+		t.Errorf("polls = %d, want 1", polls.Load())
+	}
+}
+
+func TestWaitBatchDeleted_ContextCancelInterrupts(t *testing.T) {
+	t.Parallel()
+	c := waitTestClient(t, "/v2/batches/b-del-slow", func(w http.ResponseWriter, _ int) {
+		fmt.Fprint(w, `{"batch_id":"b-del-slow","status":"deleting"}`)
+	})
+	c.pollInterval = time.Hour
+
+	ctx, cancel := context.WithCancel(t.Context())
+	go func() {
+		time.Sleep(10 * time.Millisecond)
+		cancel()
+	}()
+
+	err := c.WaitBatchDeleted(ctx, "b-del-slow")
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("err = %v, want context.Canceled", err)
+	}
+}
